@@ -5,11 +5,10 @@ EXPORTS
    UnityPluginUnload
    SetTimeFromUnity
    GetRenderEventFunc
-   PushAlphaTexture
+   StoreAlphaTexture
    Release
    LaunchModules
    ParseMedia
-   ;InfoResolution
-   InfoPlayParamsVideo
+   LoadParamsVideo
    ExtractFrame
    IsDrainedVideo

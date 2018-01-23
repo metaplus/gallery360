@@ -9,6 +9,8 @@
 #define _SCL_SECURE_NO_WARNINGS
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS //tbb usage
 
+#include <limits>
+#include <numeric>
 #include <type_traits>
 #include <cstdint>
 #include <iostream>
@@ -20,7 +22,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <type_traits>
-#include <numeric>
 #include <mutex>
 #include <thread>
 #include <atomic>
@@ -42,7 +43,19 @@
 //#include <boost/convert/stream.hpp>
 //#include <boost/convert/lexical_cast.hpp>
 //#include <boost/convert/strtol.hpp>
-#include <boost/lexical_cast.hpp>
+#include <boost/lexical_cast.hpp>       //prefer from_chars/to_chars
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/serialization/version.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/array.hpp>
+#include <boost/serialization/base_object.hpp>
+#include <boost/serialization/binary_object.hpp>    //make_binary_object
+#include <boost/serialization/utility.hpp>
+#include <boost/serialization/assume_abstract.hpp>
 //#include <boost/asio.hpp>
 //#include <boost/asio/buffer.hpp>
 //#include <boost/asio/yield.hpp>

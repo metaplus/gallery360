@@ -152,6 +152,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="interface.h" />
+    <ClInclude Include="interprocess.h" />
     <ClInclude Include="render.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
@@ -163,6 +164,7 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="Gallery.cpp" />
     <ClCompile Include="directx11.cpp" />
+    <ClCompile Include="interprocess.cpp" />
     <ClCompile Include="media.cpp" />
     <ClCompile Include="render.cpp" />
     <ClCompile Include="stdafx.cpp">

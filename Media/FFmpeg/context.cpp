@@ -15,12 +15,10 @@ format_context::format_context(std::variant<source, sink> io)
             pointer ptr=nullptr;
             core::verify(avformat_open_input(&ptr,arg.url.c_str(),nullptr,nullptr));
             handle_.reset(ptr,[](pointer p){ avformat_close_input(&p); });
-            init_=std::async(std::launch::async,[this,ptr]{
-                core::verify(avformat_find_stream_info(ptr,nullptr));   //60ms+
+            core::verify(avformat_find_stream_info(ptr,nullptr));   //60ms+
 #ifndef NDEBUG
-                av_dump_format(ptr,0,ptr->filename,0);
+            av_dump_format(ptr,0,ptr->filename,0);
 #endif
-            });
         }else
         {
             // TODO: SINK BRANCH
@@ -31,11 +29,6 @@ format_context::format_context(std::variant<source, sink> io)
 format_context::pointer format_context::operator->() const
 {
     return handle_.get();
-}
-void format_context::prepare() const
-{
-    //if(init_.valid()) init_.get();
-    init_.wait();
 }
 
 codec_context::codec_context(codec cdc,stream srm,int threads)

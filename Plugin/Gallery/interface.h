@@ -1,4 +1,7 @@
 #pragma once
+#if defined UNITYAPI || defined EXTERN
+#error naming collide
+#endif
 #ifdef GALLERY_EXPORTS
 #define UNITYAPI  __declspec(dllexport) __stdcall
 #else
@@ -14,9 +17,8 @@
  */
 EXTERN BOOL UNITYAPI LaunchModules();
 EXTERN BOOL UNITYAPI ParseMedia(LPCSTR url);
-EXTERN void UNITYAPI PushAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV);
-//EXTERN void UNITYAPI InfoResolution(INT& width,INT& height);
-EXTERN void UNITYAPI InfoPlayParamsVideo(INT& width,INT& height);
+EXTERN void UNITYAPI StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV);
+EXTERN void UNITYAPI LoadParamsVideo(INT& width,INT& height);
 EXTERN BOOL UNITYAPI IsDrainedVideo();
 EXTERN void UNITYAPI Release();
 //EXTERN INT UNITYAPI CreateTextures(HANDLE& y,HANDLE& u,HANDLE& v);
@@ -25,9 +27,7 @@ EXTERN void UNITYAPI Release();
 //EXTERN void OnRenderEvent(int eventID);
 //EXTERN void OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType);
 //EXTERN UnityRenderingEvent UNITYAPI GetRenderEventFunc();
-/**
- * @note Cross tanslation unit functions. No exposed shared variable.
- */
+
 namespace dll
 {
     av::frame ExtractFrame();

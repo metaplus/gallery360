@@ -31,7 +31,6 @@ namespace core
         protected:
             pointer_type ptr_;
         };
-
         template <typename T>
         bool basic_ptr<T>::reset(const_pointer_type other)
         {
