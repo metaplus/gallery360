@@ -9,7 +9,8 @@ public:
     struct deleter
     {
         template<typename T>
-        std::enable_if_t<std::is_base_of_v<IUnknown, T>> operator()(T* p) { if (p) p->Release(); }
+        std::enable_if_t<std::is_base_of_v<IUnknown, T>> 
+            operator()(T* p) { if (p != nullptr) p->Release(); }
     };
     render() = default;
     void process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);

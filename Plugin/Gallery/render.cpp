@@ -1,13 +1,5 @@
 #include "stdafx.h"
 #include "render.h"
-/*
-render::render()
-    :device_(nullptr)
-    ,alphas_()//,alphas_(3)
-{
-}
-*/
-
 void render::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces)
 {
     switch (type)
@@ -18,11 +10,11 @@ void render::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* inter
             //device_.reset(d3d->GetDevice(),deleter{});
             clear();
             device_ = d3d->GetDevice();
-            //std::fill_n(alphas_.begin(), alphas_.size(), nullptr);
             break;
         }
         case kUnityGfxDeviceEventShutdown:
         {
+            deleter{}(device_);
             clear();
             break;
         }

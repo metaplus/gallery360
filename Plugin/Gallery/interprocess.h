@@ -1,5 +1,4 @@
 #pragma once
-#include <boost/interprocess/sync/interprocess_condition.hpp>
 
 namespace ipc
 {
