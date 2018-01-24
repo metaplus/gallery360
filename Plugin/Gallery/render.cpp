@@ -7,30 +7,27 @@ render::render()
 {
 }
 */
-render::~render()
-{
-    clear();
-}
 
 void render::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces)
 {
     switch (type)
     {
-    case kUnityGfxDeviceEventInitialize:
-    {
-        IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
-        //device_.reset(d3d->GetDevice(),deleter{});
-        device_ = d3d->GetDevice();
-        break;
-    }
-    case kUnityGfxDeviceEventShutdown:
-    {
-        clear();
-        break;
-    }
+        case kUnityGfxDeviceEventInitialize:
+        {
+            IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
+            //device_.reset(d3d->GetDevice(),deleter{});
+            clear();
+            device_ = d3d->GetDevice();
+            //std::fill_n(alphas_.begin(), alphas_.size(), nullptr);
+            break;
+        }
+        case kUnityGfxDeviceEventShutdown:
+        {
+            clear();
+            break;
+        }
     }
 }
-
 void render::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
 {
     core::verify(alphas_.size() == 3);
@@ -40,7 +37,6 @@ void render::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
     alphas_[0] = static_cast<ID3D11Texture2D*>(texY);
     alphas_[1] = static_cast<ID3D11Texture2D*>(texU);
     alphas_[2] = static_cast<ID3D11Texture2D*>(texV);
-
 }
 
 void render::update_textures(av::frame& frame)
@@ -70,7 +66,7 @@ void render::clear()
 {
     //device_.reset();
     //if (!alphas_.empty()) { alphas_.clear(); }
-    //device_=nullptr;
     std::fill_n(alphas_.begin(), alphas_.size(), nullptr);
-    deleter{}(device_);
+    device_ = nullptr;
+    //deleter{}(device_);
 }

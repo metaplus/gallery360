@@ -1,9 +1,4 @@
 #pragma once
-/**
- * @note Release from burden of graphics resource management, otherwise ambiguous
- * crash would happen in Unity*.dll. The only valid cleanup in destructor is resetting
- * raw pointers to zero.
- */
 class render
 {
     //std::shared_ptr<ID3D11Device> device_;
@@ -17,7 +12,6 @@ public:
         std::enable_if_t<std::is_base_of_v<IUnknown, T>> operator()(T* p) { if (p) p->Release(); }
     };
     render() = default;
-    ~render();
     void process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
     void store_textures(HANDLE texY, HANDLE texU, HANDLE texV);
     void update_textures(av::frame& frame);

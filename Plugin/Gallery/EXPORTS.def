@@ -3,12 +3,11 @@ LIBRARY
 EXPORTS
    UnityPluginLoad
    UnityPluginUnload
-   SetTimeFromUnity
    GetRenderEventFunc
+   StoreTime
    StoreAlphaTexture
-   Release
-   LaunchModules
+   GlobalCreate
+   GlobalRelease
    ParseMedia
    LoadParamsVideo
-   ExtractFrame
    IsDrainedVideo

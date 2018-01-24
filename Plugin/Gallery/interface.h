@@ -13,14 +13,15 @@
 #define EXTERN extern 
 #endif
 /**
- * @note Exported functions called by Unity engine. C# naming style.
+ * @note Exported functions called by Unity engine. C# CamelCase naming style.
  */
-EXTERN BOOL UNITYAPI LaunchModules();
+EXTERN BOOL UNITYAPI GlobalCreate();
+EXTERN void UNITYAPI GlobalRelease();
 EXTERN BOOL UNITYAPI ParseMedia(LPCSTR url);
+EXTERN void UNITYAPI StoreTime(FLOAT t);
 EXTERN void UNITYAPI StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV);
 EXTERN void UNITYAPI LoadParamsVideo(INT& width,INT& height);
 EXTERN BOOL UNITYAPI IsDrainedVideo();
-EXTERN void UNITYAPI Release();
 //EXTERN INT UNITYAPI CreateTextures(HANDLE& y,HANDLE& u,HANDLE& v);
 //EXTERN void UNITYAPI UnityPluginLoad(IUnityInterfaces* unityInterfaces);
 //EXTERN void UNITYAPI UnityPluginUnload();
@@ -30,7 +31,8 @@ EXTERN void UNITYAPI Release();
 
 namespace dll
 {
-    av::frame ExtractFrame();
-    void MediaClear();
-    void MediaRelease();
+    av::frame extract_frame();
+    void media_create();
+    void media_clear();
+    void media_release();
 }
