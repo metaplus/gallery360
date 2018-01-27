@@ -82,7 +82,6 @@ namespace core
             ptr_.reset(other,del);
         }
     }
-
 }
 
 

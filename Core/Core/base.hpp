@@ -1,59 +1,61 @@
 #pragma once
-#undef min	//abolish harmful c-style macro from <windows.h>
-#undef max
-
+#undef min	//abolish vicious macros from <windows.h>, otherwise causing naming collision against STL
+#undef max  //another tolerable solution appears like #define max_RESUME max #undef max ... #define max max_RESUME
 namespace core
 {
-    template<typename T, typename U>
-    struct bool_and;
-    template<bool T, bool U>
-    struct bool_and<std::bool_constant<T>, std::bool_constant<U>> : std::bool_constant<T&&U> {};
-    template<typename T, typename U>
-    struct bool_or;
-    template<bool T, bool U>
-    struct bool_or<std::bool_constant<T>, std::bool_constant<U>> : std::bool_constant<T || U> {};
     namespace impl
     {
-        //TODO test & refine
-        template<typename Func, typename T, typename ...Types >
-        std::invoke_result_t<Func(T, T)>
-            binary_recursion(T&& first, T&& second, Types&& ...tails)
-        {   //require tests
-            return sizeof...(tails) > 0 ?
-                binary_recursion<Func, T>(                         //std::forward<Types>(tails)...
-                    Func(std::forward(first), std::forward(second)), std::forward(tails)...) :
-                Func(first, second);
-        }
-        /*template<typename T,typename U,typename... Types>
-        struct within {
-            constexpr static bool value = std::is_same_v<T, U> || within<T, Types...>::y;
+        template<typename Operation>
+        struct static_invoke
+        {
+            template<typename ...Types>
+            constexpr static auto by(Types ...args) -> std::decay_t<std::invoke_result_t<Operation,Types...>>
+            {
+                static_assert((... && std::is_standard_layout_v<Types>));
+                //static_assert(std::is_standard_layout_v<std::common_type_t<Types...>>);
+                return Operation{}(args...);
+            }
         };
-        template<typename T,typename U>
-        struct within<T, U> {
-            constexpr static bool value = std::is_same_v<T, U>;
-        };*/
+        template<typename BinaryOperation, typename, typename >
+        struct bool_arithmetic;
+        template<typename BinaryOperation, bool Left, bool Right>
+        struct bool_arithmetic<BinaryOperation, std::bool_constant<Left>, std::bool_constant<Right>>
+            :std::bool_constant<static_invoke<BinaryOperation>::by(Left, Right)> {};
+        template<typename BinaryOperation, std::intmax_t RightFactor, typename T, T ...Vals>
+        constexpr auto sequence_arithmetic(std::integer_sequence<T, Vals...> = {})
+        {
+            static_assert(std::is_invocable_r_v<T, BinaryOperation, const T&, const T&>);
+            static_assert(std::is_convertible_v<decltype(RightFactor), T>);
+            return std::integer_sequence < T, BinaryOperation{}(Vals, RightFactor)... > {};
+        }
+    }
+    template<typename LeftBoolConstant, typename RightBoolConstant>
+    struct bool_and :impl::bool_arithmetic<std::bit_and<bool>, LeftBoolConstant, RightBoolConstant> {};
+    template<typename LeftBoolConstant, typename RightBoolConstant>
+    struct bool_or :impl::bool_arithmetic<std::bit_or<bool>, LeftBoolConstant, RightBoolConstant> {};    
+    template<typename LeftBoolConstant, typename RightBoolConstant>
+    struct bool_xor :impl::bool_arithmetic<std::bit_xor<bool>, LeftBoolConstant, RightBoolConstant> {};
+    namespace impl
+    {
         template<typename T, typename U, typename... Types>
-        struct within :
-            bool_or<
-            typename std::is_same<T, U>::type,
-            typename within<T, Types...>::type> {};
+        struct within :bool_or<typename std::is_same<T, U>::type, typename within<T, Types...>::type> {};
         template<typename T, typename U>
-        struct within<T, U> :
-            std::is_same<T, U>::type {};
+        struct within<T, U> :std::is_same<T, U>::type {};
         template<typename T, T ...Vals>
-        auto make_array(std::integer_sequence<T, Vals...> = {})
+        constexpr auto make_array(std::integer_sequence<T, Vals...> = {})
         {
             return std::array<T, sizeof...(Vals)>{ Vals... };
         }
-        template<typename T, T Base, T ...Vals>
-        auto offset(std::integer_sequence<T, Vals...> = {})
+        template<typename ...Types>
+        constexpr auto make_array_any(Types... args)
         {
-            return std::integer_sequence<T, (Base + Vals)...>{};
+            return std::array<std::common_type_t<Types...>, sizeof...(args)>{
+                static_cast<std::common_type_t<Types...>>(args)... };
         }
     }
-    //TypeTrait: is_within
     template<typename T, typename... Types>
-    struct is_within :impl::within<T, Types...> {
+    struct is_within :impl::within<T, Types...> 
+    {
         static_assert(sizeof...(Types) > 1, "...Types has at least 2 elements");
     };
     template<typename T, typename... Types>
@@ -64,21 +66,32 @@ namespace core
     struct is_future<std::future<T>> :std::true_type {};
     template<typename T>
     struct is_future<std::shared_future<T>> :std::true_type {};
+    template<typename T>
+    struct is_atomic :std::false_type{};
+    template<typename T>
+    struct is_atomic<std::atomic<T>> :std::true_type {};
     using relative = std::int64_t;
     using absolute = std::uint64_t;
     using rel = relative;
     using abs = absolute;
+    template<typename T>    //reference operation precede
+    struct remove_cv_ref :std::remove_cv<std::remove_reference_t<T>> {};
+    template<typename T>
+    using remove_cv_ref_t = typename remove_cv_ref<T>::type;
     /**
-    *  @return compile-time generated [Left,Right] array.
-    *  @note will be refactored after template<auto> supported.
+    *  @return compile-time generated [Left,Right] array, divided by Interval
+    *  @note will be refactored to generic after template<auto> supported.
     */
-    template<int Left, int Right>
-    auto range()
+    template<int Left, int Right, int Interval = 1>
+    constexpr auto range()
     {
-        static_assert(std::numeric_limits<int>::min() <= Left);
-        static_assert(std::numeric_limits<int>::max() >= Right);
-        return impl::make_array(impl::offset<int, Left>(
-            std::make_integer_sequence<int, Right - Left + 1>{}));
+        static_assert(std::numeric_limits<int>::min() <= std::min<int>(Left, Right));
+        static_assert(std::numeric_limits<int>::max() >= std::max<int>(Left, Right));
+        static_assert(Left != Right && Interval != 0 && ((Left < Right) ^ (Interval < 0)));
+        constexpr auto element_count = std::divides<int>{}(Right - Left + Interval, Interval);
+        return impl::make_array(core::impl::sequence_arithmetic<std::plus<int>, Left>(
+            impl::sequence_arithmetic<std::multiplies<int>, Interval>(
+                std::make_integer_sequence<int, element_count>{})));
     }
     namespace literals
     {
@@ -86,8 +99,8 @@ namespace core
         constexpr size_t operator""_mega(const size_t n) { return n * 1024 * 1024; }
         constexpr size_t operator""_giga(const size_t n) { return n * 1024 * 1024 * 1024; }
     }
-    inline auto count_entry(const std::experimental::filesystem::path& directory)
-    {
+    inline auto directory_entry_count(const std::experimental::filesystem::path& directory)
+    {   //non-recursive version
         const std::experimental::filesystem::directory_iterator iterator{ directory };
         return std::distance(begin(iterator), end(iterator));
     }
@@ -99,15 +112,39 @@ namespace core
     inline decltype(auto) repeat = [](auto count, auto&& callable, auto&& ...args)
     {
         static_assert(std::is_integral_v<decltype(count)>);
-        if (callable(std::forward<decltype(args)>(args)...); --count > 0)
-            return repeat(count, std::forward(callable), std::forward<decltype(args)>(args)...);
+        if (std::invoke(callable, args...); --count > 0)
+            return repeat(count, std::forward<decltype(callable)>(callable), std::forward<decltype(args)>(args)...);
         else
-            return std::forward(callable);
+            return std::forward<decltype(callable)>(callable);
     };
     inline decltype(auto) repeat_each = [](auto&& callable, auto&& ...args)
     {
-        return std::forward(callable(std::forward(args))...);
+        std::invoke(callable, std::forward<decltype(args)>(args)...);
+        return std::forward<decltype(callable)>(callable);
+    };
+    inline auto predicate = [](auto&& pred) constexpr ->bool
+    {
+        using pred_type = core::remove_cv_ref_t<decltype(pred)>;
+        if constexpr(std::is_same_v<pred_type, bool>)
+            return pred;
+        else if constexpr(std::is_null_pointer_v<pred_type>)
+            return false;
+        else if constexpr(std::is_pointer_v<pred_type> && !std::is_member_pointer_v<pred_type>)
+            return pred != nullptr;
+        else if constexpr(core::is_atomic<pred_type>::value && std::is_lvalue_reference_v<decltype(pred)>)
+            return pred.load(std::memory_order_acquire);
+        else if constexpr(std::is_invocable_r_v<bool, pred_type>)
+            return std::invoke(pred);
+        else
+            static_assert(false, "taste undesirable type");
+    };
+    inline decltype(auto) condition_loop=[](auto&& pred,auto&& callable)
+    {
+        static_assert(std::is_invocable_v<decltype(callable)>);
+        //while (core::predicate(std::forward(pred)))
+        while (core::predicate(pred))
+            std::invoke(callable);
+        return std::forward<decltype(callable)>(callable);
     };
 }
 
-//static_assert(std::is_same_v<byte, uint8_t>);   //not std::byte

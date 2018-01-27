@@ -2,7 +2,6 @@
 
 namespace ipc
 {
-    //TODO: UNFULFILLED
     namespace config
     {
         constexpr auto identity_servant = "___MessageQueue$Servant_"sv;
@@ -22,6 +21,7 @@ namespace ipc
         explicit channel(role r = role::servant);
         void clear();
         ~channel();
+    private:
     };
     using role = channel::role;
 }

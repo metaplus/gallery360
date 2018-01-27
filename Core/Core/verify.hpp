@@ -4,9 +4,7 @@ namespace core
     inline auto verify_one=[](auto pred) 
     {   
         using type=decltype(pred);
-        //using type = std::decay_t<decltype(pred)>;
-        //std::cout << std::type_index(typeid(result)).name() << std::endl;
-        static_assert(std::is_scalar_v<type>, "claim scalar test sample");
+        static_assert(std::is_scalar_v<type>, "claim predicate confoming to scalar");
         if (std::is_same_v<type, bool> && !pred) { throw std::runtime_error{ "error@condition false" }; }
         if (std::is_arithmetic_v<type> && pred < 0) { throw std::runtime_error{ "error@negative value" }; }
         if (std::is_null_pointer_v<type>) { throw std::runtime_error{ "error@null pointer" }; }

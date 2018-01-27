@@ -32,6 +32,7 @@
 #include <optional>
 #include <any>
 #include <filesystem>
+#include <exception>
 //#include <boost/thread.hpp>
 //#include <boost/thread/scoped_thread.hpp>
 //#include <boost/thread/future.hpp>
@@ -71,13 +72,14 @@
 #include <fmt/string.h>
 #include <spdlog/spdlog.h>
 //#include <spdlog/fmt/ostr.h>
-#include "Core/base.hpp"
-
-
-
 
 using namespace std::literals;
 using namespace fmt::literals;
+#include "Core/base.hpp"
+#include "Core/revokable.hpp"
+#include "Core/guard.h"
+
+
 
 #define STRING2(x) #x  
 #define STRING(x) STRING2(x)  
