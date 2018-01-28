@@ -39,10 +39,13 @@
     <ClInclude Include="interface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="render.h">
+    <ClInclude Include="interprocess.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="interprocess.h">
+    <ClInclude Include="graphic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="openvr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -62,10 +65,10 @@
     <ClCompile Include="media.cpp">
       <Filter>Source Files\Service</Filter>
     </ClCompile>
-    <ClCompile Include="render.cpp">
+    <ClCompile Include="interprocess.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="interprocess.cpp">
+    <ClCompile Include="graphic.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

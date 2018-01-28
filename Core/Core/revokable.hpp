@@ -15,7 +15,7 @@ namespace core
     namespace revokable
     {
         template<typename Future>
-        std::enable_if_t<core::is_future<std::decay_t<Future>>::value>
+        std::enable_if_t<core::is_future<core::remove_cv_ref_t<Future>>::value>
             wait(Future&& future,std::atomic<bool>& permit,std::chrono::microseconds interval)
         {
             if (auto test = future.wait_for(0ns); test == std::future_status::deferred)
@@ -30,7 +30,7 @@ namespace core
             }
         }
         template<typename Future>
-        std::enable_if_t<core::is_future<std::decay_t<Future>>::value>
+        std::enable_if_t<core::is_future<core::remove_cv_ref_t<Future>>::value>
             yield_wait(Future&& future, std::atomic<bool>& permit)
         {
             if (auto test = future.wait_for(0ns); test == std::future_status::deferred)

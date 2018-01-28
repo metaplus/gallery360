@@ -153,7 +153,8 @@
   <ItemGroup>
     <ClInclude Include="interface.h" />
     <ClInclude Include="interprocess.h" />
-    <ClInclude Include="render.h" />
+    <ClInclude Include="graphic.h" />
+    <ClInclude Include="openvr.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Unity\IUnityGraphics.h" />
@@ -166,7 +167,7 @@
     <ClCompile Include="directx11.cpp" />
     <ClCompile Include="interprocess.cpp" />
     <ClCompile Include="media.cpp" />
-    <ClCompile Include="render.cpp" />
+    <ClCompile Include="graphic.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

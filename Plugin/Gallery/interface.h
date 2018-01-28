@@ -31,7 +31,7 @@ EXTERN BOOL UNITYAPI IsDrainedVideo();
 
 namespace dll
 {
-    av::frame extract_frame();
+    std::optional<av::frame> extract_frame();
     void media_create();
     void media_clear();
     void media_release();

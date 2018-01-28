@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "render.h"
-void render::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces)
+#include "graphic.h"
+void graphic::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces)
 {
     switch (type)
     {
@@ -14,13 +14,13 @@ void render::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* inter
         }
         case kUnityGfxDeviceEventShutdown:
         {
-            deleter{}(device_);
+            deleter{}(device_);   //!
             clear();
             break;
         }
     }
 }
-void render::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
+void graphic::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
 {
     core::verify(alphas_.size() == 3);
     //alphas_[0].reset(static_cast<ID3D11Texture2D*>(texY),deleter{});
@@ -31,11 +31,11 @@ void render::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
     alphas_[2] = static_cast<ID3D11Texture2D*>(texV);
 }
 
-void render::update_textures(av::frame& frame)
+void graphic::update_textures(av::frame& frame)
 {
     auto context = this->context();
     core::verify(context != nullptr);
-    for (auto index : { 0,1,2 })
+    for (auto index : core::range<0,2>())    //!
     {
         D3D11_TEXTURE2D_DESC desc;
         //auto tex=alphas_[index].get();
@@ -46,7 +46,7 @@ void render::update_textures(av::frame& frame)
     }
 }
 
-std::unique_ptr<ID3D11DeviceContext, render::deleter> render::context() const
+std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
 {
     ID3D11DeviceContext* ctx = nullptr;
     device_->GetImmediateContext(&ctx);
@@ -54,11 +54,9 @@ std::unique_ptr<ID3D11DeviceContext, render::deleter> render::context() const
     return std::unique_ptr<ID3D11DeviceContext, deleter>{ctx, deleter{}};
 }
 
-void render::clear()
+void graphic::clear()
 {
-    //device_.reset();
-    //if (!alphas_.empty()) { alphas_.clear(); }
-    std::fill_n(alphas_.begin(), alphas_.size(), nullptr);
+    alphas_.fill(nullptr);
     device_ = nullptr;
     //deleter{}(device_);
 }
