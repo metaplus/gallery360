@@ -16,7 +16,7 @@
     <Filter Include="Header Files\Unity">
       <UniqueIdentifier>{bff36d1e-4c20-4f3d-b4f9-a14d31fdbcaf}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Service">
+    <Filter Include="Source Files\Routine">
       <UniqueIdentifier>{509a568e-f19b-4faa-8bdd-d16b34383ebf}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -60,10 +60,10 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="directx11.cpp">
-      <Filter>Source Files\Service</Filter>
+      <Filter>Source Files\Routine</Filter>
     </ClCompile>
     <ClCompile Include="media.cpp">
-      <Filter>Source Files\Service</Filter>
+      <Filter>Source Files\Routine</Filter>
     </ClCompile>
     <ClCompile Include="interprocess.cpp">
       <Filter>Source Files</Filter>

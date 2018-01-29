@@ -7,14 +7,14 @@ void graphic::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* inte
         case kUnityGfxDeviceEventInitialize:
         {
             IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
-            //device_.reset(d3d->GetDevice(),deleter{});
             clear();
+            //device_.reset(d3d->GetDevice(),deleter{});
             device_ = d3d->GetDevice();
             break;
         }
         case kUnityGfxDeviceEventShutdown:
         {
-            deleter{}(device_);   //!
+            //deleter{}(device_);   //!
             clear();
             break;
         }
@@ -35,10 +35,9 @@ void graphic::update_textures(av::frame& frame)
 {
     auto context = this->context();
     core::verify(context != nullptr);
-    for (auto index : core::range<0,2>())    //!
+    for (auto index : core::range<0,2>())    
     {
         D3D11_TEXTURE2D_DESC desc;
-        //auto tex=alphas_[index].get();
         auto tex = alphas_[index];
         const auto data = frame->data[index];
         tex->GetDesc(&desc);
@@ -56,7 +55,7 @@ std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
 
 void graphic::clear()
 {
-    alphas_.fill(nullptr);
-    device_ = nullptr;
     //deleter{}(device_);
+    device_ = nullptr;
+    alphas_.fill(nullptr);
 }

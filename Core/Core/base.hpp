@@ -29,12 +29,12 @@ namespace core
             return std::integer_sequence < T, BinaryOperation{}(Vals, RightFactor)... > {};
         }
     }
-    template<typename LeftBoolConst, typename RightBoolConst>
-    struct bool_and :impl::bool_arithmetic<std::bit_and<bool>, LeftBoolConst, RightBoolConst> {};
-    template<typename LeftBoolConst, typename RightBoolConst>
-    struct bool_or :impl::bool_arithmetic<std::bit_or<bool>, LeftBoolConst, RightBoolConst> {};    
-    template<typename LeftBoolConst, typename RightBoolConst>
-    struct bool_xor :impl::bool_arithmetic<std::bit_xor<bool>, LeftBoolConst, RightBoolConst> {};
+    template<typename LeftConstant, typename RightConstant>
+    struct bool_and :impl::bool_arithmetic<std::bit_and<bool>, LeftConstant, RightConstant> {};
+    template<typename LeftConstant, typename RightConstant>
+    struct bool_or :impl::bool_arithmetic<std::bit_or<bool>, LeftConstant, RightConstant> {};    
+    template<typename LeftConstant, typename RightConstant>
+    struct bool_xor :impl::bool_arithmetic<std::bit_xor<bool>, LeftConstant, RightConstant> {};
     namespace impl
     {
         template<typename T, typename U, typename... Types>
@@ -42,16 +42,27 @@ namespace core
         template<typename T, typename U>
         struct within<T, U> :std::is_same<T, U>::type {};
         template<typename T, T ...Vals>
-        constexpr auto make_array(std::integer_sequence<T, Vals...> = {})
+        constexpr std::array<T, sizeof...(Vals)>
+            make_array(std::integer_sequence<T, Vals...> = {})
         {
-            return std::array<T, sizeof...(Vals)>{ Vals... };
+            return { Vals... };
         }
         template<typename ...Types>
-        constexpr auto make_array_any(Types... args)
+        constexpr std::array<std::common_type_t<Types...>, sizeof...(Types)>
+            make_array_any(Types... args)
         {
-            return std::array<std::common_type_t<Types...>, sizeof...(args)>{
-                static_cast<std::common_type_t<Types...>>(args)... };
+            using common = std::common_type_t<Types...>;
+            static_assert((... && std::is_convertible_v<Types, common>));
+            return { static_cast<common>(args)... };
         }
+        template<typename T>
+        struct value_trait;
+        template<typename T>
+        struct value_trait<std::atomic<T>> { using type = T; };
+        template<typename T>
+        struct value_trait<std::future<T>> { using type = T; };
+        template<typename T>
+        struct value_trait<std::shared_future<T>> { using type = T; };
     }
     template<typename T, typename... Types>
     struct is_within :impl::within<T, Types...> 
@@ -65,25 +76,21 @@ namespace core
     template<typename T>
     using remove_cv_ref_t = typename remove_cv_ref<T>::type;
     template<typename T>
-    using atomic_value = decltype(std::declval<std::add_const_t<T>>().load());
+    using value_trait = impl::value_trait<core::remove_cv_ref_t<T>>;
     template<typename T>
-    using future_value = decltype(std::declval<T>().get());
+    using value = typename core::value_trait<T>::type;
     template<typename T>
     struct is_future :core::is_within<core::remove_cv_ref_t<T>,
-        std::future<core::future_value<T>>, std::shared_future<core::future_value<T>>> {};
-    //template<typename T>
-    //struct is_future<std::future<T>> :std::true_type {};
-    //template<typename T>
-    //struct is_future<std::shared_future<T>> :std::true_type {};
+        std::future<core::value<T>>, std::shared_future<core::value<T>>> {};
     template<typename T>
-    struct is_atomic :std::is_same<core::remove_cv_ref_t<T>, std::atomic<core::atomic_value<T>>> {};
+    struct is_atomic :std::is_same<core::remove_cv_ref_t<T>, std::atomic<core::value<T>>> {};
     using relative = std::int64_t;
     using absolute = std::uint64_t;
     using rel = relative;
     using abs = absolute;
     /**
     *  @return compile-time generated [Source,Dest] array, divided by Stride
-    *  @note will be refactored to generic after template<auto> supported.
+    *  @note will be refactored to generic after template<auto> supported, then complement core::sequence
     */
     template<int Source, int Dest, int Stride = 1>
     constexpr auto range() 
@@ -102,14 +109,26 @@ namespace core
         constexpr size_t operator""_mega(const size_t n) { return n * 1024 * 1024; }
         constexpr size_t operator""_giga(const size_t n) { return n * 1024 * 1024 * 1024; }
     }
-    inline auto directory_entry_count(const std::experimental::filesystem::path& directory)
+    template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
+    constexpr Enum enum_next(Enum e, Offset offset)
+    {
+        static_assert(std::is_enum_v<Enum>);
+        return static_cast<Enum>(std::plus<void>{}(static_cast<std::underlying_type_t<Enum>>(e), offset));
+    }
+    template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
+    constexpr void enum_advance(Enum& e, Offset offset)
+    {
+        static_assert(std::is_enum_v<Enum>);
+        e = core::enum_next(e, offset);
+    }
+    inline auto directory_entry_count(const std::experimental::filesystem::path& directory) 
     {   //non-recursive version, regardless of symbolic link
         const std::experimental::filesystem::directory_iterator iterator{ directory };
         return std::distance(begin(iterator), end(iterator));
     }
-    inline auto thread_id = [hash = std::hash<std::thread::id>{}](std::optional<std::thread::id> id = std::nullopt)
+    inline auto thread_id = [transform = std::hash<std::thread::id>{}](std::optional<std::thread::id> id = std::nullopt)
     {
-        return hash(id.value_or(std::this_thread::get_id()));
+        return transform(id.value_or(std::this_thread::get_id()));
     };
     inline decltype(auto) repeat = [](auto count, auto&& callable, auto&& ...args)
     {
@@ -143,7 +162,6 @@ namespace core
     inline decltype(auto) condition_loop = [](auto&& pred, auto&& callable)
     {
         static_assert(std::is_invocable_v<decltype(callable)>);
-        //while (core::predicate(std::forward(pred)))
         while (core::predicate(pred))
             std::invoke(callable);
         return std::forward<decltype(callable)>(callable);

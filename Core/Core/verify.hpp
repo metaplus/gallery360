@@ -1,17 +1,16 @@
 #pragma once
 namespace core
 {
-    inline auto verify_one=[](auto pred) 
-    {   
-        using type=decltype(pred);
+    inline auto verify_one = [](auto pred) constexpr ->void
+    {
+        using type = decltype(pred);
         static_assert(std::is_scalar_v<type>, "claim predicate confoming to scalar");
         if (std::is_same_v<type, bool> && !pred) { throw std::runtime_error{ "error@condition false" }; }
         if (std::is_arithmetic_v<type> && pred < 0) { throw std::runtime_error{ "error@negative value" }; }
         if (std::is_null_pointer_v<type>) { throw std::runtime_error{ "error@null pointer" }; }
         if (std::is_pointer_v<type> && !pred) { throw std::runtime_error{ "error@null pointer" }; }
     };
-
-    inline auto verify=[](auto ...preds)
+    inline auto verify = [](auto ...preds) constexpr ->void
     {
         /*
         class exception_proxy
@@ -38,35 +37,33 @@ namespace core
         try
         {
             //(verify_one(preds),...);
-            (...,verify_one(preds));
+            (..., verify_one(preds));
         }
         catch (...)
         {
             //std::throw_with_nested(fmt::format("thread@{} ",
             //    boost::lexical_cast<std::string>(std::this_thread::get_id())));
             //exception_handler = std::current_exception();
-            fmt::print(std::cerr,"thread@{} ",
-                core::thread_id(std::this_thread::get_id()));
-                //boost::lexical_cast<std::string>(std::this_thread::get_id()));
+            std::cerr << "thread@" << std::this_thread::get_id() << ' ';
+            //boost::lexical_cast<std::string>(std::this_thread::get_id()));
             throw;
         }
         //return exception_proxy{ exception_handler };
     };
     int inspect_exception(const std::exception& e);
 }
-
 inline int core::inspect_exception(const std::exception & e)
 {
-        fmt::print(std::cerr,"{} ", e.what());
-        try {
-            std::rethrow_if_nested(e); 
-        }
-        catch (const std::exception& another) {
-            return core::inspect_exception(another);
-        }
-        catch (...) {
-            fmt::print(std::cerr,"nonstandard exception");
-        } 
-        fmt::print(std::cerr,"\n");
-        return boost::exit_failure;
+    std::cerr << e.what() << ' ';
+    try {
+        std::rethrow_if_nested(e);
+    }
+    catch (const std::exception& another) {
+        return core::inspect_exception(another);
+    }
+    catch (...) {
+        std::cerr << "nonstandard exception";
+    }
+    std::cerr << std::endl;
+    return boost::exit_failure;
 }

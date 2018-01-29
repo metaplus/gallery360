@@ -22,6 +22,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <type_traits>
+#include <vector>
+#include <map>
+#include <deque>
 #include <mutex>
 #include <thread>
 #include <atomic>
@@ -70,16 +73,15 @@
 #include <fmt/ostream.h>
 #include <fmt/time.h>
 #include <fmt/string.h>
-#include <spdlog/spdlog.h>
+//#include <spdlog/spdlog.h>
 //#include <spdlog/fmt/ostr.h>
+#include <termcolor/termcolor.hpp>
 
 using namespace std::literals;
 using namespace fmt::literals;
 #include "Core/base.hpp"
 #include "Core/revokable.hpp"
 #include "Core/guard.h"
-
-
 
 #define STRING2(x) #x  
 #define STRING(x) STRING2(x)  

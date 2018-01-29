@@ -16,9 +16,8 @@ public:
     void process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
     void store_textures(HANDLE texY, HANDLE texU, HANDLE texV);
     void update_textures(av::frame& frame);
-    void clear();
 private:
+    void clear();
     std::unique_ptr<ID3D11DeviceContext, deleter> context() const;
 };
 
-static_assert(std::is_copy_constructible_v<graphic>);

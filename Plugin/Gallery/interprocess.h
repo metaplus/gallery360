@@ -1,5 +1,5 @@
 #pragma once
-
+//TODO
 namespace ipc
 {
     namespace config
@@ -13,7 +13,7 @@ namespace ipc
         fmt::MemoryWriter data_;
         struct port
         {
-            std::unique_ptr<boost::interprocess::message_queue> queue;
+            //std::unique_ptr<boost::interprocess::message_queue> queue;
 
         };
     public:

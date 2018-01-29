@@ -2,8 +2,6 @@
 #include "interface.h"
 using namespace av;
 using namespace core;
-namespace filesystem = std::experimental::filesystem;
-
 enum task { init, parse, decode, last };
 namespace
 {
@@ -14,8 +12,9 @@ namespace
 }
 auto revocable_wait = [&](auto& future)       //cancelable wait
 {
-    //using value_type=decltype(std::declval<decltype(future)>().get());
-    if constexpr(core::is_future<std::decay_t<decltype(future)>>::value) {
+    //using type=decltype(std::declval<decltype(future)>().get());
+    if constexpr(core::is_future<decltype(future)>::value) 
+    {
         while (future.wait_for(100us) != std::future_status::ready)
         {
             if (!ongoing.load(std::memory_order_acquire))
@@ -32,11 +31,11 @@ auto revocable_push = [&](decltype(frames)::element_type::value_type& elem)
         if (!ongoing.load(std::memory_order_acquire))
             throw std::runtime_error{ "forced quit" };
         std::this_thread::sleep_for(50us);
-    };
+    }
 };
 auto revocable_pop = [&] {
     decltype(frames)::element_type::value_type data;
-    revocable_wait(pending->at(parse));
+    revocable_wait(pending->at(parse)); 
     while (!frames->try_pop(data))
     {
         if (pending->at(decode).wait_for(0ns) == std::future_status::ready)
@@ -55,7 +54,7 @@ BOOL ParseMedia(LPCSTR url)
         (*pending)[parse] = std::async(std::launch::async, [&, path = std::string{ url }]{
             pending->at(init).wait();
             format_context format{ source{path} };
-            auto[srm,cdc] = format.demux<media::video>();
+            auto[srm, cdc] = format.demux<media::video>();
             codec_context codec{cdc,srm};
             (*pending)[decode] = std::async(std::launch::async,[&,format,codec]() mutable {
                 revocable_wait(pending->at(parse));
@@ -114,13 +113,10 @@ void dll::media_clear()
 void dll::media_release()
 {
     ongoing.store(false, std::memory_order_release);
-    for (std::underlying_type_t<task> index = init; index != last; ++index)
+    for (auto index = init; index != last; core::enum_advance(index, 1))
     {
-        if (const auto ts = static_cast<task>(index); pending->count(ts) != 0)
-        {   //approximately 1.8s for decoder to clean up
-            if (const auto result = pending->at(ts).wait_for(3s); result != std::future_status::ready)  
-                throw std::runtime_error{ "critical blocking accident" };
-        }
+        if (pending->count(index) != 0 && pending->at(index).wait_for(3s) != std::future_status::ready)
+            throw std::runtime_error{ "critical blocking accident" };
     }
     dll::media_clear();
 }
