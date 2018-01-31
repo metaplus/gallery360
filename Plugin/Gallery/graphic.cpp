@@ -14,7 +14,7 @@ void graphic::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* inte
         }
         case kUnityGfxDeviceEventShutdown:
         {
-            //deleter{}(device_);   //!
+            //deleter{}(device_);   //conflict against intangible vector destructor in Unity*.dll, thus irreponsible 
             clear();
             break;
         }
@@ -30,7 +30,6 @@ void graphic::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
     alphas_[1] = static_cast<ID3D11Texture2D*>(texU);
     alphas_[2] = static_cast<ID3D11Texture2D*>(texV);
 }
-
 void graphic::update_textures(av::frame& frame)
 {
     auto context = this->context();
@@ -38,13 +37,12 @@ void graphic::update_textures(av::frame& frame)
     for (auto index : core::range<0,2>())    
     {
         D3D11_TEXTURE2D_DESC desc;
-        auto tex = alphas_[index];
+        auto texture = alphas_[index];
         const auto data = frame->data[index];
-        tex->GetDesc(&desc);
-        context->UpdateSubresource(tex, 0, nullptr, data, desc.Width, 0);
+        texture->GetDesc(&desc);
+        context->UpdateSubresource(texture, 0, nullptr, data, desc.Width, 0);
     }
 }
-
 std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
 {
     ID3D11DeviceContext* ctx = nullptr;
@@ -52,10 +50,8 @@ std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
     core::verify(ctx);
     return std::unique_ptr<ID3D11DeviceContext, deleter>{ctx, deleter{}};
 }
-
 void graphic::clear()
 {
-    //deleter{}(device_);
     device_ = nullptr;
     alphas_.fill(nullptr);
 }

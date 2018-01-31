@@ -1,18 +1,26 @@
 #pragma once
 namespace core
 {
-    inline auto verify_one = [](auto pred) constexpr ->void
+    template<typename Scalar>
+    constexpr auto verify_one(Scalar pred) ->std::enable_if_t<std::is_scalar_v<Scalar>>
     {
-        using type = decltype(pred);
-        static_assert(std::is_scalar_v<type>, "claim predicate confoming to scalar");
-        if (std::is_same_v<type, bool> && !pred) { throw std::runtime_error{ "error@condition false" }; }
-        if (std::is_arithmetic_v<type> && pred < 0) { throw std::runtime_error{ "error@negative value" }; }
-        if (std::is_null_pointer_v<type>) { throw std::runtime_error{ "error@null pointer" }; }
-        if (std::is_pointer_v<type> && !pred) { throw std::runtime_error{ "error@null pointer" }; }
-    };
-    inline auto verify = [](auto ...preds) constexpr ->void
+        if constexpr(std::is_integral_v<Scalar>) {
+            if constexpr(std::is_same_v<Scalar, bool>) {
+                if (!pred) throw std::logic_error{ "verify@condition false" };
+            }
+            else if (pred < 0) throw std::logic_error{ "verify@negative value" };
+        }
+        if constexpr(std::is_null_pointer_v<Scalar>)
+            throw std::runtime_error{ "verify@null pointer" };
+        if constexpr(std::is_pointer_v<Scalar>) {
+            if (pred == nullptr) throw std::runtime_error{ "verify@allcate nothing" };
+        }
+        else throw std::invalid_argument{ "verify@illegal parameter" };
+    }
+    template<typename ...Types>
+    constexpr void verify(Types ...preds)
     {
-        /*
+        /* TODO: reserved legacy
         class exception_proxy
         {
         public:
@@ -30,14 +38,13 @@ namespace core
             }
         private:
             std::string describe_;
-            std::exception_ptr error_;
+            std::exception_ptr error_;s
         };
         std::exception_ptr exception_handler{ nullptr };
         */
         try
         {
-            //(verify_one(preds),...);
-            (..., verify_one(preds));
+            (..., core::verify_one<Types>(preds));
         }
         catch (...)
         {

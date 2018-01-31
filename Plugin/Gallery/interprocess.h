@@ -11,10 +11,11 @@ namespace ipc
     {
         std::promise<void> terminate_;
         fmt::MemoryWriter data_;
+        boost::asio::thread_pool executors_;
         struct port
         {
             //std::unique_ptr<boost::interprocess::message_queue> queue;
-
+           
         };
     public:
         enum class role { servant, master };
