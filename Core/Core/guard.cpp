@@ -15,7 +15,7 @@ core::time_guard::~time_guard()
         << " secs\n";
     std::cout.unsetf(std::ios::hex);
 }
-core::scope_guard::~scope_guard() noexcept(false)
+core::scope_guard::~scope_guard() noexcept(std::is_nothrow_invocable_v<decltype(release_)>)
 {
     release_();
 }

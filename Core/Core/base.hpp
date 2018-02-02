@@ -11,7 +11,7 @@ namespace core
             template<typename ...Types>
             constexpr static auto by(Types ...args) -> std::decay_t<std::invoke_result_t<Callable, Types...>>
             {
-                static_assert((std::is_standard_layout_v<Types> && ...));
+                static_assert((std::is_trivial_v<Types> && ...));
                 //static_assert(std::is_standard_layout_v<std::common_type_t<Types...>>);
                 return Callable{}(args...);
             }
@@ -96,6 +96,17 @@ namespace core
     using absolute = std::uint64_t;
     using rel = relative;
     using abs = absolute;
+    template<typename T, typename ...Types>
+    struct max_size : std::integral_constant<size_t, 
+        std::max<size_t>(core::max_size<T>::value, core::max_size<Types...>::value)> {};
+    template<typename T>
+    struct max_size<T> : std::integral_constant<size_t, sizeof(T)> {};
+    template<typename ...Types>
+    struct max_size<std::variant<Types...>> : core::max_size<Types...> {};
+    template<typename ...Types>
+    struct max_size<std::tuple<Types...>> : core::max_size<Types...> {};
+    template<typename T, typename U>
+    struct max_size<std::pair<T, U>> : core::max_size<T, U> {};
     /**
     *  @return compile-time generated [Source,Dest] array, divided by Stride
     *  @note will be refactored to generic after template<auto> supported, then complement core::sequence
@@ -112,9 +123,9 @@ namespace core
     }
     namespace literals
     {
-        constexpr size_t operator""_kilo(const size_t n) { return n * 1024; }
-        constexpr size_t operator""_mega(const size_t n) { return n * 1024 * 1024; }
-        constexpr size_t operator""_giga(const size_t n) { return n * 1024 * 1024 * 1024; }
+        constexpr size_t operator""_kbyte(const size_t n) { return n * 1024; }
+        constexpr size_t operator""_mbyte(const size_t n) { return n * 1024 * 1024; }
+        constexpr size_t operator""_gbyte(const size_t n) { return n * 1024 * 1024 * 1024; }
     }
     template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
     constexpr auto enum_next(Enum e, Offset offset) -> std::enable_if_t<std::is_enum_v<Enum>, Enum>

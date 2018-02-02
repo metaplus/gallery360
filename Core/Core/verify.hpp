@@ -2,7 +2,7 @@
 namespace core
 {
     template<typename Scalar>
-    constexpr auto verify_one(Scalar pred) ->std::enable_if_t<std::is_scalar_v<Scalar>>
+    constexpr auto verify_one(Scalar pred) -> std::enable_if_t<std::is_scalar_v<Scalar>>
     {
         if constexpr(std::is_integral_v<Scalar>) {
             if constexpr(std::is_same_v<Scalar, bool>) {
@@ -10,10 +10,10 @@ namespace core
             }
             else if (pred < 0) throw std::logic_error{ "verify@negative value" };
         }
-        if constexpr(std::is_null_pointer_v<Scalar>)
+        else if constexpr(std::is_null_pointer_v<Scalar>)
             throw std::runtime_error{ "verify@null pointer" };
-        if constexpr(std::is_pointer_v<Scalar>) {
-            if (pred == nullptr) throw std::runtime_error{ "verify@allcate nothing" };
+        else if constexpr(std::is_pointer_v<Scalar>) {
+            if (pred == nullptr) throw std::runtime_error{ "verify@allocate nothing" };
         }
         else throw std::invalid_argument{ "verify@illegal parameter" };
     }

@@ -1,17 +1,4 @@
 #pragma once
-#if defined UNITYAPI || defined EXTERN
-#error naming collide
-#endif
-#ifdef GALLERY_EXPORTS
-#define UNITYAPI  __declspec(dllexport) __stdcall
-#else
-#define UNITYAPI  __declspec(dllimport) __stdcall
-#endif
-#ifdef __cplusplus
-#define EXTERN extern "C"
-#else 
-#define EXTERN extern 
-#endif
 /**
  * @note Exported functions called by Unity engine. C# CamelCase naming style.
  */
@@ -28,7 +15,6 @@ EXTERN BOOL UNITYAPI IsDrainedVideo();
 //EXTERN void OnRenderEvent(int eventID);
 //EXTERN void OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType);
 //EXTERN UnityRenderingEvent UNITYAPI GetRenderEventFunc();
-
 namespace dll
 {
     std::optional<av::frame> extract_frame();

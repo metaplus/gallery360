@@ -67,7 +67,7 @@ namespace av
         auto operator->() const { return ptr; }
     };
     template<typename T>
-    inline auto ptr(T&& handle)
+    auto ptr(T&& handle)
     {
         //return static_cast<typename std::decay_t<T>::pointer>(handle);
         return handle.operator->();
