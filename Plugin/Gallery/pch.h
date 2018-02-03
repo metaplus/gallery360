@@ -3,6 +3,10 @@
 //#include "Gallery/interface.h"
 #include <boost/asio.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
+#include <cereal/types/unordered_map.hpp>
+#include <cereal/types/memory.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/variant.hpp>
 //#include <boost/process.hpp>
 //namespace process = boost::process;
 namespace interprocess = boost::interprocess;

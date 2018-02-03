@@ -41,26 +41,26 @@
 //#include <boost/thread/scoped_thread.hpp>
 //#include <boost/thread/future.hpp>
 //#include <boost/assert.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/archive/binary_oarchive.hpp>
+//#include <boost/archive/binary_iarchive.hpp>
+//#include <boost/archive/binary_oarchive.hpp>
 //#include <boost/convert.hpp>
 //#include <boost/convert/spirit.hpp>
 //#include <boost/convert/stream.hpp>
 //#include <boost/convert/lexical_cast.hpp>
 //#include <boost/convert/strtol.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
+//#include <boost/archive/text_iarchive.hpp>
+//#include <boost/archive/text_oarchive.hpp>
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
-#include <boost/lexical_cast.hpp>       //prefer from_chars/to_chars
-#include <boost/serialization/array.hpp>
-#include <boost/serialization/assume_abstract.hpp>
-#include <boost/serialization/base_object.hpp>
-#include <boost/serialization/binary_object.hpp>    //make_binary_object
-#include <boost/serialization/string.hpp>
-#include <boost/serialization/utility.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/version.hpp>
+//#include <boost/lexical_cast.hpp>                     //prefer std::from_chars/to_chars
+//#include <boost/serialization/array.hpp>
+//#include <boost/serialization/assume_abstract.hpp>
+//#include <boost/serialization/base_object.hpp>
+//#include <boost/serialization/binary_object.hpp>      
+//#include <boost/serialization/string.hpp>
+//#include <boost/serialization/utility.hpp>
+//#include <boost/serialization/vector.hpp>
+//#include <boost/serialization/version.hpp>
 #include <fmt/container.h>    
 #include <fmt/format.h>                  
 #include <fmt/ostream.h>
@@ -72,8 +72,7 @@
 #include <tbb/tbb_allocator.h>
 //#include <spdlog/spdlog.h>
 //#include <spdlog/fmt/ostr.h>
-#include <termcolor/termcolor.hpp>
-
+//#include <termcolor/termcolor.hpp>
 using namespace std::literals;
 using namespace fmt::literals;
 #include "Core/base.hpp"
@@ -82,10 +81,6 @@ using namespace fmt::literals;
 
 #define STRING2(x) #x  
 #define STRING(x) STRING2(x)  
-#define LINE_STR "[line]" STRING(__LINE__)
-#define FILE_STR LINE_STR " [file]" __FILE__
-#define FUNCTION_STR "[function]" __func__
-#define ERROR_STR "[function]" __func__ " " LINE_STR " [file]" __FILE__ 
 
 #ifdef _WIN32
 #ifndef NDEBUG
