@@ -29,11 +29,11 @@ namespace core
             return std::integer_sequence<T, static_invoke<BinaryCallable>::by(Values, Factor)...>{};
         }
     }
-    template<typename L, typename R>
+    template<typename L, typename R>    //for std::bool_constant AND operation
     struct bool_and : impl::bool_arithmetic<std::bit_and<bool>, L, R> {};
-    template<typename L, typename R>
+    template<typename L, typename R>    //for std::bool_constant OR operation
     struct bool_or : impl::bool_arithmetic<std::bit_or<bool>, L, R> {};
-    template<typename L, typename R>
+    template<typename L, typename R>    //for std::bool_constant XOR operation
     struct bool_xor : impl::bool_arithmetic<std::bit_xor<bool>, L, R> {};
     template<typename T, typename ...Types>
     struct reverse_tuple
@@ -77,6 +77,12 @@ namespace core
     }
     template<typename T, typename... Types>
     struct is_within : impl::is_within<T, Types...> { static_assert(sizeof...(Types) > 1); };
+    template<typename T, typename ...Types>
+    struct is_within<T, std::variant<Types...>> : core::is_within<T, Types...> {};
+    template<typename T, typename ...Types>
+    struct is_within<T, std::tuple<Types...>> : core::is_within<T, Types...> {};
+    template<typename T, typename U, typename V>
+    struct is_within<T, std::pair<U, V>> : core::is_within<T, U, V> {};
     template<typename T, typename... Types>
     constexpr bool is_within_v = is_within<T, Types...>::value;
     template<typename T>    //reference operation precedes
@@ -91,7 +97,11 @@ namespace core
     struct is_future : core::is_within<core::remove_cv_ref_t<T>,
         std::future<core::value<T>>, std::shared_future<core::value<T>>> {};
     template<typename T>
+    constexpr bool is_future_v = core::is_future<T>::value;
+    template<typename T>
     struct is_atomic : std::is_same<core::remove_cv_ref_t<T>, std::atomic<core::value<T>>> {};
+    template<typename T>
+    constexpr bool is_atomic_v = core::is_atomic<T>::value;
     using relative = std::int64_t;
     using absolute = std::uint64_t;
     using rel = relative;
@@ -184,4 +194,3 @@ namespace core
         return std::forward<Callable>(callable);
     }
 }
-

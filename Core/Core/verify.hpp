@@ -6,16 +6,16 @@ namespace core
     {
         if constexpr(std::is_integral_v<Scalar>) {
             if constexpr(std::is_same_v<Scalar, bool>) {
-                if (!pred) throw std::logic_error{ "verify@condition false" };
+                if (!pred) throw std::logic_error{ "condition false" };
             }
-            else if (pred < 0) throw std::logic_error{ "verify@negative value" };
+            else if (pred < 0) throw std::out_of_range{ "negative value" };
         }
         else if constexpr(std::is_null_pointer_v<Scalar>)
-            throw std::runtime_error{ "verify@null pointer" };
+            throw std::runtime_error{ "null pointer" };
         else if constexpr(std::is_pointer_v<Scalar>) {
-            if (pred == nullptr) throw std::runtime_error{ "verify@allocate nothing" };
+            if (pred == nullptr) throw std::bad_alloc{};
         }
-        else throw std::invalid_argument{ "verify@illegal parameter" };
+        else throw std::invalid_argument{ "illegal parameter" };
     }
     template<typename ...Types>
     constexpr void verify(Types ...preds)
