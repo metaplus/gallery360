@@ -2,65 +2,74 @@
 //TODO
 namespace ipc
 {
-
-    class message
-    {
-        using value_type = std::variant<
-            //std::monostate,
-            vr::Compositor_FrameTiming,
-            vr::Compositor_CumulativeStats,
-            int
-        >;
-        using size_trait = core::max_size<value_type>;
-        value_type data_;
-    public:
-        using container = std::array<std::byte, size_trait::value>;
-        message(container& raw_bytes, size_t which);
-        constexpr static size_t size() noexcept     //message body size
-        {
-            return size_trait::value;
-        }
-        template<typename U>
-        constexpr bool has_type() const noexcept
-        {
-            return core::is_within_v<U, value_type>;
-        }
-        void get_if();
-        template<typename U>
-        struct handler;
-        template<typename ...Types>
-        struct handler<std::variant<Types...>>
-        {
-            //static_assert((std::is_default_constructible_v<handler<Types>>&&...));
-            using type = std::variant<handler<Types>...>;
-        };
-        //using handler_type = handler<value_type>;
-        using handler_type = handler<std::variant<size_t>>;
-    private:
-        constexpr static size_t aligned_size(size_t align = 128) noexcept
-        {
-            return size() + (align - size() % align) % align;
-        } 
-        //static_assert(std::is_nothrow_move_constructible_v<ipc::message>);
-    };
 #pragma warning(push)
 #pragma warning(disable:4251)
+    class DLLAPI message
+    {
+        std::variant<
+            vr::Compositor_FrameTiming,
+            vr::Compositor_CumulativeStats,
+            double
+        > data_;
+        std::chrono::high_resolution_clock::duration duration_;
+    public:
+        using value_type = decltype(data_);
+        using size_trait = core::max_size<value_type>;
+        message() = default;
+        template<typename Alternate, typename = std::enable_if_t<core::is_within_v<Alternate, value_type>>>
+        explicit message(Alternate data, std::chrono::high_resolution_clock::duration duration = {});
+        constexpr static size_t size() noexcept; //message body size
+        constexpr size_t index() const noexcept;
+        template<typename Visitor>
+        decltype(auto) visit(Visitor&& visitor);
+        template<typename Alternate, typename Callable>
+        auto visit_as(Callable&& callable)->std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>>;
+    private:
+        constexpr static size_t aligned_size(size_t align = 128) noexcept;
+        friend cereal::access;
+        template<typename Archive>
+        void serialize(Archive& archive);
+    };
+    template <typename Alternate, typename>
+    message::message(Alternate data, std::chrono::high_resolution_clock::duration duration)
+        : data_(std::move(data)), duration_(std::move(duration)) {
+    }
+    template <typename Visitor>
+    decltype(auto) message::visit(Visitor&& visitor) {
+        return std::visit(std::forward<Visitor>(visitor), data_);
+    }
+    template <typename Alternate, typename Callable>
+    auto message::visit_as(Callable&& callable)
+        -> std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>> {
+        static_assert(!std::is_reference_v<Alternate>);
+        static_assert(core::is_within_v<Alternate, value_type>);
+        auto& alternate = std::get<Alternate>(data_);               //exception if invalid
+        return std::invoke(std::forward<Callable>(callable), alternate);
+    }
+    template <typename Archive>
+    void message::serialize(Archive& archive) {
+        archive(duration_, data_);
+    }
     class DLLAPI channel : protected std::enable_shared_from_this<channel>
     {
-        std::promise<void> terminate_;
-        asio::thread_pool context_;
-        std::optional<interprocess::message_queue> sender_;  //overcome NonDefaultConstructible limit
-        std::optional<interprocess::message_queue> receiver_;
+        std::atomic<bool> running_;
+        struct endpoint
+        {
+            tbb::concurrent_queue<std::packaged_task<void()>> task_queue;
+            std::thread task_worker;
+            core::scope_guard shmem_remover;         //RAII guarder for shmem management 
+            //d::optional<core::scope_guard> shmem_remover;         //RAII guarder for shmem management 
+            std::optional<interprocess::message_queue> messages;    //overcome NonDefaultConstructible limit
+            endpoint() = default;
+        };           
+        endpoint send_context_;
+        endpoint recv_context_;
     public:
-        explicit channel(size_t threads = 1, bool open_only = true);
-        channel(const channel&) = delete;
-        channel(channel&&) = delete;
-        channel& operator=(const channel&) = delete;
-        channel& operator=(channel&&) = delete;
+        explicit channel(std::chrono::steady_clock::duration timing, bool open_only = true);
         std::pair<std::future<void>, size_t> async_receive();
-        void async_send();
+        template<typename Message>
+        auto async_send(Message msg)->std::enable_if_t<core::is_within_v<Message>, message>;
         bool valid() const noexcept;
-        void clear();
         ~channel();
     private:
     };

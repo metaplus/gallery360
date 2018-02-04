@@ -1,5 +1,5 @@
 #pragma once
-namespace vr //involved header clip
+namespace vr    //involved header clip
 {
 #pragma pack(push,8)
     // right-handed system
@@ -137,4 +137,77 @@ namespace vr //involved header clip
         uint32_t m_nNumReprojectedFramesTimedOut;
     };
 #pragma pack(pop)
+    template<typename Archive>
+    void serialize(Archive & archive, HmdMatrix34_t& mat34)
+    {
+        archive(mat34.m);
+    }
+    template<typename Archive>
+    void serialize(Archive & archive, HmdVector3_t& vec3)
+    {
+        archive(vec3.v);
+    }    
+    template<typename Archive>
+    void serialize(Archive & archive, TrackedDevicePose_t& pose)
+    {
+        archive(
+            pose.mDeviceToAbsoluteTracking,
+            pose.vVelocity,
+            pose.vAngularVelocity,
+            pose.eTrackingResult,                   //_
+            pose.bPoseIsValid,
+            pose.bDeviceIsConnected
+        );
+    }
+    template<typename Archive>
+    void serialize(Archive & archive, Compositor_FrameTiming& time)
+    {
+        archive(
+            time.m_nSize,
+            time.m_nFrameIndex,
+            time.m_nNumFramePresents,
+            time.m_nNumMisPresented,                //_
+            time.m_nNumDroppedFrames,
+            time.m_nReprojectionFlags,
+            time.m_flSystemTimeInSeconds,           //_
+            time.m_flPreSubmitGpuMs,
+            time.m_flPostSubmitGpuMs,
+            time.m_flTotalRenderGpuMs,
+            time.m_flCompositorRenderGpuMs,
+            time.m_flCompositorRenderCpuMs,
+            time.m_flCompositorIdleCpuMs,           //_
+            time.m_flClientFrameIntervalMs,
+            time.m_flPresentCallCpuMs,
+            time.m_flWaitForPresentCpuMs,           //_
+            time.m_flSubmitFrameMs,
+            time.m_flWaitGetPosesCalledMs,
+            time.m_flNewPosesReadyMs,
+            time.m_flNewFrameReadyMs,               //_
+            time.m_flCompositorUpdateStartMs,
+            time.m_flCompositorUpdateEndMs,
+            time.m_flCompositorRenderStartMs,
+            time.m_HmdPose
+        );
+    }
+    template<typename Archive>
+    void serialize(Archive & archive, Compositor_CumulativeStats& stats)
+    {
+        archive(
+            stats.m_nPid,
+            stats.m_nNumFramePresents,
+            stats.m_nNumDroppedFrames,
+            stats.m_nNumReprojectedFrames,          //_
+            stats.m_nNumFramePresentsOnStartup,
+            stats.m_nNumDroppedFramesOnStartup,
+            stats.m_nNumReprojectedFramesOnStartup, //_
+            stats.m_nNumLoading,
+            stats.m_nNumFramePresentsLoading,
+            stats.m_nNumDroppedFramesLoading,
+            stats.m_nNumReprojectedFramesLoading,   //_
+            stats.m_nNumTimedOut,
+            stats.m_nNumFramePresentsTimedOut,
+            stats.m_nNumDroppedFramesTimedOut,
+            stats.m_nNumReprojectedFramesTimedOut   //_
+        );
+    }
 }

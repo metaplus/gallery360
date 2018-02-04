@@ -2,6 +2,7 @@
 
 namespace core
 {
+#if 0
     inline bool exist_process(std::string_view name)
     {
         namespace process = boost::process;
@@ -17,4 +18,5 @@ namespace core
         std::getline(proclist, line, '\n');
         return std::getline(proclist, line, '\r').good();
     }
+#endif
 }

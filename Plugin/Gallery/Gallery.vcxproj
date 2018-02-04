@@ -90,8 +90,10 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;GALLERY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\Core;$(SolutionDir)\..\Media;$(Include);$(SolutionDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(Include);$(SolutionDir)\..\Core;$(SolutionDir)\..\Media;$(SolutionDir)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>
+      </AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

@@ -22,3 +22,5 @@ namespace dll
     void media_clear();
     void media_release();
 }
+static_assert(std::is_same_v<int, INT>);
+static_assert(std::is_same_v<float, FLOAT>);
