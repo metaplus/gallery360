@@ -12,10 +12,12 @@ namespace ipc
             double
         > data_;
         std::chrono::high_resolution_clock::duration duration_;
+        using size_trait = core::max_size<decltype(data_)>;
     public:
         using value_type = decltype(data_);
-        using size_trait = core::max_size<value_type>;
         message() = default;
+        message(message&&) noexcept = default;
+        message& operator=(message&&) noexcept = default;
         template<typename Alternate, typename = std::enable_if_t<core::is_within_v<Alternate, value_type>>>
         explicit message(Alternate data, std::chrono::high_resolution_clock::duration duration = {});
         constexpr static size_t size() noexcept; //message body size
@@ -55,23 +57,54 @@ namespace ipc
         std::atomic<bool> running_;
         struct endpoint
         {
-            tbb::concurrent_queue<std::packaged_task<void()>> task_queue;
+            //tbb::concurrent_queue<std::packaged_task<void()>> task_queue;   //
+            tbb::concurrent_queue<std::future<void>> task_queue;
             std::thread task_worker;
-            core::scope_guard shmem_remover;         //RAII guarder for shmem management 
-            //d::optional<core::scope_guard> shmem_remover;         //RAII guarder for shmem management 
+            core::scope_guard shmem_remover;                        //RAII guarder for shmem management 
             std::optional<interprocess::message_queue> messages;    //overcome NonDefaultConstructible limit
             endpoint() = default;
         };           
         endpoint send_context_;
         endpoint recv_context_;
     public:
-        explicit channel(std::chrono::steady_clock::duration timing, bool open_only = true);
-        std::pair<std::future<void>, size_t> async_receive();
-        template<typename Message>
-        auto async_send(Message msg)->std::enable_if_t<core::is_within_v<Message>, message>;
+        explicit channel(bool open_only = true);
+        std::pair<std::future<ipc::message>, size_t> async_receive();
+        template<typename Alternate>
+        std::enable_if_t<core::is_within_v<Alternate, ipc::message::value_type>>
+            async_send(Alternate message, std::chrono::high_resolution_clock::duration duration);
         bool valid() const noexcept;
         ~channel();
     private:
+        static_assert(std::is_same_v<size_t, interprocess::message_queue::size_type>);
+        static_assert(std::chrono::high_resolution_clock::is_steady);
+        constexpr static size_t buffer_size() noexcept;
     };
+    template <typename Alternate>
+    std::enable_if_t<core::is_within_v<Alternate, ipc::message::value_type>> 
+        channel::async_send(Alternate message, std::chrono::high_resolution_clock::duration duration) {
+        send_context_.task_queue.emplace(std::async(std::launch::deferred,
+            [this, message = ipc::message{ std::move(message), std::move(duration) }]() mutable {
+            const auto priority = message.index();
+            static thread_local std::stringstream stream;
+            stream.clear();
+            stream.str(""s);
+            {
+                cereal::BinaryOutputArchive oarchive{ stream };
+                oarchive << message;
+            }
+            auto buffer = stream.str();
+            core::verify(buffer.size() < buffer_size());            //assume buffer_size never achieved
+            while (running_.load(std::memory_order_acquire)) {
+                auto x = send_context_.messages->get_num_msg();
+                auto y = recv_context_.messages->get_num_msg(); 
+                auto x2 = send_context_.messages->get_max_msg();
+                auto y2 = recv_context_.messages->get_max_msg();                
+                if (send_context_.messages->try_send(buffer.data(), buffer.size(), priority))
+                    return;
+                std::this_thread::sleep_for(1ms);
+            }
+            throw core::force_exit_exception{};
+        }));
+    }
 #pragma warning(pop)
 }
