@@ -10,8 +10,22 @@ namespace
         constexpr auto shmem_capacity = 512_kbyte;
     }
 }
+namespace impl
+{
+    template<size_t Index, typename ...Types>
+    size_t valid_size(const std::variant<Types...>& var) {
+        if (std::get_if<Index>(&var) != nullptr)
+            return sizeof(std::variant_alternative_t<Index, std::variant<Types...>>);
+        if constexpr(Index < sizeof...(Types)-1)
+            return impl::valid_size<Index + 1>(var);
+        throw std::bad_variant_access{};
+    }
+}
 constexpr size_t ipc::message::size() noexcept {
     return size_trait::value;
+}
+size_t ipc::message::valid_size() const noexcept {
+    return impl::valid_size<0>(data_);
 }
 constexpr size_t ipc::message::index() const noexcept {
     return data_.index();
@@ -52,8 +66,6 @@ try : running_(true), send_context_(), recv_context_() {
                     continue;
                 }
                 try {
-                    auto x = send_context_.messages->get_num_msg();
-                    auto y = recv_context_.messages->get_num_msg();
                     future.get();       //if atomic running_ is false, exception throwed here
                     fmt::print(std::cerr, "sending fulfilled {}\n", ++count);
                 }
@@ -73,8 +85,6 @@ catch (...) {
 std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive() {
     std::promise<ipc::message> promise;
     auto future = promise.get_future();
-    const auto lefrt = recv_context_.messages->get_num_msg();
-    const auto lefrt2 = send_context_.messages->get_num_msg();
     auto task = std::async(std::launch::deferred, 
         [this, promise = std::move(promise)]() mutable {
         static thread_local std::stringstream stream;

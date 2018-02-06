@@ -169,6 +169,7 @@
     <ClCompile Include="Gallery.cpp" />
     <ClCompile Include="directx11.cpp" />
     <ClCompile Include="interprocess.cpp" />
+    <ClCompile Include="ipc.cpp" />
     <ClCompile Include="media.cpp" />
     <ClCompile Include="graphic.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -177,6 +178,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="timer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="EXPORTS.def" />

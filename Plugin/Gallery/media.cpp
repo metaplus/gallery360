@@ -85,7 +85,7 @@ BOOL IsDrainedVideo()
 {   //swaping first 2 AND operands is accurate but may gain performance penalty, thus add 3rd operand as amendment
     return frames->empty() && pending->at(decode).wait_for(0ns) == std::future_status::ready && frames->empty();
 }
-std::optional<av::frame> dll::extract_frame()
+std::optional<av::frame> dll::media_extract_frame()
 {
     if (IsDrainedVideo())
         return std::nullopt;

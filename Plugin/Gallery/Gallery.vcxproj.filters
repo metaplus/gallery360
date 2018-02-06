@@ -74,6 +74,12 @@
     <ClCompile Include="graphic.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="timer.cpp">
+      <Filter>Source Files\Routine</Filter>
+    </ClCompile>
+    <ClCompile Include="ipc.cpp">
+      <Filter>Source Files\Routine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="EXPORTS.def">

@@ -21,13 +21,14 @@ namespace ipc
         template<typename Alternate, typename = std::enable_if_t<core::is_within_v<Alternate, value_type>>>
         explicit message(Alternate data, std::chrono::high_resolution_clock::duration duration = {});
         constexpr static size_t size() noexcept; //message body size
+        constexpr static size_t aligned_size(size_t align = 128) noexcept;
+        size_t valid_size() const noexcept;
         constexpr size_t index() const noexcept;
         template<typename Visitor>
         decltype(auto) visit(Visitor&& visitor);
         template<typename Alternate, typename Callable>
         auto visit_as(Callable&& callable)->std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>>;
     private:
-        constexpr static size_t aligned_size(size_t align = 128) noexcept;
         friend cereal::access;
         template<typename Archive>
         void serialize(Archive& archive);
@@ -94,11 +95,7 @@ namespace ipc
             }
             auto buffer = stream.str();
             core::verify(buffer.size() < buffer_size());            //assume buffer_size never achieved
-            while (running_.load(std::memory_order_acquire)) {
-                auto x = send_context_.messages->get_num_msg();
-                auto y = recv_context_.messages->get_num_msg(); 
-                auto x2 = send_context_.messages->get_max_msg();
-                auto y2 = recv_context_.messages->get_max_msg();                
+            while (running_.load(std::memory_order_acquire)) {             
                 if (send_context_.messages->try_send(buffer.data(), buffer.size(), priority))
                     return;
                 std::this_thread::sleep_for(1ms);

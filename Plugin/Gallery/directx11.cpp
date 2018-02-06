@@ -56,7 +56,7 @@ static void __stdcall OnRenderEvent(int eventID)
 #ifndef NDEBUG
     core::verify(unity_graphics != nullptr);
 #endif
-    if (auto frame = dll::extract_frame(); frame.has_value())
+    if (auto frame = dll::media_extract_frame(); frame.has_value())
         dll_graphic->update_textures(frame.value());
 }
 EXTERN UnityRenderingEvent UNITYAPI GetRenderEventFunc()
