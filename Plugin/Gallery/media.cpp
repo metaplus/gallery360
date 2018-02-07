@@ -8,7 +8,7 @@ namespace
     std::unique_ptr<tbb::concurrent_unordered_map<task, std::shared_future<std::any>>>  pending = nullptr;
     std::unique_ptr<tbb::concurrent_bounded_queue<frame>> frames = nullptr;
     const auto max_fps = 60;
-    std::atomic<bool> ongoing = true;
+    std::atomic<bool> running = true;
 }
 auto revocable_wait = [&](auto& future)       //cancelable wait
 {
@@ -17,7 +17,7 @@ auto revocable_wait = [&](auto& future)       //cancelable wait
     {
         while (future.wait_for(100us) != std::future_status::ready)
         {
-            if (!ongoing.load(std::memory_order_acquire))
+            if (!running.load(std::memory_order_acquire))
                 throw std::runtime_error{ "foreced quit" };
         }
     }
@@ -28,7 +28,7 @@ auto revocable_push = [&](decltype(frames)::element_type::value_type& elem)
 {
     while (!frames->try_push(elem))
     {
-        if (!ongoing.load(std::memory_order_acquire))
+        if (!running.load(std::memory_order_acquire))
             throw std::runtime_error{ "forced quit" };
         std::this_thread::sleep_for(50us);
     }
@@ -40,7 +40,7 @@ auto revocable_pop = [&] {
     {
         if (pending->at(decode).wait_for(0ns) == std::future_status::ready)
             return frame{};
-        if (!ongoing.load(std::memory_order_acquire))
+        if (!running.load(std::memory_order_acquire))
             throw std::runtime_error{ "forced quit" };
         std::this_thread::sleep_for(50us);
     }
@@ -93,7 +93,7 @@ std::optional<av::frame> dll::media_extract_frame()
 }
 void dll::media_create()
 {
-    ongoing.store(true, std::memory_order_relaxed);
+    running.store(true, std::memory_order_relaxed);
     frames = std::make_unique<decltype(frames)::element_type>();
     pending = std::make_unique<decltype(pending)::element_type>();
     frames->set_capacity(max_fps + 20);
@@ -112,7 +112,7 @@ void dll::media_clear()
 }
 void dll::media_release()
 {
-    ongoing.store(false, std::memory_order_release);
+    running.store(false, std::memory_order_release);
     for (auto index = init; index != last; core::enum_advance(index, 1))
     {
         if (pending->count(index) != 0 && pending->at(index).wait_for(3s) != std::future_status::ready)

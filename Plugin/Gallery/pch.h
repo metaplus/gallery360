@@ -3,6 +3,8 @@
 //#include "Gallery/interface.h"
 #include <boost/asio.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
+#pragma warning(push)
+#pragma warning(disable:4267)
 #include <cereal/cereal.hpp>
 #include <cereal/access.hpp>
 #include <cereal/archives/binary.hpp> 
@@ -15,6 +17,7 @@
 #include <cereal/types/tuple.hpp>
 #include <cereal/types/utility.hpp>
 #include <cereal/types/vector.hpp>
+#pragma warning(pop)
 //#include <boost/process.hpp>
 //namespace process = boost::process;
 namespace interprocess = boost::interprocess;

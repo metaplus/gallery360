@@ -20,7 +20,10 @@ std::pair<std::future<ipc::message>, size_t> dll::ipc_async_receive() {
 }
 ipc::message dll::ipc_receive() {
     initialize.wait();
+#pragma warning(push)
+#pragma warning(disable:4101)
     auto[future, left_count] = channel->async_receive();
+#pragma warning(pop)
     return future.get();
 }
 template<typename Alternate>
