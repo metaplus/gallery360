@@ -28,7 +28,7 @@ ipc::message dll::ipc_receive() {
 }
 template<typename Alternate>
 void dll::ipc_async_send(Alternate message) {
-    static_assert(core::is_within_v<Alternate, ipc::message::value_type>);
+    static_assert(core::is_within_v<Alternate, ipc::message::is_alternative<Alternate>::value>);
     auto duration = dll::timer_elapsed();
     initialize.wait();
     channel->async_send(std::move(message), std::move(duration));

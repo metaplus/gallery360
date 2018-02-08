@@ -31,7 +31,6 @@ format_context::pointer format_context::operator->() const
 {
     return handle_.get();
 }
-
 codec_context::codec_context(codec cdc, stream srm, int threads)
     :handle_(avcodec_alloc_context3(ptr(cdc)), [](pointer p) { avcodec_free_context(&p); })
     , stream_(srm)

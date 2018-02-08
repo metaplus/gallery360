@@ -58,13 +58,13 @@ BOOL ParseMedia(LPCSTR url)
             codec_context codec{ cdc,srm };
             (*pending)[decode] = std::async(std::launch::async, [&, format, codec]() mutable {
                 revocable_wait(pending->at(parse));
-                auto on_read = true;
-                while (on_read)
+                auto reading = true;
+                while (reading)
                 {
-                    auto pkt = format.read<media::video>();
-                    on_read = !pkt.empty();
-                    if (auto frms = codec.decode(pkt); !frms.empty())
-                        std::for_each(frms.begin(), frms.end(), [&](auto& p) { revocable_push(p); });
+                    auto packet = format.read<media::video>();
+                    reading = !packet.empty();
+                    if (auto frames = codec.decode(packet); !frames.empty())
+                        std::for_each(frames.begin(), frames.end(), [&](auto& p) { revocable_push(p); });
                 }
                 return std::make_any<int64_t>(codec.count());
             }).share();

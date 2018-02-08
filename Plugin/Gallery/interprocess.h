@@ -2,32 +2,53 @@
 //TODO
 namespace ipc
 {
+    namespace info
+    {
+
+    }
 #pragma warning(push)
 #pragma warning(disable:4251)
     class DLLAPI message
     {
+    public:
+        template<typename U, typename ...Types>
+        struct basic_serializable
+        {
+            std::conditional_t<(sizeof...(Types) > 0), std::tuple<U, Types... >, U> data;
+            using value_type = decltype(data);
+            basic_serializable() = default;
+            explicit basic_serializable(U&& a0, Types&& ...args)
+                : data{ std::forward<U>(a0), std::forward<Types>(args)... } {}
+            template<typename Archive>
+            void serialize(Archive& archive)
+            {
+                archive(data);
+            }
+        };
+    private:
         std::variant<
             vr::Compositor_FrameTiming,
-            vr::Compositor_CumulativeStats,
-            double
+            vr::Compositor_CumulativeStats
         > data_;
         std::chrono::high_resolution_clock::duration duration_;
         using size_trait = core::max_size<decltype(data_)>;
-    public:
         using value_type = decltype(data_);
+    public:
+        template<typename Alternate>
+        struct is_alternative : core::is_within <Alternate, value_type> {};
+        constexpr static size_t size() noexcept; 
+        constexpr static size_t aligned_size(size_t align = 128) noexcept;
         message() = default;
         message(message&&) noexcept = default;
         message& operator=(message&&) noexcept = default;
-        template<typename Alternate, typename = std::enable_if_t<core::is_within_v<Alternate, value_type>>>
-        explicit message(Alternate data, std::chrono::high_resolution_clock::duration duration = {});
-        constexpr static size_t size() noexcept; //message body size
-        constexpr static size_t aligned_size(size_t align = 128) noexcept;
+        template<typename Alternate, typename = std::enable_if_t<is_alternative<Alternate>::value>>
+        explicit message(Alternate data, std::chrono::high_resolution_clock::duration duration = 0ns);
         size_t valid_size() const noexcept;
         constexpr size_t index() const noexcept;
         template<typename Visitor>
         decltype(auto) visit(Visitor&& visitor);
         template<typename Alternate, typename Callable>
-        auto visit_as(Callable&& callable)->std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>>;
+        std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>> visit_as(Callable&& callable);
     private:
         friend cereal::access;
         template<typename Archive>
@@ -38,15 +59,15 @@ namespace ipc
         : data_(std::move(data)), duration_(std::move(duration)) {}
     template <typename Visitor>
     decltype(auto) message::visit(Visitor&& visitor) 
-    {
+    { 
         return std::visit(std::forward<Visitor>(visitor), data_);
     }
     template <typename Alternate, typename Callable>
-    auto message::visit_as(Callable&& callable)
-        -> std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>>
+    std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>> 
+        message::visit_as(Callable&& callable)
     {
         static_assert(!std::is_reference_v<Alternate>);
-        static_assert(core::is_within_v<Alternate, value_type>);
+        static_assert(is_alternative<Alternate>::value);
         auto& alternate = std::get<Alternate>(data_);               //exception if invalid
         return std::invoke(std::forward<Callable>(callable), alternate);
     }
@@ -55,6 +76,7 @@ namespace ipc
     {
         archive(duration_, data_);
     }
+
     class DLLAPI channel : protected std::enable_shared_from_this<channel>
     {
         std::atomic<bool> running_;
@@ -73,7 +95,7 @@ namespace ipc
         explicit channel(bool open_only = true);
         std::pair<std::future<ipc::message>, size_t> async_receive();
         template<typename Alternate>
-        std::enable_if_t<core::is_within_v<Alternate, ipc::message::value_type>>
+        std::enable_if_t<ipc::message::is_alternative<Alternate>::value>
             async_send(Alternate message, std::chrono::high_resolution_clock::duration duration);
         bool valid() const noexcept;
         ~channel();
@@ -83,7 +105,7 @@ namespace ipc
         constexpr static size_t buffer_size() noexcept;
     };
     template <typename Alternate>
-    std::enable_if_t<core::is_within_v<Alternate, ipc::message::value_type>> 
+    std::enable_if_t<ipc::message::is_alternative<Alternate>::value>
         channel::async_send(Alternate message, std::chrono::high_resolution_clock::duration duration) 
     {
         send_context_.task_queue.emplace(std::async(std::launch::deferred,

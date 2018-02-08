@@ -11,7 +11,7 @@ namespace core
             template<typename ...Types>
             constexpr static auto by(Types ...args) -> std::decay_t<std::invoke_result_t<Callable, Types...>>
             {
-                static_assert((std::is_trivial_v<Types> && ...));
+                static_assert((std::is_trivially_copyable_v<Types> && ...));
                 //static_assert(std::is_standard_layout_v<std::common_type_t<Types...>>);
                 return Callable{}(args...);
             }
@@ -29,12 +29,12 @@ namespace core
             return std::integer_sequence<T, static_invoke<BinaryCallable>::by(Values, Factor)...>{};
         }
     }
-    template<typename L, typename R>    //for std::bool_constant AND operation
-    struct bool_and : impl::bool_arithmetic<std::bit_and<bool>, L, R> {};
-    template<typename L, typename R>    //for std::bool_constant OR operation
-    struct bool_or : impl::bool_arithmetic<std::bit_or<bool>, L, R> {};
-    template<typename L, typename R>    //for std::bool_constant XOR operation
-    struct bool_xor : impl::bool_arithmetic<std::bit_xor<bool>, L, R> {};
+    template<typename Bl, typename Br>    //for std::bool_constant AND operation
+    struct bool_and : impl::bool_arithmetic<std::bit_and<bool>, Bl, Br> {};
+    template<typename Bl, typename Br>    //for std::bool_constant OR operation
+    struct bool_or : impl::bool_arithmetic<std::bit_or<bool>, Bl, Br> {};
+    template<typename Bl, typename Br>    //for std::bool_constant XOR operation
+    struct bool_xor : impl::bool_arithmetic<std::bit_xor<bool>, Bl, Br> {};
     template<typename T, typename ...Types>
     struct reverse_tuple
     {
@@ -50,10 +50,18 @@ namespace core
     };
     namespace impl
     {
-        template<typename T, typename U, typename... Types>
-        struct is_within : bool_or<typename std::is_same<T, U>::type, typename is_within<T, Types...>::type> {};
-        template<typename T, typename U>
-        struct is_within<T, U> : std::is_same<T, U>::type {};
+        namespace v1
+        {
+            template<typename T, typename U, typename ...Types>
+            struct is_within : bool_or<typename std::is_same<T, U>::type, typename is_within<T, Types...>::type> {};
+            template<typename T, typename U>
+            struct is_within<T, U> : std::is_same<T, U>::type {};
+        }
+        inline namespace v2
+        {
+            template<typename T, typename ...Types>
+            struct is_within : std::disjunction<std::is_same<T, Types>...> {};
+        } 
         template<typename T, T ...Values>
         constexpr std::array<T, sizeof...(Values)>
             make_array(std::integer_sequence<T, Values...> = {})
@@ -102,13 +110,14 @@ namespace core
     struct is_atomic : std::is_same<core::remove_cv_ref_t<T>, std::atomic<core::value<T>>> {};
     template<typename T>
     constexpr bool is_atomic_v = core::is_atomic<T>::value;
+    template<template<bool> typename B>
+    struct is_bool_constant : std::conjunction<std::is_same<B<true>, std::true_type>, std::is_same<B<false>, std::false_type>> {};
     using relative = std::int64_t;
     using absolute = std::uint64_t;
     using rel = relative;
     using abs = absolute;
     template<typename T, typename ...Types>
-    struct max_size : std::integral_constant<size_t, 
-        std::max<size_t>(core::max_size<T>::value, core::max_size<Types...>::value)> {};
+    struct max_size : std::integral_constant<size_t, std::max<size_t>(core::max_size<T>::value, core::max_size<Types...>::value)> {};
     template<typename T>
     struct max_size<T> : std::integral_constant<size_t, sizeof(T)> {};
     template<typename ...Types>

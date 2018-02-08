@@ -76,7 +76,7 @@ try : running_(true), send_context_(), recv_context_()
                 }
                 try
                 {
-                    future.get();       //if atomic running_ is false, exception throwed here
+                    future.get();       //if atomic running_ set false ahead, exception throwed here
                     fmt::print(std::cerr, "sending fulfilled {}\n", ++count);
                 }
                 catch (...) { break; }
