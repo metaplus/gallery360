@@ -8,7 +8,7 @@ namespace
 void dll::timer_startup()
 {
     time_base = high_resolution_clock::now();
-#ifndef NDEBUG
+#if 0
     static auto debug_counter = 0;
     if (++debug_counter > 1)
         throw std::runtime_error{""};

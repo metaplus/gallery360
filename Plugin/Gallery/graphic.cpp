@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "graphic.h"
+#include "Gallery/interface.h"
+
 void graphic::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces)
 {
     switch (type)
@@ -42,6 +44,11 @@ void graphic::update_textures(av::frame& frame)
         texture->GetDesc(&desc);
         context->UpdateSubresource(texture, 0, nullptr, data, desc.Width, 0);
     }
+    static size_t frame_update_index = 0;
+    auto msg_time = dll::timer_elapsed();
+    auto msg_body = ipc::message::update_index{ frame_update_index++ };
+    auto msg = ipc::message{ std::move(msg_body),std::move(msg_time) };
+    dll::ipc_async_send(std::move(msg));
 }
 std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
 {

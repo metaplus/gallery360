@@ -40,7 +40,7 @@ constexpr size_t ipc::message::aligned_size(const size_t align) noexcept
 }
 constexpr size_t ipc::channel::buffer_size() noexcept 
 {
-    return ipc::message::size() * 3;
+    return ipc::message::size() * 2;
 }
 ipc::channel::channel(const bool open_only)
 try : running_(true), send_context_(), recv_context_() 
@@ -77,7 +77,6 @@ try : running_(true), send_context_(), recv_context_()
                 try
                 {
                     future.get();       //if atomic running_ set false ahead, exception throwed here
-                    fmt::print(std::cerr, "sending fulfilled {}\n", ++count);
                 }
                 catch (...) { break; }
             }
@@ -94,6 +93,11 @@ catch (...)
 std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive() 
 {
     std::promise<ipc::message> promise;
+    if(!valid())
+    {
+        promise.set_exception(std::make_exception_ptr(std::runtime_error{ "channel not opened" }));
+        return std::make_pair(promise.get_future(), 0);
+    }
     auto future = promise.get_future();
     auto task = std::async(std::launch::deferred,
         [this, promise = std::move(promise)]() mutable {
@@ -107,13 +111,13 @@ std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
                 std::this_thread::sleep_for(1ms);
                 continue;
             }
-            core::verify(recv_size < buffer_size());  //exception if filled
+            core::verify(recv_size < buffer_size());            //exception if filled
             buffer.resize(recv_size);
             stream.clear();
             stream.str(std::move(buffer));
             ipc::message message;
             {
-                cereal::BinaryInputArchive iarchive{ stream };
+                cereal::BinaryInputArchive iarchive{ stream };  //considering static thread_local std::optional<cereal::BinaryInputArchive>
                 iarchive >> message;
             }
             promise.set_value(std::move(message));
@@ -124,6 +128,32 @@ std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
     });
     recv_context_.task_queue.push(std::move(task));
     return std::make_pair(std::move(future), recv_context_.messages->get_num_msg());
+}
+void ipc::channel::async_send(ipc::message message)
+{
+    if (!valid())
+        return;
+    send_context_.task_queue.emplace(std::async(std::launch::deferred,
+        [this, message = std::move(message)]() mutable
+    {
+        const auto priority = static_cast<unsigned int>(message.index());
+        static thread_local std::stringstream stream;
+        stream.clear();
+        stream.str(""s);
+        {
+            cereal::BinaryOutputArchive oarchive{ stream };     //considering static thread_local std::optional<cereal::BinaryOutputArchive>
+            oarchive << message;
+        }
+        auto buffer = stream.str();
+        core::verify(buffer.size() < buffer_size());            //assume buffer_size never achieved
+        while (running_.load(std::memory_order_acquire))
+        {
+            if (send_context_.messages->try_send(buffer.data(), buffer.size(), priority))
+                return;
+            std::this_thread::sleep_for(1ms);
+        }
+        throw core::force_exit_exception{};
+    }));
 }
 bool ipc::channel::valid() const noexcept 
 {

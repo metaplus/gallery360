@@ -16,7 +16,7 @@ namespace core
     *  @par sleep std::this_thread::sleep_for(0ns) 9~20us
     *  @par yield std::this_thread::yield 3~7us
     *  @par wait std::future::wait_for(0ns) 6~15us
-    *  @par wait std::future::wait if closure completed 1us
+    *  @par wait std::future::wait $if closure completed$ 1us
     */
     namespace revokable
     {

@@ -30,9 +30,9 @@ namespace core
         }
     }
     template<typename Bl, typename Br>    //for std::bool_constant AND operation
-    struct bool_and : impl::bool_arithmetic<std::bit_and<bool>, Bl, Br> {};
+    struct bool_and : impl::bool_arithmetic<std::logical_and<bool>, Bl, Br> {};
     template<typename Bl, typename Br>    //for std::bool_constant OR operation
-    struct bool_or : impl::bool_arithmetic<std::bit_or<bool>, Bl, Br> {};
+    struct bool_or : impl::bool_arithmetic<std::logical_or<bool>, Bl, Br> {};
     template<typename Bl, typename Br>    //for std::bool_constant XOR operation
     struct bool_xor : impl::bool_arithmetic<std::bit_xor<bool>, Bl, Br> {};
     template<typename T, typename ...Types>
@@ -83,7 +83,7 @@ namespace core
         template<typename T>
         struct value_trait<std::shared_future<T>> { using type = T; };
     }
-    template<typename T, typename... Types>
+    template<typename T, typename ...Types>
     struct is_within : impl::is_within<T, Types...> { static_assert(sizeof...(Types) > 1); };
     template<typename T, typename ...Types>
     struct is_within<T, std::variant<Types...>> : core::is_within<T, Types...> {};
@@ -97,6 +97,8 @@ namespace core
     struct remove_cv_ref : std::remove_cv<std::remove_reference_t<T>> {};
     template<typename T>
     using remove_cv_ref_t = typename remove_cv_ref<T>::type;
+    template<typename T, typename ...Types>
+    struct is_similar : std::conjunction<std::is_same<core::remove_cv_ref_t<T>, core::remove_cv_ref_t<Types>>...> { static_assert(sizeof...(Types) > 0); };
     template<typename T>
     using value_trait = impl::value_trait<core::remove_cv_ref_t<T>>;
     template<typename T>

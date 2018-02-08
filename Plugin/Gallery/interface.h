@@ -17,16 +17,15 @@ EXTERN BOOL UNITYAPI IsDrainedVideo();
 //EXTERN UnityRenderingEvent UNITYAPI GetRenderEventFunc();
 namespace dll
 {
-    void timer_startup();
-    std::chrono::high_resolution_clock::duration timer_elapsed();
+    DLLAPI void timer_startup();
+    DLLAPI std::chrono::high_resolution_clock::duration timer_elapsed();
     std::optional<av::frame> media_extract_frame();
     void media_create();
     void media_clear();
     void media_release();
     void ipc_create();
     void ipc_release();
-    template<typename Alternate>
-    void ipc_async_send(Alternate message);
+    void ipc_async_send(ipc::message&& message);                         //demand moving from source
     std::pair<std::future<ipc::message>, size_t> ipc_async_receive();
     ipc::message ipc_receive();
 }
