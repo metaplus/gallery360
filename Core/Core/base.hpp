@@ -204,4 +204,40 @@ namespace core
             std::invoke(callable, args...);
         return std::forward<Callable>(callable);
     }
+    namespace impl
+    {
+        template<typename T, typename U, size_t I>
+        struct is_same_indexed : std::is_same<T, U>
+        {
+            using left_type = T;
+            using right_type = U;
+            constexpr static size_t index = I;
+        };
+        template<typename...>
+        struct indexer;
+        template<typename T, size_t ...Indexes, typename ...Types>
+        struct indexer <T, std::index_sequence<Indexes...>, Types...>
+        {
+            using type = std::disjunction<is_same_indexed<T, Types, Indexes>...>;
+        };
+    }
+    template<typename T, typename ...Types>
+    struct indexer : std::integral_constant<size_t, impl::indexer<T, std::index_sequence_for<Types...>, Types...>::type::index>
+    {
+        static_assert(core::is_within_v<T, Types...>, "T is outside Types... pack");
+    };
+    template<typename T, typename ...Types>
+    struct indexer <T, std::variant<Types...>> : std::integral_constant<size_t, indexer<T, Types...>::value> {};
+    template<typename T, typename ...Types>
+    struct indexer <T, std::tuple<Types...>> : std::integral_constant<size_t, indexer<T, Types...>::value> {};
+    template<typename T>
+    constexpr std::string_view type_shortname()
+    {
+        auto type_name = std::string_view{ typeid(T).name() };
+        auto begin_pos = std::find(type_name.crbegin(), type_name.crend(), ':');
+        if (begin_pos == type_name.crend())
+            begin_pos = std::find(type_name.crbegin(), type_name.crend(), ' ');
+        type_name.remove_prefix(std::distance(begin_pos, type_name.crend()));
+        return type_name;
+    }
 }

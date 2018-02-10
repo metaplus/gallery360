@@ -30,6 +30,11 @@ size_t ipc::message::valid_size() const noexcept
 {
     return impl::valid_size<0>(data_);
 }
+
+const std::chrono::high_resolution_clock::duration& ipc::message::timing() const
+{
+    return duration_;
+}
 constexpr size_t ipc::message::index() const noexcept 
 {
     return data_.index();
@@ -65,20 +70,25 @@ try : running_(true), send_context_(), recv_context_()
         auto& running = running_;
         auto& tasks = context.task_queue;
         context.task_worker = std::thread{ [this, &running, &tasks] {
-            auto count = -1;
             while (running.load(std::memory_order_acquire))
             {
                 std::decay_t<decltype(tasks)>::value_type future;
                 if (!tasks.try_pop(future))
                 {
-                    std::this_thread::sleep_for(1ms);
+                    std::this_thread::sleep_for(4ms);
                     continue;
                 }
                 try
                 {
                     future.get();       //if atomic running_ set false ahead, exception throwed here
                 }
-                catch (...) { break; }
+                catch (...)
+                {
+                    break;
+#ifndef NDEBUG
+                    throw;    
+#endif
+                }
             }
         } };
     }, send_context_, recv_context_);
@@ -108,7 +118,7 @@ std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
         {
             const auto lefrt = recv_context_.messages->get_num_msg();
             if (!recv_context_.messages->try_receive(buffer.data(), buffer.size(), recv_size, priority)) {
-                std::this_thread::sleep_for(1ms);
+                std::this_thread::sleep_for(4ms);
                 continue;
             }
             core::verify(recv_size < buffer_size());            //exception if filled
@@ -150,7 +160,7 @@ void ipc::channel::async_send(ipc::message message)
         {
             if (send_context_.messages->try_send(buffer.data(), buffer.size(), priority))
                 return;
-            std::this_thread::sleep_for(1ms);
+            std::this_thread::sleep_for(4ms);
         }
         throw core::force_exit_exception{};
     }));

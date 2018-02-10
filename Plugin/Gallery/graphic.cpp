@@ -47,7 +47,12 @@ void graphic::update_textures(av::frame& frame)
     static size_t frame_update_index = 0;
     auto msg_time = dll::timer_elapsed();
     auto msg_body = ipc::message::update_index{ frame_update_index++ };
-    auto msg = ipc::message{ std::move(msg_body),std::move(msg_time) };
+    auto msg = ipc::message{ std::move(msg_body), msg_time };
+    if (static std::optional<ipc::message> msg_first_updata; !msg_first_updata.has_value())
+    {
+        msg_first_updata.emplace(ipc::message::first_frame_updated{ "first_frame_updated"s }, std::move(msg_time));
+        dll::ipc_async_send(msg_first_updata.value());
+    }
     dll::ipc_async_send(std::move(msg));
 }
 std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
@@ -62,3 +67,4 @@ void graphic::clear()
     device_ = nullptr;
     alphas_.fill(nullptr);
 }
+

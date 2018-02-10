@@ -7,6 +7,8 @@ EXTERN void UNITYAPI GlobalRelease();
 EXTERN BOOL UNITYAPI ParseMedia(LPCSTR url);
 EXTERN void UNITYAPI StoreTime(FLOAT t);
 EXTERN void UNITYAPI StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV);
+EXTERN UINT32 UNITYAPI StoreVrFrameTiming(HANDLE vr_timing);
+EXTERN void UNITYAPI StoreVrCumulativeStatus(HANDLE vr_status);
 EXTERN void UNITYAPI LoadParamsVideo(INT& width,INT& height);
 EXTERN BOOL UNITYAPI IsDrainedVideo();
 //EXTERN INT UNITYAPI CreateTextures(HANDLE& y,HANDLE& u,HANDLE& v);
@@ -25,9 +27,13 @@ namespace dll
     void media_release();
     void ipc_create();
     void ipc_release();
-    void ipc_async_send(ipc::message&& message);                         //demand moving from source
+    void ipc_async_send(ipc::message message);                         
     std::pair<std::future<ipc::message>, size_t> ipc_async_receive();
     ipc::message ipc_receive();
+    namespace helper
+    {
+        
+    }
 }
 static_assert(std::is_same_v<int, INT>);
 static_assert(std::is_same_v<float, FLOAT>);

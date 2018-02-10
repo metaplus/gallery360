@@ -1,4 +1,6 @@
 #pragma once
+#include <cereal/cereal.hpp>
+
 namespace vr    //involved header clip
 {
 #pragma pack(push,8)
@@ -164,12 +166,12 @@ namespace vr    //involved header clip
     {
         archive(
             time.m_nSize,
-            time.m_nFrameIndex,
-            time.m_nNumFramePresents,
-            time.m_nNumMisPresented,                //_
-            time.m_nNumDroppedFrames,
+            cereal::make_nvp("FrameIndex", time.m_nFrameIndex),
+            cereal::make_nvp("NumFramePresents", time.m_nNumFramePresents),
+            cereal::make_nvp("NumMisPresented", time.m_nNumMisPresented),               //_
+            cereal::make_nvp("NumDroppedFrames", time.m_nNumDroppedFrames),
             time.m_nReprojectionFlags,
-            time.m_flSystemTimeInSeconds,           //_
+            cereal::make_nvp("SystemTimeInSeconds", time.m_flSystemTimeInSeconds),      //_        
             time.m_flPreSubmitGpuMs,
             time.m_flPostSubmitGpuMs,
             time.m_flTotalRenderGpuMs,
@@ -180,13 +182,13 @@ namespace vr    //involved header clip
             time.m_flPresentCallCpuMs,
             time.m_flWaitForPresentCpuMs,           //_
             time.m_flSubmitFrameMs,
-            time.m_flWaitGetPosesCalledMs,
-            time.m_flNewPosesReadyMs,
-            time.m_flNewFrameReadyMs,               //_
-            time.m_flCompositorUpdateStartMs,
-            time.m_flCompositorUpdateEndMs,
-            time.m_flCompositorRenderStartMs,
-            time.m_HmdPose
+            cereal::make_nvp("WaitGetPosesCalledMs", time.m_flWaitGetPosesCalledMs),
+            cereal::make_nvp("NewPosesReadyMs", time.m_flNewPosesReadyMs),
+            cereal::make_nvp("NewFrameReadyMs", time.m_flNewFrameReadyMs),               //_
+            cereal::make_nvp("CompositorUpdateStartMs", time.m_flCompositorUpdateStartMs),
+            cereal::make_nvp("CompositorUpdateEndMs", time.m_flCompositorUpdateEndMs),
+            cereal::make_nvp("CompositorRenderStartMs", time.m_flCompositorRenderStartMs)
+            //time.m_HmdPose                        //!!!!! TODO: evil pointers
         );
     }
     template<typename Archive>
@@ -194,20 +196,20 @@ namespace vr    //involved header clip
     {
         archive(
             stats.m_nPid,
-            stats.m_nNumFramePresents,
-            stats.m_nNumDroppedFrames,
-            stats.m_nNumReprojectedFrames,          //_
-            stats.m_nNumFramePresentsOnStartup,
-            stats.m_nNumDroppedFramesOnStartup,
-            stats.m_nNumReprojectedFramesOnStartup, //_
-            stats.m_nNumLoading,
-            stats.m_nNumFramePresentsLoading,
-            stats.m_nNumDroppedFramesLoading,
-            stats.m_nNumReprojectedFramesLoading,   //_
-            stats.m_nNumTimedOut,
-            stats.m_nNumFramePresentsTimedOut,
-            stats.m_nNumDroppedFramesTimedOut,
-            stats.m_nNumReprojectedFramesTimedOut   //_
+            cereal::make_nvp("NumFramePresents", stats.m_nNumFramePresents),
+            cereal::make_nvp("NumDroppedFrames", stats.m_nNumDroppedFrames),
+            cereal::make_nvp("NumReprojectedFrames", stats.m_nNumReprojectedFrames),          //_
+            cereal::make_nvp("NumFramePresentsOnStartup", stats.m_nNumFramePresentsOnStartup),
+            cereal::make_nvp("NumDroppedFramesOnStartup", stats.m_nNumDroppedFramesOnStartup),
+            cereal::make_nvp("NumReprojectedFramesOnStartup", stats.m_nNumReprojectedFramesOnStartup), //_
+            cereal::make_nvp("NumLoading", stats.m_nNumLoading),
+            cereal::make_nvp("NumFramePresentsLoading", stats.m_nNumFramePresentsLoading),
+            cereal::make_nvp("NumDroppedFramesLoading", stats.m_nNumDroppedFramesLoading),
+            cereal::make_nvp("NumReprojectedFramesLoading", stats.m_nNumReprojectedFramesLoading),   //_
+            cereal::make_nvp("NumTimedOut", stats.m_nNumTimedOut),
+            cereal::make_nvp("NumFramePresentsTimedOut", stats.m_nNumFramePresentsTimedOut),
+            cereal::make_nvp("NumDroppedFramesTimedOut", stats.m_nNumDroppedFramesTimedOut),
+            cereal::make_nvp("NumReprojectedFramesTimedOut", stats.m_nNumReprojectedFramesTimedOut)   //_
         );
     }
 }

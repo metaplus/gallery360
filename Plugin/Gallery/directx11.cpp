@@ -17,6 +17,28 @@ void StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV)
 {
     core::verify(texY != nullptr, texU != nullptr, texV != nullptr);
     dll_graphic->store_textures(texY, texU, texV);
+    auto msg_time = dll::timer_elapsed();
+    auto msg_body = ipc::message::info_started{ "info_started" };
+    auto msg = ipc::message{ std::move(msg_body), std::move(msg_time) };
+    dll::ipc_async_send(std::move(msg));
+}
+UINT32 StoreVrFrameTiming(HANDLE vr_timing)
+{
+    auto msg_time = dll::timer_elapsed();
+    auto msg_body = vr::Compositor_FrameTiming{};
+    msg_body = *static_cast<vr::Compositor_FrameTiming*>(vr_timing);
+    auto msg = ipc::message{ std::move(msg_body), std::move(msg_time) };
+    core::verify(msg_body.m_flSystemTimeInSeconds >= 0);
+    dll::ipc_async_send(std::move(msg));
+    return msg_body.m_nFrameIndex;
+}
+void StoreVrCumulativeStatus(HANDLE vr_status)
+{
+    auto msg_time = dll::timer_elapsed();
+    auto msg_body = vr::Compositor_CumulativeStats{};
+    msg_body = *static_cast<vr::Compositor_CumulativeStats*>(vr_status);
+    auto msg = ipc::message{ std::move(msg_body), std::move(msg_time) };
+    dll::ipc_async_send(std::move(msg));
 }
 static void __stdcall OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
 {

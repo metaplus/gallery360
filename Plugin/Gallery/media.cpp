@@ -15,7 +15,7 @@ auto revocable_wait = [&](auto& future)       //cancelable wait
     //using type=decltype(std::declval<decltype(future)>().get());
     if constexpr(core::is_future<decltype(future)>::value) 
     {
-        while (future.wait_for(100us) != std::future_status::ready)
+        while (future.wait_for(200us) != std::future_status::ready)
         {
             if (!running.load(std::memory_order_acquire))
                 throw std::runtime_error{ "foreced quit" };
@@ -30,7 +30,7 @@ auto revocable_push = [&](decltype(frames)::element_type::value_type& elem)
     {
         if (!running.load(std::memory_order_acquire))
             throw std::runtime_error{ "forced quit" };
-        std::this_thread::sleep_for(50us);
+        std::this_thread::sleep_for(100us);
     }
 };
 auto revocable_pop = [&] {
@@ -42,7 +42,7 @@ auto revocable_pop = [&] {
             return frame{};
         if (!running.load(std::memory_order_acquire))
             throw std::runtime_error{ "forced quit" };
-        std::this_thread::sleep_for(50us);
+        std::this_thread::sleep_for(100us);
     }
     return data;
 };
@@ -64,7 +64,16 @@ BOOL ParseMedia(LPCSTR url)
                     auto packet = format.read<media::video>();
                     reading = !packet.empty();
                     if (auto frames = codec.decode(packet); !frames.empty())
+                    {
+                        if (static std::optional<ipc::message> msg; !msg.has_value())
+                        {
+                            auto msg_time = dll::timer_elapsed();
+                            auto msg_body = ipc::message::first_frame_available{ "first_frame_available"s };
+                            msg.emplace(std::move(msg_body), std::move(msg_time));
+                            dll::ipc_async_send(msg.value());
+                        }
                         std::for_each(frames.begin(), frames.end(), [&](auto& p) { revocable_push(p); });
+                    }
                 }
                 return std::make_any<int64_t>(codec.count());
             }).share();
@@ -82,8 +91,16 @@ void LoadParamsVideo(INT& width, INT& height)
     std::tie(width, height) = stream.scale();
 }
 BOOL IsDrainedVideo()
-{   //swaping first 2 AND operands is accurate but may gain performance penalty, thus add 3rd operand as amendment
-    return frames->empty() && pending->at(decode).wait_for(0ns) == std::future_status::ready && frames->empty();
+{   //swaping first 2 AND operands is accurate but gains performance penalty, thus add 3rd operand as amendment
+    const auto is_drained = frames->empty() && pending->at(decode).wait_for(0ns) == std::future_status::ready && frames->empty();
+    if (static std::optional<ipc::message> msg; is_drained && !msg.has_value())
+    {
+        auto msg_time = dll::timer_elapsed();
+        auto msg_body = ipc::message::info_started{ "update phase finished" };
+        msg.emplace(std::move(msg_body), std::move(msg_time));
+        dll::ipc_async_send(ipc::message{ msg.value() });
+    }
+    return is_drained;
 }
 std::optional<av::frame> dll::media_extract_frame()
 {

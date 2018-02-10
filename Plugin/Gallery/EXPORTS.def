@@ -11,3 +11,5 @@ EXPORTS
    ParseMedia
    LoadParamsVideo
    IsDrainedVideo
+   StoreVrFrameTiming
+   StoreVrCumulativeStatus

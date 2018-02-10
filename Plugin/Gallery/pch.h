@@ -12,6 +12,7 @@
 #include <cereal/types/common.hpp>
 #include <cereal/types/array.hpp>
 #include <cereal/types/tuple.hpp>
+#include <cereal/types/string.hpp>
 #include <cereal/types/utility.hpp>
 #include <cereal/types/vector.hpp>
 #pragma warning(push)

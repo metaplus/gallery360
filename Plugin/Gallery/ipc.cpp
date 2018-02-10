@@ -8,9 +8,6 @@ namespace
     std::future<size_t> finished;
 }
 void dll::ipc_create() {
-    //initialized = std::async([] {
-    //    channel = std::make_shared<ipc::channel>(true);
-    //});
     pending = std::make_unique<decltype(pending)::element_type>();
     pending->emplace([] { channel = std::make_shared<ipc::channel>(true); });
     std::promise<void> promise_initialized;
@@ -18,7 +15,7 @@ void dll::ipc_create() {
     finished = std::async([initialized = std::move(promise_initialized)]() mutable {
         std::packaged_task<void()> task;
         size_t send_count = 0;
-        std::this_thread::sleep_for(300ms);
+        std::this_thread::sleep_for(700ms);
         while (true)
         {
             if (!pending->try_pop(task))
@@ -38,7 +35,6 @@ void dll::ipc_create() {
                 initialized.set_exception(std::current_exception());
                 return send_count;
             }
-            //task.reset();
         }
     });
 }
@@ -48,7 +44,7 @@ void dll::ipc_release() {
     finished.wait();
     channel.reset();
 }
-void dll::ipc_async_send(ipc::message&& message)
+void dll::ipc_async_send(ipc::message message)
 {
     pending->emplace([message = std::move(message)]() { channel->async_send(message); });
 }

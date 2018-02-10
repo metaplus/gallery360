@@ -6,7 +6,7 @@ namespace ipc
 #pragma warning(disable:4251)
     class DLLAPI message
     {
-    public:
+    public: //TODO: make non constructible type contained by std::optional
         template<typename U, typename ...Types>
         struct basic_serializable
         {
@@ -17,23 +17,35 @@ namespace ipc
                 : data( std::forward<U>(a0), std::forward<Types>(args)... ) {}
             template<typename Archive>
             void serialize(Archive& archive)
-            {
+            { 
                 archive(data);
             }
         };
+        struct info_launch : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
+        struct info_started : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
+        struct info_drained : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
+        struct info_exit : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
         struct update_index : basic_serializable<size_t> { using basic_serializable::basic_serializable; };
         struct tagged_pack : basic_serializable<std::string, std::string> { using basic_serializable::basic_serializable; };
+        struct first_frame_available : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
+        struct first_frame_updated : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
     private:
         std::variant<
             vr::Compositor_FrameTiming,
             vr::Compositor_CumulativeStats,
             update_index,
-            tagged_pack
+            tagged_pack,
+            info_launch,
+            info_started,
+            info_drained,
+            info_exit,
+            first_frame_available,
+            first_frame_updated
         > data_;
         std::chrono::high_resolution_clock::duration duration_;
         using size_trait = core::max_size<decltype(data_)>;
-        using value_type = decltype(data_);
     public:
+        using value_type = decltype(data_);
         template<typename Alternate>
         struct is_alternative : core::is_within<Alternate, value_type> {};
         constexpr static size_t size() noexcept; 
@@ -48,19 +60,39 @@ namespace ipc
         size_t valid_size() const noexcept;
         constexpr size_t index() const noexcept;
         template<typename Alternate>
+        constexpr static size_t index() noexcept;
+        template<typename Alternate>
+        bool is() const noexcept;
+        template<typename Alternate>
         std::add_lvalue_reference_t<Alternate> get();
         template<typename Visitor>
         decltype(auto) visit(Visitor&& visitor);
         template<typename Alternate, typename Callable>
         std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>> visit_as(Callable&& callable);
+        const std::chrono::high_resolution_clock::duration& timing() const;
     private:
         friend cereal::access;
         template<typename Archive>
         void serialize(Archive& archive);
+
     };
+    template <typename Alternate>
+    constexpr size_t message::index() noexcept
+    {
+        static_assert(std::is_object_v<Alternate> && !std::is_const_v<Alternate>);
+        static_assert(core::is_within_v<Alternate, value_type>);
+        //return core::indexer<Alternate, value_type>::type::index;
+        return core::indexer<Alternate, value_type>::value;
+
+    }
     template <typename Alternate, typename>
     message::message(Alternate data, std::chrono::high_resolution_clock::duration duration)
         : data_(std::move(data)), duration_(std::move(duration)) {}
+    template <typename Alternate>
+    bool message::is() const noexcept
+    {
+        return std::get_if<Alternate>(&data_) != nullptr;
+    }
     template <typename Alternate>
     std::add_lvalue_reference_t<Alternate> message::get()
     {
@@ -85,7 +117,9 @@ namespace ipc
     template <typename Archive>
     void message::serialize(Archive& archive) 
     {
-        archive(duration_, data_);
+        archive(
+            cereal::make_nvp("TimingNs",duration_), 
+            cereal::make_nvp("Message", data_));
     }
 
     class DLLAPI channel : protected std::enable_shared_from_this<channel>

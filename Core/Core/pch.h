@@ -24,6 +24,7 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <regex>
 #include <limits>
 #include <map>
 #include <memory>
