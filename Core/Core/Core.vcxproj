@@ -159,6 +159,7 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="revokable.hpp" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="sync.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
