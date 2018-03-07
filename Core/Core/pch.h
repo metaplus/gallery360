@@ -8,7 +8,8 @@
 #define BOOST_FILESYSTEM_NO_DEPRECATED 
 #define BOOST_USE_WINDOWS_H   
 #define _SCL_SECURE_NO_WARNINGS
-#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS //tbb usage
+#define _SILENCE_PARALLEL_ALGORITHMS_EXPERIMENTAL_WARNING   // <execution>
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS             // tbb usage
 
 #include <algorithm>
 #include <any>
@@ -39,6 +40,7 @@
 #include <type_traits>
 #include <variant>
 #include <vector>
+#include <execution>
 //#include <boost/thread.hpp>
 //#include <boost/thread/scoped_thread.hpp>
 //#include <boost/thread/future.hpp>
@@ -77,6 +79,7 @@
 //#include <termcolor/termcolor.hpp>
 using namespace std::literals;
 using namespace fmt::literals;
+#include "Core/meta.hpp"
 #include "Core/base.hpp"
 #include "Core/revokable.hpp"
 #include "Core/guard.h"

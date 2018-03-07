@@ -27,18 +27,18 @@ UINT32 StoreVrFrameTiming(HANDLE vr_timing)
     auto msg_time = dll::timer_elapsed();
     auto msg_body = vr::Compositor_FrameTiming{};
     msg_body = *static_cast<vr::Compositor_FrameTiming*>(vr_timing);
-    auto msg = ipc::message{ std::move(msg_body), std::move(msg_time) };
-    core::verify(msg_body.m_flSystemTimeInSeconds >= 0);
+    auto msg = ipc::message{ msg_body, std::move(msg_time) };
     dll::ipc_async_send(std::move(msg));
     return msg_body.m_nFrameIndex;
 }
-void StoreVrCumulativeStatus(HANDLE vr_status)
+UINT32 StoreVrCumulativeStatus(HANDLE vr_status)
 {
     auto msg_time = dll::timer_elapsed();
     auto msg_body = vr::Compositor_CumulativeStats{};
     msg_body = *static_cast<vr::Compositor_CumulativeStats*>(vr_status);
     auto msg = ipc::message{ std::move(msg_body), std::move(msg_time) };
     dll::ipc_async_send(std::move(msg));
+    return msg_body.m_nNumFramePresents;
 }
 static void __stdcall OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
 {

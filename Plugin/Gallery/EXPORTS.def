@@ -8,8 +8,8 @@ EXPORTS
    StoreAlphaTexture
    GlobalCreate
    GlobalRelease
-   ParseMedia
-   LoadParamsVideo
-   IsDrainedVideo
+   LoadVideoParams
+   IsVideoDrained
+   StoreMediaUrl
    StoreVrFrameTiming
    StoreVrCumulativeStatus

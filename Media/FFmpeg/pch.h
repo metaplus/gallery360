@@ -18,7 +18,6 @@ extern "C" {
 #include <libavutil/timestamp.h>
 #include <libswscale/swscale.h>
 }
-//#pragma warning(default:4819)
 #pragma warning(pop)
 #ifdef _WIN32
 #pragma comment(lib,"avcodec")

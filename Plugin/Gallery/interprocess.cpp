@@ -84,10 +84,7 @@ try : running_(true), send_context_(), recv_context_()
                 }
                 catch (...)
                 {
-                    break;
-#ifndef NDEBUG
-                    throw;    
-#endif
+                    break; throw;
                 }
             }
         } };
@@ -95,10 +92,10 @@ try : running_(true), send_context_(), recv_context_()
 }
 catch (...) 
 {
-    running_.store(false, std::memory_order_relaxed);
+    running_.store(false, std::memory_order_release);
     send_context_.messages.reset();
     recv_context_.messages.reset();
-    throw;
+    throw;      
 }
 std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive() 
 {
@@ -141,8 +138,6 @@ std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
 }
 void ipc::channel::async_send(ipc::message message)
 {
-    if (!valid())
-        return;
     send_context_.task_queue.emplace(std::async(std::launch::deferred,
         [this, message = std::move(message)]() mutable
     {
@@ -167,7 +162,7 @@ void ipc::channel::async_send(ipc::message message)
 }
 bool ipc::channel::valid() const noexcept 
 {
-    return send_context_.messages.has_value() && recv_context_.messages.has_value();
+    return running_.load(std::memory_order_acquire) && send_context_.messages.has_value() && recv_context_.messages.has_value();
 }
 ipc::channel::~channel() 
 {

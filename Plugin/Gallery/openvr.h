@@ -198,18 +198,18 @@ namespace vr    //involved header clip
             stats.m_nPid,
             cereal::make_nvp("NumFramePresents", stats.m_nNumFramePresents),
             cereal::make_nvp("NumDroppedFrames", stats.m_nNumDroppedFrames),
-            cereal::make_nvp("NumReprojectedFrames", stats.m_nNumReprojectedFrames),          //_
+            cereal::make_nvp("NumReprojectedFrames", stats.m_nNumReprojectedFrames),                    //_
             cereal::make_nvp("NumFramePresentsOnStartup", stats.m_nNumFramePresentsOnStartup),
             cereal::make_nvp("NumDroppedFramesOnStartup", stats.m_nNumDroppedFramesOnStartup),
-            cereal::make_nvp("NumReprojectedFramesOnStartup", stats.m_nNumReprojectedFramesOnStartup), //_
+            cereal::make_nvp("NumReprojectedFramesOnStartup", stats.m_nNumReprojectedFramesOnStartup),  //_
             cereal::make_nvp("NumLoading", stats.m_nNumLoading),
             cereal::make_nvp("NumFramePresentsLoading", stats.m_nNumFramePresentsLoading),
             cereal::make_nvp("NumDroppedFramesLoading", stats.m_nNumDroppedFramesLoading),
-            cereal::make_nvp("NumReprojectedFramesLoading", stats.m_nNumReprojectedFramesLoading),   //_
+            cereal::make_nvp("NumReprojectedFramesLoading", stats.m_nNumReprojectedFramesLoading),      //_
             cereal::make_nvp("NumTimedOut", stats.m_nNumTimedOut),
             cereal::make_nvp("NumFramePresentsTimedOut", stats.m_nNumFramePresentsTimedOut),
             cereal::make_nvp("NumDroppedFramesTimedOut", stats.m_nNumDroppedFramesTimedOut),
-            cereal::make_nvp("NumReprojectedFramesTimedOut", stats.m_nNumReprojectedFramesTimedOut)   //_
+            cereal::make_nvp("NumReprojectedFramesTimedOut", stats.m_nNumReprojectedFramesTimedOut)     //_
         );
     }
 }

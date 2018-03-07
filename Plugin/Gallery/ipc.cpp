@@ -9,7 +9,11 @@ namespace
 }
 void dll::ipc_create() {
     pending = std::make_unique<decltype(pending)::element_type>();
-    pending->emplace([] { channel = std::make_shared<ipc::channel>(true); });
+    pending->emplace([] 
+    { 
+        try { channel = std::make_shared<ipc::channel>(true); }
+        catch (...) { channel = nullptr; }
+    });
     std::promise<void> promise_initialized;
     initialized = promise_initialized.get_future();
     finished = std::async([initialized = std::move(promise_initialized)]() mutable {
@@ -46,6 +50,7 @@ void dll::ipc_release() {
 }
 void dll::ipc_async_send(ipc::message message)
 {
+    if (!channel || !channel->valid()) return;
     pending->emplace([message = std::move(message)]() { channel->async_send(message); });
 }
 std::pair<std::future<ipc::message>, size_t> dll::ipc_async_receive() {

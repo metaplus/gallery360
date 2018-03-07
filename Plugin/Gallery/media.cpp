@@ -13,7 +13,7 @@ namespace
 auto revocable_wait = [&](auto& future)       //cancelable wait
 {
     //using type=decltype(std::declval<decltype(future)>().get());
-    if constexpr(core::is_future<decltype(future)>::value) 
+    if constexpr(meta::is_future<decltype(future)>::value) 
     {
         while (future.wait_for(200us) != std::future_status::ready)
         {
@@ -46,7 +46,7 @@ auto revocable_pop = [&] {
     }
     return data;
 };
-BOOL ParseMedia(LPCSTR url)
+BOOL StoreMediaUrl(LPCSTR url)
 {
     try
     {
@@ -83,14 +83,14 @@ BOOL ParseMedia(LPCSTR url)
     catch (...) { return false; }
     return true;
 }
-void LoadParamsVideo(INT& width, INT& height)
+void LoadVideoParams(INT& width, INT& height)
 {
     revocable_wait(pending->at(parse));
     auto format = std::any_cast<format_context>(pending->at(parse).get());
     auto stream = format.demux<media::video>().first;
     std::tie(width, height) = stream.scale();
 }
-BOOL IsDrainedVideo()
+BOOL IsVideoDrained()
 {   //swaping first 2 AND operands is accurate but gains performance penalty, thus add 3rd operand as amendment
     const auto is_drained = frames->empty() && pending->at(decode).wait_for(0ns) == std::future_status::ready && frames->empty();
     if (static std::optional<ipc::message> msg; is_drained && !msg.has_value())
@@ -104,7 +104,7 @@ BOOL IsDrainedVideo()
 }
 std::optional<av::frame> dll::media_extract_frame()
 {
-    if (IsDrainedVideo())
+    if (IsVideoDrained())
         return std::nullopt;
     return revocable_pop();
 }

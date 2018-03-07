@@ -31,7 +31,7 @@ format_context::pointer format_context::operator->() const
 {
     return handle_.get();
 }
-codec_context::codec_context(codec cdc, stream srm, int threads)
+codec_context::codec_context(codec cdc, stream srm, unsigned threads)
     :handle_(avcodec_alloc_context3(ptr(cdc)), [](pointer p) { avcodec_free_context(&p); })
     , stream_(srm)
     , state_()
@@ -53,22 +53,19 @@ int64_t codec_context::count() const
 {
     return state_.count;
 }
-std::vector<frame, tbb_allocator<frame>> codec_context::decode(const packet& compressed)
+std::vector<frame> codec_context::decode(const packet& compressed)
 {
     if (std::exchange(state_.flushed, compressed.empty()))
         throw std::runtime_error{ "prohibit multiple codec context flush" };
     if (stream_.index() != compressed->stream_index)
         throw std::invalid_argument{ "prohibt decode disparate stream" };
-    std::vector<frame, tbb_allocator<frame>> decodeds;
+    std::vector<frame> decodeds;
     if (compressed.empty())
         decodeds.reserve(10);
     core::verify(avcodec_send_packet(ptr(handle_), ptr(compressed)));
     frame current;
     while (avcodec_receive_frame(ptr(handle_), ptr(current)) == 0)
-    {
-        decodeds.push_back(std::move(current));
-        current = frame{};
-    }
+        decodeds.push_back(std::exchange(current, frame{}));
     state_.count += decodeds.size();
     return decodeds;
 }

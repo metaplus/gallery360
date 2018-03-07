@@ -21,7 +21,7 @@ namespace core
     namespace revokable
     {
         template<typename Future>                   
-        std::enable_if_t<core::is_future<Future>::value>
+        std::enable_if_t<meta::is_future<Future>::value>
             wait(Future&& future, std::atomic<bool>& permit, std::chrono::steady_clock::duration interval = 0ns) 
         {
             auto attempt = future.wait_for(0ns);

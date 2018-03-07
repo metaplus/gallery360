@@ -60,7 +60,7 @@ namespace core
         void basic_ptr<T>::reset(const_pointer other)
         {
             if (ptr_.use_count() > 1)
-                throw std::runtime_error{ "prohibit access contention" };
+                throw std::runtime_error{ "prohibit race condition" };
             auto deleter = std::get_deleter<void(*)(T*)>(ptr_);
             deleter != nullptr ? ptr_.reset(other, *deleter) : ptr_.reset(other);
         }
@@ -69,7 +69,7 @@ namespace core
         void basic_ptr<T>::reset(const_pointer other, Deleter del)
         {
             if (ptr_.use_count() > 1)
-                throw std::runtime_error{ "prohibit access contention" };
+                throw std::runtime_error{ "prohibit race condition" };
             ptr_.reset(other, del);
         }
     }

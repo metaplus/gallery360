@@ -4,19 +4,13 @@
  */
 EXTERN BOOL UNITYAPI GlobalCreate();
 EXTERN void UNITYAPI GlobalRelease();
-EXTERN BOOL UNITYAPI ParseMedia(LPCSTR url);
+EXTERN BOOL UNITYAPI StoreMediaUrl(LPCSTR url);
 EXTERN void UNITYAPI StoreTime(FLOAT t);
 EXTERN void UNITYAPI StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV);
 EXTERN UINT32 UNITYAPI StoreVrFrameTiming(HANDLE vr_timing);
-EXTERN void UNITYAPI StoreVrCumulativeStatus(HANDLE vr_status);
-EXTERN void UNITYAPI LoadParamsVideo(INT& width,INT& height);
-EXTERN BOOL UNITYAPI IsDrainedVideo();
-//EXTERN INT UNITYAPI CreateTextures(HANDLE& y,HANDLE& u,HANDLE& v);
-//EXTERN void UNITYAPI UnityPluginLoad(IUnityInterfaces* unityInterfaces);
-//EXTERN void UNITYAPI UnityPluginUnload();
-//EXTERN void OnRenderEvent(int eventID);
-//EXTERN void OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType);
-//EXTERN UnityRenderingEvent UNITYAPI GetRenderEventFunc();
+EXTERN UINT32 UNITYAPI StoreVrCumulativeStatus(HANDLE vr_status);
+EXTERN void UNITYAPI LoadVideoParams(INT& width,INT& height);
+EXTERN BOOL UNITYAPI IsVideoDrained();
 namespace dll
 {
     DLLAPI void timer_startup();

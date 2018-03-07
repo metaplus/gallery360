@@ -1,8 +1,6 @@
 #pragma once
 #include "Gallery/openvr.h"
 //#include "Gallery/interface.h"
-#include <boost/asio.hpp>
-#include <boost/interprocess/ipc/message_queue.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/access.hpp>
 #include <cereal/archives/binary.hpp> 
@@ -16,8 +14,10 @@
 #include <cereal/types/utility.hpp>
 #include <cereal/types/vector.hpp>
 #pragma warning(push)
-#pragma warning(disable:4267)
+#pragma warning(disable:4267 4834)
 #include <cereal/types/variant.hpp>
+#include <boost/asio.hpp>
+#include <boost/interprocess/ipc/message_queue.hpp>
 #pragma warning(pop)
 //#include <boost/process.hpp>
 //namespace process = boost::process;

@@ -31,23 +31,17 @@ namespace ipc
         struct first_frame_updated : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
     private:
         std::variant<
-            vr::Compositor_FrameTiming,
-            vr::Compositor_CumulativeStats,
-            update_index,
-            tagged_pack,
-            info_launch,
-            info_started,
-            info_drained,
-            info_exit,
-            first_frame_available,
-            first_frame_updated
+            update_index, tagged_pack,
+            info_launch, info_started, info_drained, info_exit,
+            first_frame_available, first_frame_updated,
+            vr::Compositor_FrameTiming, vr::Compositor_CumulativeStats
         > data_;
         std::chrono::high_resolution_clock::duration duration_;
-        using size_trait = core::max_size<decltype(data_)>;
+        using size_trait = meta::max_size<decltype(data_)>;
     public:
         using value_type = decltype(data_);
         template<typename Alternate>
-        struct is_alternative : core::is_within<Alternate, value_type> {};
+        struct is_alternative : meta::is_within<Alternate, value_type> {};
         constexpr static size_t size() noexcept; 
         constexpr static size_t aligned_size(size_t align = 128) noexcept;
         message() = default;
@@ -80,9 +74,8 @@ namespace ipc
     constexpr size_t message::index() noexcept
     {
         static_assert(std::is_object_v<Alternate> && !std::is_const_v<Alternate>);
-        static_assert(core::is_within_v<Alternate, value_type>);
-        //return core::indexer<Alternate, value_type>::type::index;
-        return core::indexer<Alternate, value_type>::value;
+        static_assert(meta::is_within_v<Alternate, value_type>);
+        return meta::index<Alternate, value_type>::value;
 
     }
     template <typename Alternate, typename>

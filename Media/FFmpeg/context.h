@@ -3,7 +3,7 @@ namespace av
 {
     class format_context
     {
-        std::shared_ptr<AVFormatContext> handle_;
+        std::shared_ptr<AVFormatContext> handle_{};
     public:
         using value_type = AVFormatContext;
         using pointer = AVFormatContext * ;
@@ -22,7 +22,7 @@ namespace av
     {
         static_assert(media::is_valid<Media>);
         //prepare();
-        AVCodec* cdc = nullptr;
+        codec::pointer cdc = nullptr;
         const auto ptr = handle_.get();
         const auto index = av_find_best_stream(ptr,
             static_cast<AVMediaType>(Media::value), -1, -1, &cdc, 0);
@@ -60,21 +60,21 @@ namespace av
 
     class codec_context
     {
-        std::shared_ptr<AVCodecContext> handle_;
-        stream stream_;
+        std::shared_ptr<AVCodecContext> handle_{};
+        stream stream_{};
         struct state
         {
             int64_t count;
             bool flushed;
-        }state_;
+        }state_{};
     public:
         using value_type = AVCodecContext;
         using pointer = AVCodecContext * ;
         using resolution = std::pair<decltype(AVCodecContext::width), decltype(AVCodecContext::height)>;
-        codec_context(codec cdc, stream srm, int threads = std::thread::hardware_concurrency());
+        codec_context(codec cdc, stream srm, unsigned threads = std::thread::hardware_concurrency());
         pointer operator->() const;
         bool valid() const;
         int64_t count() const;
-        std::vector<frame, tbb::tbb_allocator<frame>> decode(const packet& compressed);
+        std::vector<frame> decode(const packet& compressed);
     };
 }

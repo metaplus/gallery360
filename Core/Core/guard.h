@@ -28,7 +28,29 @@ namespace core
     };
     template <typename Callable>
     scope_guard::scope_guard(Callable callable, const bool ctor_invoke)
-        : release_(ctor_invoke ? callable : std::move(callable)) {
+        : release_(ctor_invoke ? callable : std::move(callable)) 
+    {
         if (ctor_invoke) std::invoke(callable);
     }
+    namespace v2
+    {
+        template<typename Callable>
+        class scope_guard : Callable
+        {
+        public:
+            explicit scope_guard(const Callable& c) : Callable(c) {}
+            scope_guard() = default;
+            scope_guard(const scope_guard&) = delete;
+            scope_guard(scope_guard&&) = default;
+            scope_guard& operator=(const scope_guard&) = delete;
+            scope_guard& operator=(scope_guard&& other) = default;
+            ~scope_guard() { std::invoke(*this); }
+        };
+        template<typename Callable>
+        scope_guard<std::decay_t<Callable>> make_scope_guard(Callable&& callable)
+        {
+            return scope_guard<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
+        }
+    }
+    // Exception guard
 }

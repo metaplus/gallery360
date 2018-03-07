@@ -156,6 +156,7 @@
     <ClInclude Include="base.hpp" />
     <ClInclude Include="basic_ptr.hpp" />
     <ClInclude Include="guard.h" />
+    <ClInclude Include="meta.hpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="revokable.hpp" />
     <ClInclude Include="stdafx.h" />
