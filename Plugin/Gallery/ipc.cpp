@@ -3,65 +3,53 @@
 namespace
 {
     std::shared_ptr<ipc::channel> channel = nullptr;
-    std::unique_ptr<tbb::concurrent_queue<std::packaged_task<void()>>> pending = nullptr;
-    std::future<void> initialized;
-    std::future<size_t> finished;
+    std::shared_future<void> initial;
 }
-void dll::ipc_create() {
-    pending = std::make_unique<decltype(pending)::element_type>();
-    pending->emplace([] 
-    { 
+void dll::interprocess_create() {
+    initial = std::async([]() 
+    {
         try { channel = std::make_shared<ipc::channel>(true); }
         catch (...) { channel = nullptr; }
     });
-    std::promise<void> promise_initialized;
-    initialized = promise_initialized.get_future();
-    finished = std::async([initialized = std::move(promise_initialized)]() mutable {
-        std::packaged_task<void()> task;
-        size_t send_count = 0;
-        std::this_thread::sleep_for(700ms);
-        while (true)
-        {
-            if (!pending->try_pop(task))
-            {
-                std::this_thread::sleep_for(8ms);
-                continue;
-            }
-            if (!task.valid())
-                return send_count;
-            try
-            {
-                if (std::invoke(task); ++send_count == 1)
-                    initialized.set_value();
-            }
-            catch (...)
-            {
-                initialized.set_exception(std::current_exception());
-                return send_count;
-            }
-        }
-    });
+
 }
-void dll::ipc_release() {
-    pending->emplace();
-    initialized.wait();
-    finished.wait();
+void dll::interprocess_release() {
+    if (initial.valid()) initial.get(); 
     channel.reset();
+    //channel = nullptr;
 }
-void dll::ipc_async_send(ipc::message message)
+void dll::interprocess_async_send(ipc::message message)
 {
-    if (!channel || !channel->valid()) return;
-    pending->emplace([message = std::move(message)]() { channel->async_send(message); });
+    static struct
+    {
+        std::mutex mutex;
+        std::vector<ipc::message> container;
+    }temporary;
+    if (initial.wait_for(0ns) != std::future_status::ready)
+    {
+        std::lock_guard<std::mutex> exlock{ temporary.mutex };
+        temporary.container.push_back(std::move(message));
+        return;
+    }
+    if (!channel || !channel->valid())
+    {
+        std::lock_guard<std::mutex> exlock{ temporary.mutex };
+        if(!temporary.container.empty())
+            temporary.container.clear();
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> exlock{ temporary.mutex };
+        if (!temporary.container.empty())
+        {
+            for (auto& msg : temporary.container)
+                channel->async_send(std::move(msg));
+            temporary.container.clear();
+        }
+    }
+    channel->async_send(std::move(message));
 }
-std::pair<std::future<ipc::message>, size_t> dll::ipc_async_receive() {
-    initialized.wait();
+std::pair<std::future<ipc::message>, size_t> dll::interprocess_async_receive() {
+    if (initial.wait_for(0ns) != std::future_status::ready || !channel || !channel->valid()) return {};
     return channel->async_receive();
-}
-ipc::message dll::ipc_receive() {
-    initialized.wait();
-#pragma warning(push)
-#pragma warning(disable:4101)
-    auto[future, left_count] = channel->async_receive();
-#pragma warning(pop)
-    return future.get();
 }

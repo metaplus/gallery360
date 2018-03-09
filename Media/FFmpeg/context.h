@@ -7,6 +7,7 @@ namespace av
     public:
         using value_type = AVFormatContext;
         using pointer = AVFormatContext * ;
+        format_context() = default;
         explicit format_context(std::variant<source, sink> io);
         pointer operator->() const;
         template<typename Media>
@@ -16,7 +17,6 @@ namespace av
     private:
         //void prepare() const;
     };
-
     template <typename Media>
     std::pair<stream, codec> format_context::demux()
     {
@@ -28,7 +28,6 @@ namespace av
             static_cast<AVMediaType>(Media::value), -1, -1, &cdc, 0);
         return std::make_pair(stream{ ptr->streams[index] }, codec{ cdc });
     }
-
     template <typename Media>
     packet format_context::read()
     {
@@ -61,7 +60,7 @@ namespace av
     class codec_context
     {
         std::shared_ptr<AVCodecContext> handle_{};
-        stream stream_{};
+        stream stream_;
         struct state
         {
             int64_t count;

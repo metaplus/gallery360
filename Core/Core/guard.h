@@ -35,22 +35,23 @@ namespace core
     namespace v2
     {
         template<typename Callable>
-        class scope_guard : Callable
+        class generic_guard : Callable
         {
         public:
-            explicit scope_guard(const Callable& c) : Callable(c) {}
-            scope_guard() = default;
-            scope_guard(const scope_guard&) = delete;
-            scope_guard(scope_guard&&) = default;
-            scope_guard& operator=(const scope_guard&) = delete;
-            scope_guard& operator=(scope_guard&& other) = default;
-            ~scope_guard() { std::invoke(*this); }
+            explicit generic_guard(Callable&& c) : Callable(std::move(c)) {}
+            generic_guard() = default;
+            generic_guard(const generic_guard&) = delete;
+            generic_guard(generic_guard&&) = default;
+            generic_guard& operator=(const generic_guard&) = delete;
+            generic_guard& operator=(generic_guard&& other) = default;
+            using Callable::operator();
+            ~generic_guard() { (*this)(); }
         };
         template<typename Callable>
-        scope_guard<std::decay_t<Callable>> make_scope_guard(Callable&& callable)
+        generic_guard<std::decay_t<Callable>> make_guard(Callable&& callable)
         {
-            return scope_guard<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
+            return generic_guard<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
         }
     }
-    // Exception guard
+    // Todo: Exception guard
 }

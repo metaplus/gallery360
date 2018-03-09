@@ -8,11 +8,9 @@
 #include <cereal/types/memory.hpp>
 #include <cereal/types/chrono.hpp>
 #include <cereal/types/common.hpp>
-#include <cereal/types/array.hpp>
 #include <cereal/types/tuple.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/utility.hpp>
-#include <cereal/types/vector.hpp>
 #pragma warning(push)
 #pragma warning(disable:4267 4834)
 #include <cereal/types/variant.hpp>

@@ -152,7 +152,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="abbr.hpp" />
     <ClInclude Include="base.hpp" />
     <ClInclude Include="basic_ptr.hpp" />
     <ClInclude Include="guard.h" />

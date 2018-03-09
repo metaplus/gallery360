@@ -5,79 +5,93 @@ using namespace core;
 enum task { init, parse, decode, last };
 namespace
 {
-    std::unique_ptr<tbb::concurrent_unordered_map<task, std::shared_future<std::any>>>  pending = nullptr;
-    std::unique_ptr<tbb::concurrent_bounded_queue<frame>> frames = nullptr;
+    struct frame_queue
+    {
+        std::deque<av::frame> container;
+        mutable std::mutex mutex;
+        mutable std::condition_variable condition;
+        std::atomic<bool> is_empty;
+        frame_queue() = default;
+        //std::shared_lock<decltype(mutex)> lock_shared() const { return std::shared_lock<decltype(mutex)>{mutex}; }
+        std::unique_lock<decltype(mutex)> lock_exclusive() const { return std::unique_lock<decltype(mutex)>{mutex}; }
+    };
     const auto max_fps = 60;
-    std::atomic<bool> running = true;
+    std::shared_ptr<frame_queue> frames = nullptr;
+    namespace routine
+    {
+        std::shared_future<void> registry; 
+        std::shared_future<av::format_context> parse;
+        std::shared_future<uint64_t> decode;
+    }
+    namespace status
+    {
+        auto& empty = frames->is_empty;
+        std::atomic<bool> running = false;
+    }
 }
-auto revocable_wait = [&](auto& future)       //cancelable wait
+auto push_frame = [&](const av::frame& frame)
 {
-    //using type=decltype(std::declval<decltype(future)>().get());
-    if constexpr(meta::is_future<decltype(future)>::value) 
-    {
-        while (future.wait_for(200us) != std::future_status::ready)
-        {
-            if (!running.load(std::memory_order_acquire))
-                throw std::runtime_error{ "foreced quit" };
-        }
-    }
-    else
-        static_assert(false, "demand (shared_)future<T> param");
+    auto exlock = frames->lock_exclusive();
+    if (frames->container.size() > max_fps + 20)
+        frames->condition.wait(exlock, [] { return frames->container.size() < max_fps || !status::running.load(std::memory_order_relaxed); });
+    if (!status::running.load(std::memory_order_relaxed)) throw core::force_exit_exception{};
+    frames->container.push_back(frame);
+    frames->is_empty.store(frames->container.empty(), std::memory_order_relaxed);
+    exlock.unlock();
+    frames->condition.notify_one();
 };
-auto revocable_push = [&](decltype(frames)::element_type::value_type& elem)
+
+auto pop_frame = [&]() -> av::frame
 {
-    while (!frames->try_push(elem))
-    {
-        if (!running.load(std::memory_order_acquire))
-            throw std::runtime_error{ "forced quit" };
-        std::this_thread::sleep_for(100us);
-    }
-};
-auto revocable_pop = [&] {
-    decltype(frames)::element_type::value_type data;
-    revocable_wait(pending->at(parse)); 
-    while (!frames->try_pop(data))
-    {
-        if (pending->at(decode).wait_for(0ns) == std::future_status::ready)
-            return frame{};
-        if (!running.load(std::memory_order_acquire))
-            throw std::runtime_error{ "forced quit" };
-        std::this_thread::sleep_for(100us);
-    }
-    return data;
+    routine::parse.wait();
+    auto exlock = frames->lock_exclusive();
+    if (frames->container.empty()) 
+        frames->condition.wait(exlock, [] { return !frames->container.empty() || !status::running.load(std::memory_order_relaxed); });
+    if (!status::running.load(std::memory_order_relaxed)) throw core::force_exit_exception{};
+    const auto frame = std::move(frames->container.front());
+    frames->container.pop_front();
+    const auto size = frames->container.size();
+    frames->is_empty.store(size == 0, std::memory_order_relaxed);
+    exlock.unlock();
+    if (size < max_fps) 
+        frames->condition.notify_one();
+    return frame;
 };
 BOOL StoreMediaUrl(LPCSTR url)
 {
     try
     {
-        verify(is_regular_file(filesystem::path{ url }));
-        (*pending)[parse] = std::async(std::launch::async, [&, path = std::string{ url }]{
-            pending->at(init).wait();
+        const filesystem::path path = url;
+        core::verify(is_regular_file(path));
+        std::promise<av::format_context> parse;
+        routine::parse = parse.get_future().share();
+        routine::decode = std::async(std::launch::async, [parse = std::move(parse), path = path.generic_string()]() mutable
+        {
+            uint64_t decode_count = 0;
+            routine::registry.wait();
             format_context format{ source{path} };
+            parse.set_value(format);
             auto[srm, cdc] = format.demux<media::video>();
             codec_context codec{ cdc,srm };
-            (*pending)[decode] = std::async(std::launch::async, [&, format, codec]() mutable {
-                revocable_wait(pending->at(parse));
-                auto reading = true;
-                while (reading)
+            auto reading = true;
+            while (status::running.load(std::memory_order_acquire) && reading)
+            {
+                auto packet = format.read<media::video>();
+                reading = !packet.empty();
+                if (auto decode_frames = codec.decode(packet); !decode_frames.empty())
                 {
-                    auto packet = format.read<media::video>();
-                    reading = !packet.empty();
-                    if (auto frames = codec.decode(packet); !frames.empty())
+                    if (static std::optional<ipc::message> msg; !msg.has_value())
                     {
-                        if (static std::optional<ipc::message> msg; !msg.has_value())
-                        {
-                            auto msg_time = dll::timer_elapsed();
-                            auto msg_body = ipc::message::first_frame_available{ "first_frame_available"s };
-                            msg.emplace(std::move(msg_body), std::move(msg_time));
-                            dll::ipc_async_send(msg.value());
-                        }
-                        std::for_each(frames.begin(), frames.end(), [&](auto& p) { revocable_push(p); });
+                        auto msg_time = dll::timer_elapsed();
+                        auto msg_body = ipc::message::first_frame_available{};
+                        msg.emplace(std::move(msg_body), std::move(msg_time));
+                        dll::interprocess_async_send(msg.value());
                     }
+                    decode_count += decode_frames.size();
+                    std::for_each(decode_frames.begin(), decode_frames.end(), [&](auto& p) { push_frame(p); });
                 }
-                return std::make_any<int64_t>(codec.count());
-            }).share();
-            return std::make_any<format_context>(format);
+            }
+            return decode_count;
         }).share();
     }
     catch (...) { return false; }
@@ -85,55 +99,30 @@ BOOL StoreMediaUrl(LPCSTR url)
 }
 void LoadVideoParams(INT& width, INT& height)
 {
-    revocable_wait(pending->at(parse));
-    auto format = std::any_cast<format_context>(pending->at(parse).get());
+    auto format = routine::parse.get();
     auto stream = format.demux<media::video>().first;
     std::tie(width, height) = stream.scale();
 }
 BOOL IsVideoDrained()
-{   //swaping first 2 AND operands is accurate but gains performance penalty, thus add 3rd operand as amendment
-    const auto is_drained = frames->empty() && pending->at(decode).wait_for(0ns) == std::future_status::ready && frames->empty();
-    if (static std::optional<ipc::message> msg; is_drained && !msg.has_value())
-    {
-        auto msg_time = dll::timer_elapsed();
-        auto msg_body = ipc::message::info_started{ "update phase finished" };
-        msg.emplace(std::move(msg_body), std::move(msg_time));
-        dll::ipc_async_send(ipc::message{ msg.value() });
-    }
-    return is_drained;
+{   
+    return routine::decode.wait_for(0ns) == std::future_status::ready && frames->is_empty.load(std::memory_order_acquire);
 }
 std::optional<av::frame> dll::media_extract_frame()
 {
-    if (IsVideoDrained())
-        return std::nullopt;
-    return revocable_pop();
+    //if (IsVideoDrained()) return std::nullopt;
+    return pop_frame();
 }
 void dll::media_create()
 {
-    running.store(true, std::memory_order_relaxed);
-    frames = std::make_unique<decltype(frames)::element_type>();
-    pending = std::make_unique<decltype(pending)::element_type>();
-    frames->set_capacity(max_fps + 20);
-    (*pending)[init] = std::async([] {
-        register_all();     //7ms
-        return std::any{};
-    }).share();
+    status::running.store(true, std::memory_order_release);
+    frames = std::make_shared<decltype(frames)::element_type>();
+    routine::registry = std::async([] { av::register_all(); }).share();     //7ms
 }
-void dll::media_clear()
-{
-    frames->abort();
-    frames->clear();
-    pending->clear();
-    frames.reset();
-    pending.reset();
-}
+
 void dll::media_release()
 {
-    running.store(false, std::memory_order_release);
-    for (auto index = init; index != last; core::enum_advance(index, 1))
-    {
-        if (pending->count(index) != 0 && pending->at(index).wait_for(3s) != std::future_status::ready)
-            throw std::runtime_error{ "critical blocking accident" };
-    }
-    dll::media_clear();
+    status::running.store(false, std::memory_order_seq_cst);
+    frames->condition.notify_all();
+    core::repeat_each([](auto& future) { future.wait(); }, routine::registry, routine::parse, routine::decode);
+    frames = nullptr;
 }

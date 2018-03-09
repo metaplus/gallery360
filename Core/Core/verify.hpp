@@ -4,17 +4,14 @@ namespace core
     template<typename Scalar>
     constexpr auto verify_one(Scalar pred) -> std::enable_if_t<std::is_scalar_v<Scalar>>
     {
-        if constexpr(std::is_integral_v<Scalar>) {
-            if constexpr(std::is_same_v<Scalar, bool>) {
-                if (!pred) throw std::logic_error{ "condition false" };
-            }
+        if constexpr(std::is_integral_v<Scalar>) 
+        {
+            if constexpr(std::is_same_v<Scalar, bool>) { if (!pred) throw std::logic_error{ "condition false" }; }
             else if (pred < 0) throw std::out_of_range{ "negative value" };
         }
         else if constexpr(std::is_null_pointer_v<Scalar>)
             throw std::runtime_error{ "null pointer" };
-        else if constexpr(std::is_pointer_v<Scalar>) {
-            if (pred == nullptr) throw std::bad_alloc{};
-        }
+        else if constexpr(std::is_pointer_v<Scalar>) { if (pred == nullptr) throw std::bad_alloc{}; }
         else throw std::invalid_argument{ "illegal parameter" };
     }
     template<typename ...Types>
@@ -62,15 +59,9 @@ namespace core
 inline int core::inspect_exception(const std::exception & e)
 {
     std::cerr << e.what() << ' ';
-    try {
-        std::rethrow_if_nested(e);
-    }
-    catch (const std::exception& another) {
-        return core::inspect_exception(another);
-    }
-    catch (...) {
-        std::cerr << "nonstandard exception";
-    }
+    try { std::rethrow_if_nested(e); }
+    catch (const std::exception& another) { return core::inspect_exception(another); }
+    catch (...) { std::cerr << "nonstandard exception"; }
     std::cerr << std::endl;
     return boost::exit_failure;
 }

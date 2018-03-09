@@ -50,10 +50,10 @@ void graphic::update_textures(av::frame& frame)
     auto msg = ipc::message{ std::move(msg_body), msg_time };
     if (static std::optional<ipc::message> msg_first_updata; !msg_first_updata.has_value())
     {
-        msg_first_updata.emplace(ipc::message::first_frame_updated{ "first_frame_updated"s }, std::move(msg_time));
-        dll::ipc_async_send(msg_first_updata.value());
+        msg_first_updata.emplace(ipc::message::first_frame_updated{}, std::move(msg_time));
+        dll::interprocess_async_send(msg_first_updata.value());
     }
-    dll::ipc_async_send(std::move(msg));
+    dll::interprocess_async_send(std::move(msg));
 }
 std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
 {

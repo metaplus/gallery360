@@ -21,17 +21,18 @@
 #include <cstring>
 #include <deque>
 #include <exception>
-#include <filesystem>
+#include <execution>
 #include <fstream>
 #include <future>
 #include <iostream>
-#include <regex>
 #include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <numeric>
 #include <optional>
+#include <regex>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
@@ -40,45 +41,26 @@
 #include <type_traits>
 #include <variant>
 #include <vector>
-#include <execution>
-//#include <boost/thread.hpp>
-//#include <boost/thread/scoped_thread.hpp>
-//#include <boost/thread/future.hpp>
-//#include <boost/assert.hpp>
-//#include <boost/archive/binary_iarchive.hpp>
-//#include <boost/archive/binary_oarchive.hpp>
-//#include <boost/convert.hpp>
-//#include <boost/convert/spirit.hpp>
-//#include <boost/convert/stream.hpp>
-//#include <boost/convert/lexical_cast.hpp>
-//#include <boost/convert/strtol.hpp>
-//#include <boost/archive/text_iarchive.hpp>
-//#include <boost/archive/text_oarchive.hpp>
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
-//#include <boost/lexical_cast.hpp>                     //prefer std::from_chars/to_chars
-//#include <boost/serialization/array.hpp>
-//#include <boost/serialization/assume_abstract.hpp>
-//#include <boost/serialization/base_object.hpp>
-//#include <boost/serialization/binary_object.hpp>      
-//#include <boost/serialization/string.hpp>
-//#include <boost/serialization/utility.hpp>
-//#include <boost/serialization/vector.hpp>
-//#include <boost/serialization/version.hpp>
+#include <tbb/tbb.h>
 #include <fmt/container.h>    
 #include <fmt/format.h>                  
 #include <fmt/ostream.h>
 #include <fmt/string.h>
 #include <fmt/time.h>
-#include <tbb/tbb.h>
-#include <tbb/tbb_allocator.h>
-#include <tbb/cache_aligned_allocator.h>
-#include <tbb/scalable_allocator.h>
-//#include <spdlog/spdlog.h>
-//#include <spdlog/fmt/ostr.h>
-//#include <termcolor/termcolor.hpp>
+
 using namespace std::literals;
 using namespace fmt::literals;
+
+//#if __has_include(<filesystem>)
+#include <filesystem>
+namespace filesystem = std::experimental::filesystem;
+//#elif __has_include(<boost/filesystem.hpp>)
+//#include <boost/filesystem.hpp>
+//namespace filesystem = boost::filesystem;
+//#endif
+
 #include "Core/meta.hpp"
 #include "Core/base.hpp"
 #include "Core/revokable.hpp"
@@ -94,7 +76,5 @@ using namespace fmt::literals;
 #else
 #pragma comment(lib,"tbb")
 #pragma comment(lib,"Release/fmt")
-#endif  //NDEBUG
-#endif  //_WIN32
-
-
+#endif  // NDEBUG
+#endif  // _WIN32

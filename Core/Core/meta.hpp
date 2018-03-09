@@ -136,15 +136,15 @@ namespace meta
             constexpr static size_t index = I;
         };
         template<typename...>
-        struct indexer;
+        struct index;
         template<typename T, size_t ...Indexes, typename ...Types>
-        struct indexer <T, std::index_sequence<Indexes...>, Types...>
+        struct index <T, std::index_sequence<Indexes...>, Types...>
         {
             using type = std::disjunction<is_same_indexed<T, Types, Indexes>...>;
         };
     }
     template<typename T, typename ...Types>
-    struct index : std::integral_constant<size_t, impl::indexer<T, std::index_sequence_for<Types...>, Types...>::type::index>
+    struct index : std::integral_constant<size_t, impl::index<T, std::index_sequence_for<Types...>, Types...>::type::index>
     {
         static_assert(meta::is_within_v<T, Types...>, "T is outside Types... pack");
     };

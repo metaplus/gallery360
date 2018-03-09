@@ -65,86 +65,53 @@ try : running_(true), send_context_(), recv_context_()
         recv_context_.messages.emplace(interprocess::create_only, config::identity_plugin.data(), msg_capcity, msg_size);
         core::verify(send_context_.messages->get_max_msg() > 0, recv_context_.messages->get_max_msg() > 0);
     }
-    core::repeat_each([this](endpoint& context)
-    {
-        auto& running = running_;
-        auto& tasks = context.task_queue;
-        context.task_worker = std::thread{ [this, &running, &tasks] {
-            while (running.load(std::memory_order_acquire))
-            {
-                std::decay_t<decltype(tasks)>::value_type future;
-                if (!tasks.try_pop(future))
-                {
-                    std::this_thread::sleep_for(4ms);
-                    continue;
-                }
-                try
-                {
-                    future.get();       //if atomic running_ set false ahead, exception throwed here
-                }
-                catch (...)
-                {
-                    break; throw;
-                }
-            }
-        } };
-    }, send_context_, recv_context_);
 }
 catch (...) 
 {
-    running_.store(false, std::memory_order_release);
-    send_context_.messages.reset();
-    recv_context_.messages.reset();
+    running_.store(false, std::memory_order_seq_cst);
+    send_context_.messages = std::nullopt;
+    recv_context_.messages = std::nullopt;
     throw;      
 }
-std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive() 
+
+std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
 {
-    std::promise<ipc::message> promise;
-    if(!valid())
+    if (!valid()) return {};
+    std::packaged_task<ipc::message()> recv_task{ [this]() mutable
     {
-        promise.set_exception(std::make_exception_ptr(std::runtime_error{ "channel not opened" }));
-        return std::make_pair(promise.get_future(), 0);
-    }
-    auto future = promise.get_future();
-    auto task = std::async(std::launch::deferred,
-        [this, promise = std::move(promise)]() mutable {
-        static thread_local std::stringstream stream;
+        std::stringstream stream;
         std::string buffer(buffer_size(), 0);
         auto[recv_size, priority] = std::pair<size_t, unsigned>{};
-        while (running_.load(std::memory_order_acquire)) 
+        while (running_.load(std::memory_order_acquire))
         {
-            const auto lefrt = recv_context_.messages->get_num_msg();
             if (!recv_context_.messages->try_receive(buffer.data(), buffer.size(), recv_size, priority)) {
                 std::this_thread::sleep_for(4ms);
                 continue;
             }
             core::verify(recv_size < buffer_size());            //exception if filled
             buffer.resize(recv_size);
-            stream.clear();
-            stream.str(std::move(buffer));
+            stream.clear(); stream.str(std::move(buffer));
             ipc::message message;
             {
                 cereal::BinaryInputArchive iarchive{ stream };  //considering static thread_local std::optional<cereal::BinaryInputArchive>
                 iarchive >> message;
             }
-            promise.set_value(std::move(message));
-            return;
+            return message;
         }
-        promise.set_exception(std::make_exception_ptr(core::force_exit_exception{}));
         throw core::force_exit_exception{};
-    });
-    recv_context_.task_queue.push(std::move(task));
+    } };
+    auto future = recv_task.get_future();
+    recv_context_.pending.append(std::move(recv_task));
     return std::make_pair(std::move(future), recv_context_.messages->get_num_msg());
 }
 void ipc::channel::async_send(ipc::message message)
 {
-    send_context_.task_queue.emplace(std::async(std::launch::deferred,
-        [this, message = std::move(message)]() mutable
+    if (!valid()) return;
+    send_context_.pending.append([this, message = std::move(message)]() mutable
     {
         const auto priority = static_cast<unsigned int>(message.index());
-        static thread_local std::stringstream stream;
-        stream.clear();
-        stream.str(""s);
+        std::stringstream stream;
+        stream.str(""s); stream.clear();
         {
             cereal::BinaryOutputArchive oarchive{ stream };     //considering static thread_local std::optional<cereal::BinaryOutputArchive>
             oarchive << message;
@@ -158,19 +125,26 @@ void ipc::channel::async_send(ipc::message message)
             std::this_thread::sleep_for(4ms);
         }
         throw core::force_exit_exception{};
-    }));
+    });
 }
-bool ipc::channel::valid() const noexcept 
+bool ipc::channel::valid() const 
 {
     return running_.load(std::memory_order_acquire) && send_context_.messages.has_value() && recv_context_.messages.has_value();
+}
+void ipc::channel::wait()
+{
+    core::repeat_each([](endpoint& context) 
+    {
+        context.pending.wait();
+    }, send_context_, recv_context_);
 }
 ipc::channel::~channel() 
 {
     running_.store(false);
     core::repeat_each([](endpoint& context) 
     {
-        context.task_worker.join();
-        context.task_queue.clear();
+        if (!context.messages.has_value()) return;
+        context.pending.abort_and_wait();
         context.messages.reset();
     }, send_context_, recv_context_);
 }

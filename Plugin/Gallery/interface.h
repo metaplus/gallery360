@@ -15,18 +15,22 @@ namespace dll
 {
     DLLAPI void timer_startup();
     DLLAPI std::chrono::high_resolution_clock::duration timer_elapsed();
-    std::optional<av::frame> media_extract_frame();
-    void media_create();
-    void media_clear();
-    void media_release();
-    void ipc_create();
-    void ipc_release();
-    void ipc_async_send(ipc::message message);                         
-    std::pair<std::future<ipc::message>, size_t> ipc_async_receive();
-    ipc::message ipc_receive();
+    DLLAPI std::optional<av::frame> media_extract_frame();
+    DLLAPI void media_create();
+    DLLAPI void media_release();
+    DLLAPI void interprocess_create();
+    DLLAPI void interprocess_release();
+    DLLAPI void interprocess_async_send(ipc::message message);                         
+    DLLAPI std::pair<std::future<ipc::message>, size_t> interprocess_async_receive();
     namespace helper
     {
-        
+        class interprocess
+        {
+            std::chrono::high_resolution_clock::duration duration_;
+        public:
+            interprocess() : duration_(dll::timer_elapsed()) {}
+            void send() && {}
+        };
     }
 }
 static_assert(std::is_same_v<int, INT>);

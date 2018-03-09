@@ -3,9 +3,10 @@
 #include <thread>
 #include <iostream>
 core::time_guard::time_guard() :
-    time_mark_{ std::chrono::steady_clock::now() } {
-}
-core::time_guard::~time_guard() {
+    time_mark_{ std::chrono::steady_clock::now() } 
+{}
+core::time_guard::~time_guard() 
+{
     //std::cout.setf(std::ios::hex);
     std::cout
         << "thread@" << std::this_thread::get_id() << ' '
@@ -13,6 +14,7 @@ core::time_guard::~time_guard() {
         << " ms\n";
     //std::cout.unsetf(std::ios::hex);
 }
-core::scope_guard::~scope_guard() {
+core::scope_guard::~scope_guard() 
+{
     if (release_) release_();
 }

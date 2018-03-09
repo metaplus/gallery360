@@ -15,7 +15,7 @@ format_context::format_context(std::variant<source, sink> io)
             pointer ptr = nullptr;
             core::verify(avformat_open_input(&ptr, arg.url.c_str(), nullptr, nullptr));
             handle_.reset(ptr, [](pointer p) { avformat_close_input(&p); });
-            core::verify(avformat_find_stream_info(ptr, nullptr));   //60ms+
+            core::verify(avformat_find_stream_info(ptr, nullptr));   // 60ms+
 #ifndef NDEBUG
             av_dump_format(ptr, 0, ptr->filename, 0);
 #endif
@@ -69,6 +69,3 @@ std::vector<frame> codec_context::decode(const packet& compressed)
     state_.count += decodeds.size();
     return decodeds;
 }
-
-
-
