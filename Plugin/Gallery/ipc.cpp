@@ -6,17 +6,18 @@ namespace
     std::shared_future<void> initial;
 }
 void dll::interprocess_create() {
-    initial = std::async([]() 
+    initial = std::async([]()
     {
+        std::this_thread::sleep_for(500ms);
         try { channel = std::make_shared<ipc::channel>(true); }
         catch (...) { channel = nullptr; }
     });
 
 }
 void dll::interprocess_release() {
-    if (initial.valid()) initial.get(); 
-    channel.reset();
-    //channel = nullptr;
+    if (initial.valid()) 
+        initial.wait();
+    channel = nullptr;
 }
 void dll::interprocess_async_send(ipc::message message)
 {
@@ -24,32 +25,25 @@ void dll::interprocess_async_send(ipc::message message)
     {
         std::mutex mutex;
         std::vector<ipc::message> container;
-    }temporary;
+    }temp_mvec;
+    static thread_local std::vector<ipc::message> local_mvec;
     if (initial.wait_for(0ns) != std::future_status::ready)
     {
-        std::lock_guard<std::mutex> exlock{ temporary.mutex };
-        temporary.container.push_back(std::move(message));
-        return;
-    }
-    if (!channel || !channel->valid())
-    {
-        std::lock_guard<std::mutex> exlock{ temporary.mutex };
-        if(!temporary.container.empty())
-            temporary.container.clear();
-        return;
+        std::lock_guard<std::mutex> exlock{ temp_mvec.mutex };
+        return temp_mvec.container.push_back(std::move(message));
     }
     {
-        std::lock_guard<std::mutex> exlock{ temporary.mutex };
-        if (!temporary.container.empty())
-        {
-            for (auto& msg : temporary.container)
-                channel->async_send(std::move(msg));
-            temporary.container.clear();
-        }
+        std::lock_guard<std::mutex> exlock{ temp_mvec.mutex };
+        if (!channel) 
+            return temp_mvec.container.clear();
+        if (!temp_mvec.container.empty())
+            std::swap(local_mvec, temp_mvec.container);
+    }
+    if (!local_mvec.empty())
+    {
+        for (auto& msg : local_mvec)
+            channel->async_send(std::move(msg));
+        local_mvec.clear();
     }
     channel->async_send(std::move(message));
-}
-std::pair<std::future<ipc::message>, size_t> dll::interprocess_async_receive() {
-    if (initial.wait_for(0ns) != std::future_status::ready || !channel || !channel->valid()) return {};
-    return channel->async_receive();
 }

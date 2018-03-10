@@ -50,7 +50,6 @@ namespace ipc
         template<typename Alternate>
         struct is_alternative : meta::is_within<Alternate, value_type> {};
         constexpr static size_t size() noexcept; 
-        constexpr static size_t aligned_size(size_t align = 128) noexcept;
         message() = default;
         message(const message&) = default;
         message(message&&) noexcept = default;
@@ -128,9 +127,7 @@ namespace ipc
         std::atomic<bool> running_;
         struct endpoint
         {   
-            //tbb::concurrent_queue<std::future<void>> task_queue;
-            //std::thread task_worker;                                // task concurrent model or std::async may be more slight
-            core::scope_guard shmem_remover;                        // RAII guarder for shared memory management 
+            std::optional<core::scope_guard> shmem_remover;                        // RAII guarder for shared memory management 
             std::optional<interprocess::message_queue> messages;    // overcome NonDefaultConstructible limit
 			sync::chain pending;
             endpoint() = default;
@@ -145,9 +142,9 @@ namespace ipc
         void wait();
         ~channel();
     private:
+        constexpr static size_t buffer_size() noexcept;
         static_assert(std::is_same_v<size_t, interprocess::message_queue::size_type>);
         static_assert(std::chrono::high_resolution_clock::is_steady);
-        constexpr static size_t buffer_size() noexcept;
     };
 #pragma warning(pop)
 }

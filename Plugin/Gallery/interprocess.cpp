@@ -35,43 +35,43 @@ const std::chrono::high_resolution_clock::duration& ipc::message::timing() const
 {
     return duration_;
 }
-constexpr size_t ipc::message::index() const noexcept 
+constexpr size_t ipc::message::index() const noexcept
 {
     return data_.index();
 }
-constexpr size_t ipc::message::aligned_size(const size_t align) noexcept 
-{
-    return size() + (align - size() % align) % align;
-}
-constexpr size_t ipc::channel::buffer_size() noexcept 
+constexpr size_t ipc::channel::buffer_size() noexcept
 {
     return ipc::message::size() * 2;
 }
 ipc::channel::channel(const bool open_only)
-try : running_(true), send_context_(), recv_context_() 
+try : running_(true), send_context_(), recv_context_()
 {
     if (open_only)
     {
         send_context_.messages.emplace(interprocess::open_only, config::identity_plugin.data());
         recv_context_.messages.emplace(interprocess::open_only, config::identity_monitor.data());
     }
-    else 
+    else
     {
         constexpr auto msg_size = message::size();
         constexpr auto msg_capcity = config::shmem_capacity / msg_size;
-        send_context_.shmem_remover = core::scope_guard{ [] { interprocess::message_queue::remove(config::identity_monitor.data()); }, true };
-        recv_context_.shmem_remover = core::scope_guard{ [] { interprocess::message_queue::remove(config::identity_plugin.data()); }, true };
+        send_context_.shmem_remover.emplace([] { interprocess::message_queue::remove(config::identity_monitor.data()); }, true);
+        recv_context_.shmem_remover.emplace([] { interprocess::message_queue::remove(config::identity_plugin.data()); }, true);
         send_context_.messages.emplace(interprocess::create_only, config::identity_monitor.data(), msg_capcity, msg_size);
         recv_context_.messages.emplace(interprocess::create_only, config::identity_plugin.data(), msg_capcity, msg_size);
         core::verify(send_context_.messages->get_max_msg() > 0, recv_context_.messages->get_max_msg() > 0);
     }
 }
-catch (...) 
+catch (...)
 {
     running_.store(false, std::memory_order_seq_cst);
-    send_context_.messages = std::nullopt;
-    recv_context_.messages = std::nullopt;
-    throw;      
+    recv_context_.messages.reset();
+    send_context_.messages.reset();
+    recv_context_.shmem_remover.reset();
+    send_context_.shmem_remover.reset();
+    //send_context_.messages = std::nullopt;
+    //recv_context_.messages = std::nullopt;
+    throw;
 }
 
 std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
@@ -127,21 +127,21 @@ void ipc::channel::async_send(ipc::message message)
         throw core::force_exit_exception{};
     });
 }
-bool ipc::channel::valid() const 
+bool ipc::channel::valid() const
 {
     return running_.load(std::memory_order_acquire) && send_context_.messages.has_value() && recv_context_.messages.has_value();
 }
 void ipc::channel::wait()
 {
-    core::repeat_each([](endpoint& context) 
+    core::repeat_each([](endpoint& context)
     {
         context.pending.wait();
     }, send_context_, recv_context_);
 }
-ipc::channel::~channel() 
+ipc::channel::~channel()
 {
     running_.store(false);
-    core::repeat_each([](endpoint& context) 
+    core::repeat_each([](endpoint& context)
     {
         if (!context.messages.has_value()) return;
         context.pending.abort_and_wait();

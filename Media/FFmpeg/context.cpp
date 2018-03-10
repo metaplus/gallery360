@@ -2,7 +2,6 @@
 #include "context.h"
 
 using namespace av;
-using namespace tbb;
 
 format_context::format_context(std::variant<source, sink> io)
     :handle_(nullptr)

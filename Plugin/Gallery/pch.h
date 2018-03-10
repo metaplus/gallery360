@@ -30,7 +30,7 @@ namespace asio = boost::asio;
 #else
 #define DLLAPI __declspec(dllimport)
 #define UNITYAPI  __declspec(dllimport) __stdcall
-#endif
+#endif  // GALLERY_EXPORTS
 #ifdef __cplusplus
 #define EXTERN extern "C"
 #else 

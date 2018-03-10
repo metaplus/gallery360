@@ -43,7 +43,7 @@
 #include <vector>
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
-#include <tbb/tbb.h>
+//#include <tbb/tbb.h>
 #include <fmt/container.h>    
 #include <fmt/format.h>                  
 #include <fmt/ostream.h>
@@ -70,11 +70,11 @@ namespace filesystem = std::experimental::filesystem;
 #define STRING(x) STRING2(x)  
 
 #ifdef _WIN32
-#ifndef NDEBUG
-#pragma comment(lib,"tbb_debug")
+#ifdef _DEBUG
+//#pragma comment(lib,"tbb_debug")
 #pragma comment(lib,"Debug/fmt")
 #else
-#pragma comment(lib,"tbb")
+//#pragma comment(lib,"tbb")
 #pragma comment(lib,"Release/fmt")
 #endif  // NDEBUG
 #endif  // _WIN32

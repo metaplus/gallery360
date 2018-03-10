@@ -2,6 +2,10 @@
 /**
  * @note Exported functions called by Unity engine. C# CamelCase naming style.
  */
+namespace unity
+{
+    
+}
 EXTERN BOOL UNITYAPI GlobalCreate();
 EXTERN void UNITYAPI GlobalRelease();
 EXTERN BOOL UNITYAPI StoreMediaUrl(LPCSTR url);
@@ -10,7 +14,7 @@ EXTERN void UNITYAPI StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV);
 EXTERN UINT32 UNITYAPI StoreVrFrameTiming(HANDLE vr_timing);
 EXTERN UINT32 UNITYAPI StoreVrCumulativeStatus(HANDLE vr_status);
 EXTERN void UNITYAPI LoadVideoParams(INT& width,INT& height);
-EXTERN BOOL UNITYAPI IsVideoDrained();
+EXTERN BOOL UNITYAPI IsVideoAvailable();
 namespace dll
 {
     DLLAPI void timer_startup();
@@ -21,7 +25,6 @@ namespace dll
     DLLAPI void interprocess_create();
     DLLAPI void interprocess_release();
     DLLAPI void interprocess_async_send(ipc::message message);                         
-    DLLAPI std::pair<std::future<ipc::message>, size_t> interprocess_async_receive();
     namespace helper
     {
         class interprocess

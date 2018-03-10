@@ -38,7 +38,7 @@ namespace core
         class generic_guard : Callable
         {
         public:
-            explicit generic_guard(Callable&& c) : Callable(std::move(c)) {}
+            explicit generic_guard(Callable&& c) : Callable(std::forward<Callable>(c)) {}
             generic_guard() = default;
             generic_guard(const generic_guard&) = delete;
             generic_guard(generic_guard&&) = default;

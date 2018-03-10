@@ -4,12 +4,12 @@ EXPORTS
    UnityPluginLoad
    UnityPluginUnload
    GetRenderEventFunc
-   StoreTime
-   StoreAlphaTexture
    GlobalCreate
    GlobalRelease
    LoadVideoParams
-   IsVideoDrained
+   IsVideoAvailable
+   StoreTime
+   StoreAlphaTexture
    StoreMediaUrl
    StoreVrFrameTiming
    StoreVrCumulativeStatus
