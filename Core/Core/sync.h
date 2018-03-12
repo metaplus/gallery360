@@ -134,7 +134,7 @@ namespace sync
         }
         void abort_and_wait()
         {
-            canceled_.store(true, std::memory_order_seq_cst);
+            canceled_.store(true, std::memory_order_release);
             wait();
         }
     };

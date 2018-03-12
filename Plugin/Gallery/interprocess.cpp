@@ -65,12 +65,14 @@ try : running_(true), send_context_(), recv_context_()
 catch (...)
 {
     running_.store(false, std::memory_order_seq_cst);
-    recv_context_.messages.reset();
-    send_context_.messages.reset();
-    recv_context_.shmem_remover.reset();
-    send_context_.shmem_remover.reset();
-    //send_context_.messages = std::nullopt;
-    //recv_context_.messages = std::nullopt;
+    //recv_context_.messages.reset();
+    //send_context_.messages.reset();
+    //recv_context_.shmem_remover.reset();
+    //send_context_.shmem_remover.reset();
+    send_context_.messages = std::nullopt;
+    recv_context_.messages = std::nullopt;
+    recv_context_.shmem_remover = std::nullopt;
+    send_context_.shmem_remover = std::nullopt;
     throw;
 }
 
@@ -79,13 +81,13 @@ std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
     if (!valid()) return {};
     std::packaged_task<ipc::message()> recv_task{ [this]() mutable
     {
-        std::stringstream stream;
+        static thread_local std::stringstream stream;
         std::string buffer(buffer_size(), 0);
         auto[recv_size, priority] = std::pair<size_t, unsigned>{};
         while (running_.load(std::memory_order_acquire))
         {
             if (!recv_context_.messages->try_receive(buffer.data(), buffer.size(), recv_size, priority)) {
-                std::this_thread::sleep_for(4ms);
+                std::this_thread::sleep_for(5ms);
                 continue;
             }
             core::verify(recv_size < buffer_size());            //exception if filled
@@ -107,10 +109,10 @@ std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
 void ipc::channel::async_send(ipc::message message)
 {
     if (!valid()) return;
-    send_context_.pending.append([this, message = std::move(message)]() mutable
+    auto send_task = [this, message = std::move(message)]() mutable
     {
         const auto priority = static_cast<unsigned int>(message.index());
-        std::stringstream stream;
+        static thread_local std::stringstream stream;
         stream.str(""s); stream.clear();
         {
             cereal::BinaryOutputArchive oarchive{ stream };     //considering static thread_local std::optional<cereal::BinaryOutputArchive>
@@ -122,10 +124,13 @@ void ipc::channel::async_send(ipc::message message)
         {
             if (send_context_.messages->try_send(buffer.data(), buffer.size(), priority))
                 return;
-            std::this_thread::sleep_for(4ms);
+            std::this_thread::sleep_for(5ms);
         }
         throw core::force_exit_exception{};
-    });
+    };
+    if (message.is<ipc::message::info_exit>())
+        return send_context_.pending.append(std::move(send_task), sync::use_future).wait();
+    send_context_.pending.append(std::move(send_task));
 }
 bool ipc::channel::valid() const
 {
