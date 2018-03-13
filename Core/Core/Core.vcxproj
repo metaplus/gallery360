@@ -152,7 +152,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="base.hpp" />
+    <ClInclude Include="base.h" />
     <ClInclude Include="basic_ptr.hpp" />
     <ClInclude Include="guard.h" />
     <ClInclude Include="meta.hpp" />
@@ -164,6 +164,7 @@
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="base.cpp" />
     <ClCompile Include="guard.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -171,6 +172,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="sync.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

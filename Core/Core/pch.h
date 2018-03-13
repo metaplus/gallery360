@@ -7,9 +7,10 @@
 #define BOOST_THREAD_VERSION 4
 #define BOOST_FILESYSTEM_NO_DEPRECATED 
 #define BOOST_USE_WINDOWS_H   
+#define _CRT_SECURE_NO_WARNINGS
 #define _SCL_SECURE_NO_WARNINGS
 #define _SILENCE_PARALLEL_ALGORITHMS_EXPERIMENTAL_WARNING   // <execution>
-#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS             // tbb usage
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS             
 
 #include <algorithm>
 #include <any>
@@ -25,6 +26,7 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <iomanip>
 #include <limits>
 #include <map>
 #include <memory>
@@ -36,6 +38,7 @@
 #include <shared_mutex>
 #include <string>
 #include <string_view>
+#include <sstream>
 #include <thread>
 #include <type_traits>
 #include <type_traits>
@@ -43,15 +46,8 @@
 #include <vector>
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
-//#include <tbb/tbb.h>
-#include <fmt/container.h>    
-#include <fmt/format.h>                  
-#include <fmt/ostream.h>
-#include <fmt/string.h>
-#include <fmt/time.h>
 
 using namespace std::literals;
-using namespace fmt::literals;
 
 //#if __has_include(<filesystem>)
 #include <filesystem>
@@ -62,20 +58,10 @@ namespace filesystem = std::experimental::filesystem;
 //#endif
 
 #include "Core/meta.hpp"
-#include "Core/base.hpp"
+#include "Core/base.h"
 #include "Core/revokable.hpp"
 #include "Core/guard.h"
 #include "Core/verify.hpp"
 #include "Core/sync.h"
 #define STRING2(x) #x  
 #define STRING(x) STRING2(x)  
-
-#ifdef _WIN32
-#ifdef _DEBUG
-//#pragma comment(lib,"tbb_debug")
-#pragma comment(lib,"Debug/fmt")
-#else
-//#pragma comment(lib,"tbb")
-#pragma comment(lib,"Release/fmt")
-#endif  // NDEBUG
-#endif  // _WIN32

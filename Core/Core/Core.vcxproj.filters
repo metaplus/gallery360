@@ -24,9 +24,6 @@
     <ClInclude Include="basic_ptr.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="base.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="verify.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -45,12 +42,21 @@
     <ClInclude Include="meta.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="base.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="guard.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="base.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sync.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

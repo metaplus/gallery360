@@ -3,6 +3,19 @@
 #undef max  //another tolerable solution appears like #define max_RESUME max #undef max ... #define max max_RESUME
 namespace core
 {
+    template<typename T>
+    constexpr std::string_view type_shortname()
+    {
+        auto type_name = std::string_view{ typeid(T).name() };
+        auto begin_iter = std::find(type_name.crbegin(), type_name.crend(), ':');
+        if (begin_iter == type_name.crend())
+            begin_iter = std::find(type_name.crbegin(), type_name.crend(), ' ');
+        type_name.remove_prefix(std::distance(begin_iter, type_name.crend()));
+        return type_name;
+    }
+
+    std::string time_string(std::string_view tformat = "%c"sv, std::tm*(*tfunc)(const std::time_t*) = &std::localtime);
+
     template<int Source, int Dest, int Stride = 1>
     constexpr auto range()
     {
@@ -10,34 +23,35 @@ namespace core
         static_assert(std::numeric_limits<int>::max() >= std::max<int>(Source, Dest));
         static_assert(Source != Dest && Stride != 0 && ((Source < Dest) ^ (Stride < 0)));
         constexpr auto element_count = std::divides<int>{}(Dest - Source + Stride, Stride);
-        return meta::impl::make_array(meta::impl::sequence_arithmetic<std::plus<void>, Source>(
-            meta::impl::sequence_arithmetic<std::multiplies<void>, Stride>(std::make_integer_sequence<int, element_count>{})));
+        return meta::impl::make_array(
+            meta::impl::sequence_arithmetic<std::plus<void>, Source>(
+                meta::impl::sequence_arithmetic<std::multiplies<void>, Stride>(
+                    std::make_integer_sequence<int, element_count>{})));
     }
+
     namespace literals
     {
         constexpr size_t operator""_kbyte(const size_t n) { return n * 1024; }
         constexpr size_t operator""_mbyte(const size_t n) { return n * 1024 * 1024; }
         constexpr size_t operator""_gbyte(const size_t n) { return n * 1024 * 1024 * 1024; }
     }
+
     template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
-    constexpr auto enum_next(Enum e, Offset offset) -> std::enable_if_t<std::is_enum_v<Enum>, Enum>
+    constexpr std::enable_if_t<std::is_enum_v<Enum>, Enum> enum_next(Enum e, Offset offset)
     {
         return static_cast<Enum>(std::plus<void>{}(static_cast<std::underlying_type_t<Enum>>(e), offset));
     }
+
     template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
-    constexpr auto enum_advance(Enum& e, Offset offset) -> std::enable_if_t<std::is_enum_v<Enum>>
+    constexpr std::enable_if_t<std::is_enum_v<Enum>> enum_advance(Enum& e, Offset offset)
     {
         e = core::enum_next(e, offset);
     }
-    inline auto directory_entry_count(const std::experimental::filesystem::path& directory)
-    {   //non-recursive version, regardless of symbolic link
-        const std::experimental::filesystem::directory_iterator iterator{ directory };
-        return std::distance(begin(iterator), end(iterator));
-    }
-    inline auto thread_id = [deform = std::hash<std::thread::id>{}](std::optional<std::thread::id> id = std::nullopt)
-    {
-        return deform(id.value_or(std::this_thread::get_id()));
-    };
+
+    size_t directory_entry_count(const std::experimental::filesystem::path& directory);
+
+    size_t thread_hash_id(std::optional<std::thread::id> id = std::nullopt);
+
     template<typename Callable, typename ...Types>
     Callable&& repeat(size_t count, Callable&& callable, Types&& ...args)
     {
@@ -45,12 +59,14 @@ namespace core
         return --count == 0 ? std::forward<Callable>(callable) :
             core::repeat<Callable, Types...>(count, std::forward<Callable>(callable), std::forward<Types>(args)...);
     }
+
     template<typename Callable, typename ...Types>
     Callable&& repeat_each(Callable&& callable, Types&& ...args)
     {
         (..., std::invoke(callable, std::forward<Types>(args)));
         return std::forward<Callable>(callable);
     }
+
     template<typename Expr>
     constexpr bool identify(Expr&& condition)
     {
@@ -68,21 +84,12 @@ namespace core
         else
             static_assert(false, "taste undesirable expression");
     }
+
     template<typename Expr, typename Callable, typename... Types>
     Callable&& condition_loop(Expr&& condition, Callable&& callable, Types&& ...args)
     {
         while (core::identify(condition))
             std::invoke(callable, args...);
         return std::forward<Callable>(callable);
-    }
-        template<typename T>
-    constexpr std::string_view type_shortname()
-    {
-        auto type_name = std::string_view{ typeid(T).name() };
-        auto begin_pos = std::find(type_name.crbegin(), type_name.crend(), ':');
-        if (begin_pos == type_name.crend())
-            begin_pos = std::find(type_name.crbegin(), type_name.crend(), ' ');
-        type_name.remove_prefix(std::distance(begin_pos, type_name.crend()));
-        return type_name;
     }
 }

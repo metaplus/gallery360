@@ -33,6 +33,7 @@ namespace meta
     struct bool_or : impl::bool_arithmetic<std::logical_or<bool>, Bl, Br> {};
     template<typename Bl, typename Br>    //for std::bool_constant XOR operation
     struct bool_xor : impl::bool_arithmetic<std::bit_xor<bool>, Bl, Br> {};
+
     template<typename T, typename ...Types>
     struct reverse_tuple
     {
@@ -46,6 +47,7 @@ namespace meta
         using type = std::tuple<T>;
         constexpr static size_t size = 1;
     };
+
     namespace impl
     {
         namespace v1
@@ -55,11 +57,13 @@ namespace meta
             template<typename T, typename U>
             struct is_within<T, U> : std::is_same<T, U>::type {};
         }
+
         inline namespace v2
         {
             template<typename T, typename ...Types>
             struct is_within : std::disjunction<std::is_same<T, Types>...> {};
         }
+
         template<typename T, T ...Values>
         constexpr std::array<T, sizeof...(Values)>
             make_array(std::integer_sequence<T, Values...> = {})
@@ -72,6 +76,7 @@ namespace meta
         {
             return { static_cast<std::common_type_t<Types...>>(args)... };
         }
+
         template<typename T>
         struct value_trait;
         template<typename T>
@@ -91,31 +96,46 @@ namespace meta
     struct is_within<T, std::pair<U, V>> : meta::is_within<T, U, V> {};
     template<typename T, typename... Types>
     constexpr bool is_within_v = is_within<T, Types...>::value;
+
     template<typename T>    //reference operation precedes
     struct remove_cv_ref : std::remove_cv<std::remove_reference_t<T>> {};
     template<typename T>
     using remove_cv_ref_t = typename remove_cv_ref<T>::type;
+
     template<typename T, typename ...Types>
     struct is_similar : std::conjunction<std::is_same<meta::remove_cv_ref_t<T>, meta::remove_cv_ref_t<Types>>...> { static_assert(sizeof...(Types) > 0); };
+    
     template<typename T>
     using value_trait = impl::value_trait<meta::remove_cv_ref_t<T>>;
     template<typename T>
     using value = typename meta::value_trait<T>::type;
+
     template<typename T>
     struct is_future : meta::is_within<meta::remove_cv_ref_t<T>,
         std::future<meta::value<T>>, std::shared_future<meta::value<T>>> {};
     template<typename T>
     constexpr bool is_future_v = meta::is_future<T>::value;
+
     template<typename T>
     struct is_atomic : std::is_same<meta::remove_cv_ref_t<T>, std::atomic<meta::value<T>>> {};
     template<typename T>
     constexpr bool is_atomic_v = meta::is_atomic<T>::value;
+
     template<template<bool> typename B>
     struct is_bool_constant : std::conjunction<std::is_same<B<true>, std::true_type>, std::is_same<B<false>, std::false_type>> {};
+    
+    template<typename T>
+    struct is_packaged_task : std::false_type {};
+    template<typename Result, typename ...Args>
+    struct is_packaged_task<std::packaged_task<Result(Args...)>> : std::true_type {};
+    template<typename T>
+    constexpr bool is_packaged_task_v = meta::is_packaged_task<T>::value;
+
     using relative = std::int64_t;
     using absolute = std::uint64_t;
     using rel = relative;
     using abs = absolute;
+    
     template<typename T, typename ...Types>
     struct max_size : std::integral_constant<size_t, std::max<size_t>(meta::max_size<T>::value, meta::max_size<Types...>::value)> {};
     template<typename T>
@@ -126,6 +146,7 @@ namespace meta
     struct max_size<std::tuple<Types...>> : meta::max_size<Types...> {};
     template<typename T, typename U>
     struct max_size<std::pair<T, U>> : meta::max_size<T, U> {};
+    
     namespace impl
     {
         template<typename T, typename U, size_t I>

@@ -31,6 +31,7 @@ namespace core
             pointer ptr_;
         };
     }
+
     namespace v2
     {
         template <typename T>
@@ -74,7 +75,3 @@ namespace core
         }
     }
 }
-
-
-
-

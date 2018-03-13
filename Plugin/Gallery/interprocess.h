@@ -6,7 +6,7 @@ namespace ipc
 #pragma warning(disable:4251)
     class DLLAPI message
     {
-    public: //TODO: make non constructible type contained by std::optional
+    public:     // TODO: make non constructible type contained by std::optional
         template<typename U, typename ...Types>
         struct basic_serializable
         {
@@ -35,12 +35,13 @@ namespace ipc
         struct tagged_pack : basic_serializable<std::string, std::string> { using basic_serializable::basic_serializable; };
         struct first_frame_available : basic_serializable<void> { using basic_serializable::basic_serializable; };
         struct first_frame_updated : basic_serializable<void> { using basic_serializable::basic_serializable; };
+        //struct info_url
     private:
         std::variant<
-            update_index, tagged_pack,
             info_launch, info_started, info_exit,
+            first_frame_available, first_frame_updated,
             vr::Compositor_FrameTiming, vr::Compositor_CumulativeStats,
-            first_frame_available, first_frame_updated
+            update_index, tagged_pack
         > data_;
         std::chrono::high_resolution_clock::duration duration_;
         std::string description_;
@@ -61,6 +62,7 @@ namespace ipc
         constexpr size_t index() const noexcept;
         template<typename Alternate>
         constexpr static size_t index() noexcept;
+        constexpr static size_t index_size() { return std::variant_size_v<value_type>; }
         template<typename Alternate>
         bool is() const noexcept;
         template<typename Alternate>
@@ -81,7 +83,6 @@ namespace ipc
         static_assert(std::is_object_v<Alternate> && !std::is_const_v<Alternate>);
         static_assert(meta::is_within_v<Alternate, value_type>);
         return meta::index<Alternate, value_type>::value;
-
     }
     template <typename Alternate, typename>
     message::message(Alternate data, std::chrono::high_resolution_clock::duration duration)
@@ -138,6 +139,7 @@ namespace ipc
         explicit channel(bool open_only = true);
         std::pair<std::future<ipc::message>, size_t> async_receive();
         void async_send(ipc::message message);
+        void send(ipc::message message);
         bool valid() const;
         void wait();
         ~channel();

@@ -13,6 +13,7 @@ namespace core
         time_guard& operator=(time_guard&&) = default;
         ~time_guard();
     };
+
     class scope_guard 
     {
         std::function<void()> release_;
@@ -32,6 +33,7 @@ namespace core
     {
         if (ctor_invoke) std::invoke(callable);
     }
+
     namespace v2
     {
         template<typename Callable>
