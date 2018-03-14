@@ -29,4 +29,5 @@ namespace dll
     DLLAPI void interprocess_release();
     DLLAPI void interprocess_async_send(ipc::message message);
     DLLAPI void interprocess_send(ipc::message message);
+    DLLAPI void graphics_release();
 }

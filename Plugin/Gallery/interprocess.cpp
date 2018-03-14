@@ -17,7 +17,7 @@ namespace
 
 constexpr size_t ipc::message::size() 
 {
-    return size_trait::value;
+    return meta::max_size<decltype(data_)>::value;
 }
 
 ipc::message::message()
@@ -28,10 +28,12 @@ const std::chrono::high_resolution_clock::duration& ipc::message::timing() const
 {
     return duration_;
 }
-constexpr size_t ipc::message::index() const 
+
+const std::string& ipc::message::description() const
 {
-    return data_.index();
+    return description_;
 }
+
 
 constexpr size_t ipc::channel::buffer_size() 
 {
@@ -119,7 +121,7 @@ void ipc::channel::wait()
 
 ipc::channel::~channel()
 {
-    running_.store(false);
+    running_.store(false, std::memory_order_seq_cst);
     core::repeat_each([](endpoint& context)
     {
         if (!context.messages.has_value()) return;
@@ -130,8 +132,8 @@ ipc::channel::~channel()
 
 unsigned ipc::channel::default_prioritize(const ipc::message& message)
 {
-    return message.is<ipc::message::info_launch>() ? std::numeric_limits<unsigned>::max() :
-        message.is<ipc::message::info_exit>() ? std::numeric_limits<unsigned>::min() :
+    return message.is<ipc::info_launch>() ? std::numeric_limits<unsigned>::max() :
+        message.is<ipc::info_exit>() ? std::numeric_limits<unsigned>::min() :
         /*1 + */static_cast<unsigned>(ipc::message::index_size() - message.index());
 }
 

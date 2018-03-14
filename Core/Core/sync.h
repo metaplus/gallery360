@@ -14,11 +14,12 @@ namespace sync
 
     class[[deprecated]] spin_mutex
     {
-        std::atomic_flag flag_;
     public:
         spin_mutex();
         void lock();
         void unlock();
+    private:
+        std::atomic_flag flag_;
     };
 
     class barrier {

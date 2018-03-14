@@ -17,8 +17,6 @@
 	#define UNITY_INTERFACE_EXPORT
 #endif
 
-
-
 // Unity Interface GUID
 // Ensures cross plugin uniqueness.
 //
@@ -66,8 +64,6 @@ inline bool operator<=(const UnityInterfaceGUID& left, const UnityInterfaceGUID&
 typedef struct UnityInterfaceGUID UnityInterfaceGUID;
 #endif
 
-
-
 #define UNITY_GET_INTERFACE_GUID(TYPE) TYPE##_GUID
 #define UNITY_GET_INTERFACE(INTERFACES, TYPE) (TYPE*)INTERFACES->GetInterface(UNITY_GET_INTERFACE_GUID(TYPE));
 
@@ -94,8 +90,6 @@ typedef struct UnityInterfaceGUID UnityInterfaceGUID;
 	const UnityInterfaceGUID TYPE##_GUID = {HASHH, HASHL};
 #endif
 
-
-
 #ifdef __cplusplus
 struct IUnityInterface
 {
@@ -103,8 +97,6 @@ struct IUnityInterface
 #else
 typedef void IUnityInterface;
 #endif
-
-
 
 typedef struct IUnityInterfaces
 {
@@ -131,8 +123,6 @@ typedef struct IUnityInterfaces
 	}
 #endif
 } IUnityInterfaces;
-
-
 
 #ifdef __cplusplus
 extern "C" {

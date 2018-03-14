@@ -19,7 +19,7 @@ void unity::StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV)
 {
     core::verify(texY != nullptr, texU != nullptr, texV != nullptr);
     dll_graphic->store_textures(texY, texU, texV);
-    dll::interprocess_async_send(ipc::message{}.emplace(ipc::message::info_started{}));
+    dll::interprocess_async_send(ipc::message{}.emplace(ipc::info_started{}));
 }
 
 UINT32 unity::StoreVrFrameTiming(HANDLE vr_timing)
@@ -54,8 +54,8 @@ static void __stdcall OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
     if (eventType == kUnityGfxDeviceEventShutdown)
     {
         unity_device = kUnityGfxRendererNull;
-        dll_graphic.reset();
-        //dll_graphic = nullptr;
+        //dll_graphic.reset();
+        dll_graphic = nullptr;
     }
 }
 
@@ -83,4 +83,10 @@ static void __stdcall OnRenderEvent(int eventID)
 EXTERN UnityRenderingEvent UNITYAPI GetRenderEventFunc()
 {
     return OnRenderEvent;
+}
+
+void dll::graphics_release()
+{
+    if (dll_graphic)
+        dll_graphic->clean_up();
 }

@@ -10,7 +10,7 @@ void graphic::process_event(const UnityGfxDeviceEventType event_type, IUnityInte
     {
         IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
         clear();
-        //device_.reset(d3d->GetDevice(),deleter{});
+        //device_.reset(d3d->GetDevice(), deleter{});
         device_ = d3d->GetDevice();
         break;
     }
@@ -27,9 +27,9 @@ void graphic::process_event(const UnityGfxDeviceEventType event_type, IUnityInte
 void graphic::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
 {
     core::verify(alphas_.size() == 3);
-    //alphas_[0].reset(static_cast<ID3D11Texture2D*>(texY),deleter{});
-    //alphas_[1].reset(static_cast<ID3D11Texture2D*>(texU),deleter{});
-    //alphas_[2].reset(static_cast<ID3D11Texture2D*>(texV),deleter{});
+    //alphas_[0].reset(static_cast<ID3D11Texture2D*>(texY), deleter{});
+    //alphas_[1].reset(static_cast<ID3D11Texture2D*>(texU), deleter{});
+    //alphas_[2].reset(static_cast<ID3D11Texture2D*>(texV), deleter{});
     alphas_[0] = static_cast<ID3D11Texture2D*>(texY);
     alphas_[1] = static_cast<ID3D11Texture2D*>(texU);
     alphas_[2] = static_cast<ID3D11Texture2D*>(texV);
@@ -47,13 +47,26 @@ void graphic::update_textures(av::frame& frame)
         texture->GetDesc(&desc);
         context->UpdateSubresource(texture, 0, nullptr, data, desc.Width, 0);
     }
-    static size_t frame_update_index = 0;
-    if (static std::optional<ipc::message> msg_first_updata; !msg_first_updata.has_value())
+    if (static std::optional<ipc::message> first_update; !first_update.has_value())
     {
-        msg_first_updata.emplace(ipc::message{}.emplace(ipc::message::first_frame_updated{}));
-        dll::interprocess_async_send(msg_first_updata.value());
+        first_update.emplace(ipc::message{}.emplace(ipc::first_frame_updated{}));
+        dll::interprocess_async_send(first_update.value());
+        //_
+        cleanup_.emplace_back(
+            []() { if (first_update.has_value()) first_update = std::nullopt; });
     }
-    dll::interprocess_async_send(ipc::message{}.emplace(ipc::message::update_index{ frame_update_index++ }));
+    dll::interprocess_async_send(ipc::message{}.emplace(ipc::update_index{ update_index_++ }));
+}
+
+void graphic::clean_up()
+{
+    if (!cleanup_.empty())
+    {
+        for (const auto& func : cleanup_)
+            func();
+        cleanup_.clear();
+    }
+    update_index_ = 0;
 }
 
 std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
@@ -66,7 +79,7 @@ std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
 
 void graphic::clear()
 {
+    update_index_ = 0;
     device_ = nullptr;
     alphas_.fill(nullptr);
 }
-

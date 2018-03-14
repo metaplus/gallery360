@@ -15,6 +15,7 @@ namespace av
         struct yuyv : base, std::integral_constant<base::type, AV_PIX_FMT_YUYV422> {};
         struct yvyu : base, std::integral_constant<base::type, AV_PIX_FMT_YVYU422> {};
     }
+
     namespace media
     {
         struct base { using type = std::underlying_type_t<AVMediaType>; };
@@ -25,14 +26,15 @@ namespace av
         struct unknown : base, std::integral_constant<base::type, AVMEDIA_TYPE_UNKNOWN> {};
         struct all : base {};
     }
+
     inline void register_all()
     {
         static std::once_flag once;
         std::call_once(once, [] { av_register_all(); });
     }
+
     class frame
     {
-        std::shared_ptr<AVFrame> handle_;
     public:
         using pointer = AVFrame * ;
         using reference = AVFrame & ;
@@ -41,10 +43,12 @@ namespace av
         bool empty() const { return handle_ == nullptr || handle_->data == nullptr || handle_->data[0] == nullptr; }
         pointer operator->() const { return handle_.get(); }
         void unref() const { av_frame_unref(handle_.get()); }
+    private:
+        std::shared_ptr<AVFrame> handle_;
     };
+
     class packet
     {
-        std::shared_ptr<AVPacket> handle_;
     public:
         using pointer = AVPacket * ;
         using reference = AVPacket & ;
@@ -53,7 +57,10 @@ namespace av
         bool empty() const { return handle_ == nullptr || handle_->data == nullptr || handle_->size <= 0; }
         pointer operator->() const { return handle_.get(); }
         void unref() const { av_packet_unref(handle_.get()); }
+    private:
+        std::shared_ptr<AVPacket> handle_;
     };
+
     struct stream : std::reference_wrapper<AVStream>
     {
         using pointer = type * ;
@@ -66,6 +73,7 @@ namespace av
         auto scale() const { return std::make_pair(params()->width, params()->height); } //use structure binding to get seperated dimension
         pointer operator->() const { return std::addressof(get()); }
     };
+
     struct codec : std::reference_wrapper<AVCodec>
     {
         using pointer = type * ;
@@ -74,16 +82,19 @@ namespace av
         explicit codec(const pointer ptr) : reference_wrapper(*ptr) {}
         pointer operator->() const { return std::addressof(get()); }
     };
+
     template<typename T>
     decltype(auto) ptr(T&& handle)
     {
         //return static_cast<typename std::decay_t<T>::pointer>(handle);
         return std::forward<T>(handle).operator->();
     }
+
     struct source
     {
         std::string url;
     };
+
     struct sink
     {
         std::string url;

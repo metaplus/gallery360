@@ -1,12 +1,11 @@
 #pragma once
 //TODO
-namespace ipc
-{
 #pragma warning(push)
 #pragma warning(disable:4251)
-    class DLLAPI message
+namespace ipc
+{
+    namespace impl
     {
-    public:     // TODO: make non constructible type contained by std::optional
         template<typename U, typename ...Types>
         struct basic_serializable
         {
@@ -29,28 +28,22 @@ namespace ipc
             template<typename Archive>
             static void serialize(Archive& archive) { archive("null"s); }
         };
-        struct info_launch : basic_serializable<void> { using basic_serializable::basic_serializable; };
-        struct info_started : basic_serializable<void> { using basic_serializable::basic_serializable; };
-        struct info_exit : basic_serializable<void> { using basic_serializable::basic_serializable; };
-        struct info_url : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
-        struct update_index : basic_serializable<size_t> { using basic_serializable::basic_serializable; };
-        struct tagged_pack : basic_serializable<std::string, std::string> { using basic_serializable::basic_serializable; };
-        struct first_frame_available : basic_serializable<void> { using basic_serializable::basic_serializable; };
-        struct first_frame_updated : basic_serializable<void> { using basic_serializable::basic_serializable; };
-    private:
-        std::variant<
-            info_launch, info_started, info_exit, info_url,
-            first_frame_available, first_frame_updated,
-            vr::Compositor_FrameTiming, vr::Compositor_CumulativeStats,
-            update_index, tagged_pack
-        > data_;
-        std::chrono::high_resolution_clock::duration duration_;
-        std::string description_;
-        using size_trait = meta::max_size<decltype(data_)>;
-                using value_type = decltype(data_);
+    }
+
+    struct info_launch : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
+    struct info_started : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
+    struct info_exit : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
+    struct info_url : impl::basic_serializable<std::string> { using basic_serializable::basic_serializable; };
+    struct update_index : impl::basic_serializable<size_t> { using basic_serializable::basic_serializable; };
+    struct tagged_pack : impl::basic_serializable<std::string, std::string> { using basic_serializable::basic_serializable; };
+    struct first_frame_available : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
+    struct first_frame_updated : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
+    
+    class DLLAPI message
+    {
     public:
         template<typename Various>
-        struct is_alternative : meta::is_within<meta::remove_cv_ref_t<Various>, value_type> {};
+        struct is_alternative : meta::is_within<meta::remove_cv_ref_t<Various>, decltype(data_)> {};
         constexpr static size_t size();
         message();
         template<typename Various, typename = std::enable_if_t<is_alternative<Various>::value>>
@@ -61,25 +54,35 @@ namespace ipc
         message& operator=(message&&) noexcept = default;
         template<typename Various, typename = std::enable_if_t<is_alternative<Various>::value>>
         message& emplace(Various&& data);
-        constexpr size_t index() const;
+        constexpr size_t index() const { return data_.index(); }
         template<typename Various>
         constexpr static size_t index();
-        constexpr static size_t index_size() { return std::variant_size_v<value_type>; }
+        constexpr static size_t index_size() { return std::variant_size_v<decltype(data_)>; }
         template<typename Various>
         bool is() const;
         const std::chrono::high_resolution_clock::duration& timing() const;
+        const std::string& description() const;
     private:
         friend cereal::access;
         template<typename Various>
         void serialize(Various& archive);
+    private:
+        std::variant<
+            info_launch, info_started, info_exit, info_url,
+            first_frame_available, first_frame_updated,
+            vr::Compositor_FrameTiming, vr::Compositor_CumulativeStats,
+            update_index, tagged_pack
+        > data_;
+        std::chrono::high_resolution_clock::duration duration_;
+        std::string description_;
     };
 
     template <typename Various>
     constexpr size_t message::index() 
     {
         static_assert(std::is_object_v<Various> && !std::is_const_v<Various>);
-        static_assert(meta::is_within_v<Various, value_type>);
-        return meta::index<Various, value_type>::value;
+        static_assert(meta::is_within_v<Various, decltype(data_)>);
+        return meta::index<Various, decltype(data_)>::value;
     }
 
     template <typename Various, typename>
@@ -114,17 +117,6 @@ namespace ipc
 
     class DLLAPI channel 
     {
-        std::atomic<bool> running_;
-        struct endpoint
-        {   
-            std::optional<core::scope_guard> shmem_remover;                        // RAII guarder for shared memory management 
-            std::optional<interprocess::message_queue> messages;    // overcome NonDefaultConstructible limit
-			sync::chain pending;
-            endpoint() = default;
-        };           
-        endpoint send_context_; 
-        endpoint recv_context_;
-        std::function<unsigned(const ipc::message&)> prioritizer_;
     public:
         explicit channel(bool open_only = true);
         channel(const channel&) = delete;
@@ -132,8 +124,8 @@ namespace ipc
         void prioritize_by(std::function<unsigned(const ipc::message&)> prior);
         std::future<ipc::message> async_receive();
         void async_send(ipc::message message);
-        void send(ipc::message message);
         ipc::message receive();
+        void send(ipc::message message);
         bool valid() const;
         void wait();
         ~channel();
@@ -144,6 +136,16 @@ namespace ipc
         ipc::message do_receive();
         static_assert(std::is_same_v<size_t, interprocess::message_queue::size_type>);
         static_assert(std::chrono::high_resolution_clock::is_steady);
+    private:
+        std::atomic<bool> running_;
+        struct endpoint
+        {
+            std::optional<core::scope_guard> shmem_remover;                        // RAII guarder for shared memory management 
+            std::optional<interprocess::message_queue> messages;    // overcome NonDefaultConstructible limit
+            sync::chain pending;
+            endpoint() = default;
+        }send_context_, recv_context_;
+        std::function<unsigned(const ipc::message&)> prioritizer_;
     };
-#pragma warning(pop)
 }
+#pragma warning(pop)

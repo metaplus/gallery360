@@ -10,7 +10,7 @@ namespace
         std::shared_future<void> registry;
         std::shared_future<av::format_context> parse;
         std::shared_future<uint64_t> decode;
-        std::promise<std::string> url_promise;
+        std::promise<std::string> urlstr;
         std::vector<std::function<void()>> cleanup;
     }
 
@@ -92,13 +92,13 @@ BOOL unity::StoreMediaUrl(LPCSTR url)
                     reading = false;
                 if (auto decode_frames = codec.decode(packet); !decode_frames.empty())
                 {
-                    if (static std::optional<ipc::message> msg; !msg.has_value())
+                    if (static std::optional<ipc::message> first_available; !first_available.has_value())
                     {
-                        routine::url_promise.set_value(routine::parse.get()->filename);
-                        msg.emplace(ipc::message{}.emplace(ipc::message::first_frame_available{}));
-                        dll::interprocess_async_send(msg.value());
+                        routine::urlstr.set_value(routine::parse.get()->filename);
+                        first_available.emplace(ipc::message{}.emplace(ipc::first_frame_available{}));
+                        dll::interprocess_async_send(first_available.value());
                         routine::cleanup.emplace_back(
-                            []() { if (msg.has_value()) msg = std::nullopt; });
+                            []() { if (first_available.has_value()) first_available = std::nullopt; });
                     }
                     decode_count += decode_frames.size();
                     push_frames(std::move(decode_frames));
@@ -133,12 +133,12 @@ std::optional<av::frame> dll::media_extract_frame()
 
 std::string dll::media_wait_decoding_start()
 {
-    return routine::url_promise.get_future().get();
+    return routine::urlstr.get_future().get();
 }
 
 void dll::media_prepare()
 {
-    routine::url_promise = {};
+    routine::urlstr = {};
 }
 
 void dll::media_create()
@@ -160,9 +160,11 @@ void dll::media_release()
         future = {};
     }, routine::registry, routine::parse, routine::decode);
     if (!routine::cleanup.empty())
+    {
         for (const auto& func : routine::cleanup)
             func();
-    routine::cleanup.clear();
-    routine::url_promise = {};
+        routine::cleanup.clear();
+    }
+    routine::urlstr = {};
     frames = nullptr;
 }

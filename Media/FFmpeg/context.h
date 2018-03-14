@@ -3,7 +3,6 @@ namespace av
 {
     class format_context
     {
-        std::shared_ptr<AVFormatContext> handle_{};
     public:
         using value_type = AVFormatContext;
         using pointer = AVFormatContext * ;
@@ -16,7 +15,10 @@ namespace av
         packet read();  //default template parameter entails unbiased reading
     private:
         //void prepare() const;
+    private:
+        std::shared_ptr<AVFormatContext> handle_{};
     };
+
     template <typename Media>
     std::pair<stream, codec> format_context::demux()
     {
@@ -28,6 +30,7 @@ namespace av
             static_cast<AVMediaType>(Media::value), -1, -1, &cdc, 0);
         return std::make_pair(stream{ ptr->streams[index] }, codec{ cdc });
     }
+
     template <typename Media>
     packet format_context::read()
     {
@@ -59,13 +62,6 @@ namespace av
 
     class codec_context
     {
-        std::shared_ptr<AVCodecContext> handle_{};
-        stream stream_;
-        struct state
-        {
-            int64_t count;
-            bool flushed;
-        }state_{};
     public:
         using value_type = AVCodecContext;
         using pointer = AVCodecContext * ;
@@ -75,5 +71,13 @@ namespace av
         bool valid() const;
         int64_t count() const;
         std::vector<frame> decode(const packet& compressed);
+    private:
+        std::shared_ptr<AVCodecContext> handle_{};
+        stream stream_;
+        struct state
+        {
+            int64_t count;
+            bool flushed;
+        }state_{};
     };
 }

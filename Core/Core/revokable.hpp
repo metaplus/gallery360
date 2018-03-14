@@ -3,7 +3,6 @@ namespace core
 {
     class force_exit_exception : public std::exception
     {
-        std::string_view description_;
     public:
         explicit force_exit_exception(const std::string_view desc = ""sv) 
             : description_(desc)
@@ -12,6 +11,8 @@ namespace core
         {
             return description_.empty() ? "force_exit_exception" : description_.data();
         }
+    private:
+        std::string_view description_;
     };
     /** reference empirical values for low payload
     *  @par sleep std::this_thread::sleep_for(0ns) 9~20us
@@ -34,6 +35,7 @@ namespace core
                 attempt = future.wait_for(interval);
             }
         }
+
         template<typename Callable>
         std::enable_if_t<std::is_invocable_v<Callable>>
             wait(Callable callable, std::atomic<bool>& permit, std::chrono::steady_clock::duration interval = 0ns)

@@ -14,14 +14,13 @@ void dll::interprocess_create() {
         try
         {
             channel = std::make_shared<ipc::channel>(true);
-            channel->send(ipc::message{}.emplace(ipc::message::info_url{ std::move(url) }));
+            channel->send(ipc::message{}.emplace(ipc::info_url{ std::move(url) }));
         }
         catch (...)
         {
             channel = nullptr;
         }
     });
-
 }
 
 void dll::interprocess_release() {

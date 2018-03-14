@@ -57,6 +57,7 @@ namespace core
         protected:
             std::shared_ptr<value_type> ptr_;
         };
+
         template <typename T>
         void basic_ptr<T>::reset(const_pointer other)
         {
@@ -65,6 +66,7 @@ namespace core
             auto deleter = std::get_deleter<void(*)(T*)>(ptr_);
             deleter != nullptr ? ptr_.reset(other, *deleter) : ptr_.reset(other);
         }
+
         template <typename T>
         template <typename Deleter>
         void basic_ptr<T>::reset(const_pointer other, Deleter del)

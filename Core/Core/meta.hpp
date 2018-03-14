@@ -14,11 +14,13 @@ namespace meta
                 return Callable{}(args...);
             }
         };
+
         template<typename BinaryCallable, typename, typename >
         struct bool_arithmetic;
         template<typename BinaryCallable, bool L, bool R>
         struct bool_arithmetic<BinaryCallable, std::bool_constant<L>, std::bool_constant<R>>
             : std::bool_constant<static_invoke<BinaryCallable>::by(L, R)> {};
+
         template<typename BinaryCallable, int64_t Factor, typename T, T ...Values>
         constexpr auto sequence_arithmetic(std::integer_sequence<T, Values...> = {})
         {
@@ -27,6 +29,7 @@ namespace meta
             return std::integer_sequence<T, static_invoke<BinaryCallable>::by(Values, Factor)...>{};
         }
     }
+
     template<typename Bl, typename Br>    //for std::bool_constant AND operation
     struct bool_and : impl::bool_arithmetic<std::logical_and<bool>, Bl, Br> {};
     template<typename Bl, typename Br>    //for std::bool_constant OR operation
@@ -86,6 +89,7 @@ namespace meta
         template<typename T>
         struct value_trait<std::shared_future<T>> { using type = T; };
     }
+
     template<typename T, typename ...Types>
     struct is_within : impl::is_within<T, Types...> { static_assert(sizeof...(Types) > 1); };
     template<typename T, typename ...Types>
@@ -156,6 +160,7 @@ namespace meta
             using right_type = U;
             constexpr static size_t index = I;
         };
+
         template<typename...>
         struct index;
         template<typename T, size_t ...Indexes, typename ...Types>
@@ -164,6 +169,7 @@ namespace meta
             using type = std::disjunction<is_same_indexed<T, Types, Indexes>...>;
         };
     }
+
     template<typename T, typename ...Types>
     struct index : std::integral_constant<size_t, impl::index<T, std::index_sequence_for<Types...>, Types...>::type::index>
     {
