@@ -39,7 +39,10 @@ void sync::barrier::arrive_and_wait()
     else condition_.wait(exlock, [this, gen] { return gen != generation_; });
 }
 
-sync::barrier::operator bool() const { return callable_ && *callable_; }
+sync::barrier::operator bool() const
+{
+    return callable_ && *callable_;
+}
 
 void sync::chain::wait() const
 {

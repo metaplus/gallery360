@@ -2,26 +2,28 @@
 #include "graphic.h"
 #include "Gallery/interface.h"
 
-void graphic::process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces)
+void graphic::process_event(const UnityGfxDeviceEventType event_type, IUnityInterfaces* interfaces)
 {
-    switch (type)
+    switch (event_type)
     {
-        case kUnityGfxDeviceEventInitialize:
-        {
-            IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
-            clear();
-            //device_.reset(d3d->GetDevice(),deleter{});
-            device_ = d3d->GetDevice();
-            break;
-        }
-        case kUnityGfxDeviceEventShutdown:
-        {
-            //deleter{}(device_);   //conflict against intangible vector destructor in Unity*.dll, thus irreponsible 
-            clear();
-            break;
-        }
+    case kUnityGfxDeviceEventInitialize:
+    {
+        IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
+        clear();
+        //device_.reset(d3d->GetDevice(),deleter{});
+        device_ = d3d->GetDevice();
+        break;
+    }
+    case kUnityGfxDeviceEventShutdown:
+    {
+        //deleter{}(device_);           //conflict against intangible vector destructor in Unity*.dll, thus irreponsible 
+        clear();
+        break;
+    }
+    default:;
     }
 }
+
 void graphic::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
 {
     core::verify(alphas_.size() == 3);
@@ -32,6 +34,7 @@ void graphic::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
     alphas_[1] = static_cast<ID3D11Texture2D*>(texU);
     alphas_[2] = static_cast<ID3D11Texture2D*>(texV);
 }
+
 void graphic::update_textures(av::frame& frame)
 {
     auto context = this->context();
@@ -45,16 +48,14 @@ void graphic::update_textures(av::frame& frame)
         context->UpdateSubresource(texture, 0, nullptr, data, desc.Width, 0);
     }
     static size_t frame_update_index = 0;
-    auto msg_time = dll::timer_elapsed();
-    auto msg_body = ipc::message::update_index{ frame_update_index++ };
-    auto msg = ipc::message{ std::move(msg_body), msg_time };
     if (static std::optional<ipc::message> msg_first_updata; !msg_first_updata.has_value())
     {
-        msg_first_updata.emplace(ipc::message::first_frame_updated{}, std::move(msg_time));
+        msg_first_updata.emplace(ipc::message{}.emplace(ipc::message::first_frame_updated{}));
         dll::interprocess_async_send(msg_first_updata.value());
     }
-    dll::interprocess_async_send(std::move(msg));
+    dll::interprocess_async_send(ipc::message{}.emplace(ipc::message::update_index{ frame_update_index++ }));
 }
+
 std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
 {
     ID3D11DeviceContext* ctx = nullptr;
@@ -62,6 +63,7 @@ std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
     core::verify(ctx);
     return std::unique_ptr<ID3D11DeviceContext, deleter>{ctx, deleter{}};
 }
+
 void graphic::clear()
 {
     device_ = nullptr;

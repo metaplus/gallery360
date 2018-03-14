@@ -43,8 +43,6 @@ namespace sync
     // thread-safe lock-free asynchronous task chain
     class chain
     {
-        std::shared_ptr<std::future<void>> pending_ = nullptr;
-        std::atomic<bool> canceled_ = false;
     public:
         chain() = default;
         chain(const chain&) = delete;
@@ -55,6 +53,9 @@ namespace sync
         std::future<std::invoke_result_t<Callable>> append(Callable&& callable, use_future_t);
         void wait() const;
         void abort_and_wait();
+    private:
+        std::shared_ptr<std::future<void>> pending_ = nullptr;
+        std::atomic<bool> canceled_ = false;
     };
 
     template <typename Callable>
@@ -85,7 +86,7 @@ namespace sync
                 catch (...)
                 {
                     if constexpr(meta::is_packaged_task_v<meta::remove_cv_ref_t<decltype(*pcallable)>>)
-                        const auto abolished_task = std::exchange(*pcallable, {});
+                        const auto abolished_task = std::move(*pcallable);
                     std::rethrow_exception(std::current_exception());
                 }
             }));
@@ -98,7 +99,7 @@ namespace sync
 
     template <typename Callable>
     std::future<std::invoke_result_t<Callable>> chain::append(Callable&& callable, use_future_t)
-    {
+    {   // emplace from lambda or move construct std::packaged_task
         std::packaged_task<std::invoke_result_t<Callable>()> task{ std::forward<Callable>(callable) };
         auto task_result = task.get_future();
         append(std::move(task));

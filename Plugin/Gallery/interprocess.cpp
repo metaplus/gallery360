@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "interprocess.h"
+#include "interface.h"
+
 namespace
 {
     using namespace core::literals;
@@ -8,48 +10,36 @@ namespace
         constexpr auto identity_monitor = "___MessageQueue$MonitorExe_"sv;
         constexpr auto identity_plugin = "___MessageQueue$PluginDll_"sv;
         constexpr auto shmem_capacity = 512_kbyte;
-        constexpr auto try_interval = 5ms;              // maximum 1s/90fps/2operation
-    }
-}
-namespace impl
-{
-    template<size_t Index, typename ...Types>
-    size_t valid_size(const std::variant<Types...>& var)
-    {
-        if (std::get_if<Index>(&var) != nullptr)
-            return sizeof(std::variant_alternative_t<Index, std::variant<Types...>>);
-        if constexpr(Index < sizeof...(Types)-1)
-            return impl::valid_size<Index + 1>(var);
-        throw std::bad_variant_access{};
+        //constexpr auto try_interval = 5ms;              // maximum 1s/90fps/2operation
+        constexpr auto try_interval = 1s / 90 / 2;
     }
 }
 
-constexpr size_t ipc::message::size() noexcept
+constexpr size_t ipc::message::size() 
 {
     return size_trait::value;
 }
 
-size_t ipc::message::valid_size() const noexcept
-{
-    return impl::valid_size<0>(data_);
-}
+ipc::message::message()
+    : data_(), duration_(dll::timer_elapsed()), description_()
+{}
 
 const std::chrono::high_resolution_clock::duration& ipc::message::timing() const
 {
     return duration_;
 }
-constexpr size_t ipc::message::index() const noexcept
+constexpr size_t ipc::message::index() const 
 {
     return data_.index();
 }
 
-constexpr size_t ipc::channel::buffer_size() noexcept
+constexpr size_t ipc::channel::buffer_size() 
 {
     return ipc::message::size() * 2;
 }
 
 ipc::channel::channel(const bool open_only)
-try : running_(true), send_context_(), recv_context_()
+try : running_(true), send_context_(), recv_context_(), prioritizer_(&default_prioritize)
 {
     if (open_only)
     {
@@ -70,82 +60,53 @@ try : running_(true), send_context_(), recv_context_()
 catch (...)
 {
     running_.store(false, std::memory_order_seq_cst);
+    send_context_.pending.abort_and_wait();
+    recv_context_.pending.abort_and_wait();
     send_context_.messages = std::nullopt;
     recv_context_.messages = std::nullopt;
-    recv_context_.shmem_remover = std::nullopt;
     send_context_.shmem_remover = std::nullopt;
+    recv_context_.shmem_remover = std::nullopt;
     throw;
 }
 
-std::pair<std::future<ipc::message>, size_t> ipc::channel::async_receive()
+void ipc::channel::prioritize_by(std::function<unsigned(const ipc::message&)> prior)
 {
-    if (!valid()) return {};
-    std::packaged_task<ipc::message()> recv_task{ [this]() mutable
-    {
-        static thread_local std::stringstream stream;
-        std::string buffer(buffer_size(), 0);
-        auto[recv_size, priority] = std::pair<size_t, unsigned>{};
-        while (running_.load(std::memory_order_acquire))
-        {
-            if (!recv_context_.messages->try_receive(buffer.data(), buffer.size(), recv_size, priority)) {
-                std::this_thread::sleep_for(5ms);
-                continue;
-            }
-            core::verify(recv_size < buffer_size());            //exception if filled
-            buffer.resize(recv_size);
-            stream.clear(); stream.str(std::move(buffer));
-            ipc::message message;
-            {
-                cereal::BinaryInputArchive iarchive{ stream };  //considering static thread_local std::optional<cereal::BinaryInputArchive>
-                iarchive >> message;
-            }
-            return message;
-        }
-        throw core::force_exit_exception{};
-    } };
-    auto future = recv_task.get_future();
-    recv_context_.pending.append(std::move(recv_task));
-    return std::make_pair(std::move(future), recv_context_.messages->get_num_msg());
+    prioritizer_.swap(prior);
+}
+
+std::future<ipc::message> ipc::channel::async_receive()
+{
+    if (!valid()) 
+        return {};
+    return recv_context_.pending.append(
+        std::bind(&channel::do_receive, this), sync::use_future);
 }
 
 void ipc::channel::async_send(ipc::message message)
 {
-    if (!valid()) return;
-    auto send_task = [this, message = std::move(message)]() mutable
-    {
-        const auto priority = 
-            message.is<ipc::message::info_launch>() ? std::numeric_limits<unsigned>::max() :
-            message.is<ipc::message::info_exit>() ? std::numeric_limits<unsigned>::min() :
-            1 + static_cast<unsigned>(std::variant_size_v<ipc::message::value_type>-message.index());
-        static thread_local std::stringstream stream;
-        stream.str(""s); stream.clear();
-        {
-            cereal::BinaryOutputArchive oarchive{ stream };     //considering static thread_local std::optional<cereal::BinaryOutputArchive>
-            oarchive << message;
-        }
-        auto buffer = stream.str();
-        core::verify(buffer.size() < buffer_size());            //assume buffer_size never achieved
-        while (running_.load(std::memory_order_acquire))
-        {
-            if (send_context_.messages->try_send(buffer.data(), buffer.size(), priority))
-                return;
-            std::this_thread::sleep_for(5ms);
-        }
-        throw core::force_exit_exception{};
-    };
-    if (message.is<ipc::message::info_exit>() || message.is<vr::Compositor_CumulativeStats>())
-        return send_context_.pending.append(std::move(send_task), sync::use_future).wait();
-    send_context_.pending.append(std::move(send_task));
+    if (!valid()) 
+        return;
+    send_context_.pending.append(
+        std::bind(&channel::do_send, this, std::move(message)));
 }
 
 void ipc::channel::send(ipc::message message)
 {
-    
+    if (!valid()) 
+        return;
+    send_context_.pending.append(
+        std::bind(&channel::do_send, this, std::move(message)), sync::use_future).wait();
+}
+
+ipc::message ipc::channel::receive()
+{
+    return async_receive().get();
 }
 
 bool ipc::channel::valid() const
 {
-    return running_.load(std::memory_order_acquire) && send_context_.messages.has_value() && recv_context_.messages.has_value();
+    return running_.load(std::memory_order_acquire)
+        && send_context_.messages.has_value() && recv_context_.messages.has_value();
 }
 
 void ipc::channel::wait()
@@ -165,4 +126,54 @@ ipc::channel::~channel()
         context.pending.abort_and_wait();
         context.messages.reset();
     }, send_context_, recv_context_);
+}
+
+unsigned ipc::channel::default_prioritize(const ipc::message& message)
+{
+    return message.is<ipc::message::info_launch>() ? std::numeric_limits<unsigned>::max() :
+        message.is<ipc::message::info_exit>() ? std::numeric_limits<unsigned>::min() :
+        /*1 + */static_cast<unsigned>(ipc::message::index_size() - message.index());
+}
+
+void ipc::channel::do_send(const ipc::message& message)
+{
+    static thread_local std::stringstream stream;
+    stream.str(""s); stream.clear();
+    {
+        cereal::BinaryOutputArchive oarchive{ stream };     //considering static thread_local std::optional<cereal::BinaryOutputArchive>
+        oarchive << message;
+    }
+    auto buffer = stream.str();
+    core::verify(buffer.size() < buffer_size());            //assume buffer_size never achieved
+    while (running_.load(std::memory_order_acquire))
+    {
+        if (send_context_.messages->try_send(buffer.data(), buffer.size(), prioritizer_(message)))
+            return;
+        std::this_thread::sleep_for(config::try_interval);
+    }
+    throw core::force_exit_exception{};
+}
+
+ipc::message ipc::channel::do_receive()
+{
+    std::string buffer(buffer_size(), 0);
+    auto[recv_size, priority] = std::pair<size_t, unsigned>{};
+    while (running_.load(std::memory_order_acquire))
+    {
+        if (!recv_context_.messages->try_receive(buffer.data(), buffer.size(), recv_size, priority)) {
+            std::this_thread::sleep_for(config::try_interval);
+            continue;
+        }
+        core::verify(recv_size < buffer_size());            //exception if filled
+        buffer.resize(recv_size);
+        static thread_local std::stringstream stream;
+        stream.clear(); stream.str(std::move(buffer));
+        ipc::message message;
+        {
+            cereal::BinaryInputArchive iarchive{ stream };  //considering static thread_local std::optional<cereal::BinaryInputArchive>
+            iarchive >> message;
+        }
+        return message;
+    }
+    throw core::force_exit_exception{};
 }

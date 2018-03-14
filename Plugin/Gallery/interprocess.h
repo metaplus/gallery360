@@ -13,8 +13,9 @@ namespace ipc
             std::conditional_t<(sizeof...(Types) > 0), std::tuple<U, Types...>, U> data;
             using value_type = decltype(data);
             basic_serializable() = default;
-            explicit basic_serializable(U&& a0, Types&& ...args)
-                : data( std::forward<U>(a0), std::forward<Types>(args)... )
+            explicit basic_serializable(const U& a0, const Types& ...args)
+                //: data( std::forward<U>(a0), std::forward<Types>(args)... )
+                : data(a0, args...)
             {}
             template<typename Archive>
             void serialize(Archive& archive) { archive(data); }
@@ -31,14 +32,14 @@ namespace ipc
         struct info_launch : basic_serializable<void> { using basic_serializable::basic_serializable; };
         struct info_started : basic_serializable<void> { using basic_serializable::basic_serializable; };
         struct info_exit : basic_serializable<void> { using basic_serializable::basic_serializable; };
+        struct info_url : basic_serializable<std::string> { using basic_serializable::basic_serializable; };
         struct update_index : basic_serializable<size_t> { using basic_serializable::basic_serializable; };
         struct tagged_pack : basic_serializable<std::string, std::string> { using basic_serializable::basic_serializable; };
         struct first_frame_available : basic_serializable<void> { using basic_serializable::basic_serializable; };
         struct first_frame_updated : basic_serializable<void> { using basic_serializable::basic_serializable; };
-        //struct info_url
     private:
         std::variant<
-            info_launch, info_started, info_exit,
+            info_launch, info_started, info_exit, info_url,
             first_frame_available, first_frame_updated,
             vr::Compositor_FrameTiming, vr::Compositor_CumulativeStats,
             update_index, tagged_pack
@@ -46,84 +47,72 @@ namespace ipc
         std::chrono::high_resolution_clock::duration duration_;
         std::string description_;
         using size_trait = meta::max_size<decltype(data_)>;
+                using value_type = decltype(data_);
     public:
-        using value_type = decltype(data_);
-        template<typename Alternate>
-        struct is_alternative : meta::is_within<Alternate, value_type> {};
-        constexpr static size_t size() noexcept; 
-        message() = default;
+        template<typename Various>
+        struct is_alternative : meta::is_within<meta::remove_cv_ref_t<Various>, value_type> {};
+        constexpr static size_t size();
+        message();
+        template<typename Various, typename = std::enable_if_t<is_alternative<Various>::value>>
+        explicit message(Various&& data, std::chrono::high_resolution_clock::duration duration = 0ns);
         message(const message&) = default;
         message(message&&) noexcept = default;
         message& operator=(const message&) = default;
         message& operator=(message&&) noexcept = default;
-        template<typename Alternate, typename = std::enable_if_t<is_alternative<Alternate>::value>>
-        explicit message(Alternate data, std::chrono::high_resolution_clock::duration duration = 0ns);
-        size_t valid_size() const noexcept;
-        constexpr size_t index() const noexcept;
-        template<typename Alternate>
-        constexpr static size_t index() noexcept;
+        template<typename Various, typename = std::enable_if_t<is_alternative<Various>::value>>
+        message& emplace(Various&& data);
+        constexpr size_t index() const;
+        template<typename Various>
+        constexpr static size_t index();
         constexpr static size_t index_size() { return std::variant_size_v<value_type>; }
-        template<typename Alternate>
-        bool is() const noexcept;
-        template<typename Alternate>
-        std::add_lvalue_reference_t<Alternate> get();
-        template<typename Visitor>
-        decltype(auto) visit(Visitor&& visitor);
-        template<typename Alternate, typename Callable>
-        std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>> visit_as(Callable&& callable);
+        template<typename Various>
+        bool is() const;
         const std::chrono::high_resolution_clock::duration& timing() const;
     private:
         friend cereal::access;
-        template<typename Archive>
-        void serialize(Archive& archive);
+        template<typename Various>
+        void serialize(Various& archive);
     };
-    template <typename Alternate>
-    constexpr size_t message::index() noexcept
+
+    template <typename Various>
+    constexpr size_t message::index() 
     {
-        static_assert(std::is_object_v<Alternate> && !std::is_const_v<Alternate>);
-        static_assert(meta::is_within_v<Alternate, value_type>);
-        return meta::index<Alternate, value_type>::value;
+        static_assert(std::is_object_v<Various> && !std::is_const_v<Various>);
+        static_assert(meta::is_within_v<Various, value_type>);
+        return meta::index<Various, value_type>::value;
     }
-    template <typename Alternate, typename>
-    message::message(Alternate data, std::chrono::high_resolution_clock::duration duration)
-        : data_(std::move(data)), duration_(std::move(duration)), description_(core::type_shortname<Alternate>())
+
+    template <typename Various, typename>
+    message::message(Various&& data, std::chrono::high_resolution_clock::duration duration)
+        : data_(std::forward<Various>(data))
+        , duration_(std::move(duration))
+        , description_(core::type_shortname<meta::remove_cv_ref_t<Various>>())
     {}
-    template <typename Alternate>
-    bool message::is() const noexcept
+
+    template <typename Various, typename>
+    message& message::emplace(Various&& data)
     {
-        return std::get_if<Alternate>(&data_) != nullptr;
+        data_.emplace<meta::remove_cv_ref_t<Various>>(std::forward<Various>(data));
+        description_.assign(core::type_shortname<meta::remove_cv_ref_t<Various>>());
+        return *this;
     }
-    template <typename Alternate>
-    std::add_lvalue_reference_t<Alternate> message::get()
+
+    template <typename Various>
+    bool message::is() const 
     {
-        static_assert(!std::is_reference_v<Alternate>);
-        static_assert(is_alternative<Alternate>::value);
-        return std::get<Alternate>(data_);
+        return std::get_if<Various>(&data_) != nullptr;
     }
-    template <typename Visitor>
-    decltype(auto) message::visit(Visitor&& visitor) 
-    { 
-        return std::visit(std::forward<Visitor>(visitor), data_);
-    }
-    template <typename Alternate, typename Callable>
-    std::invoke_result_t<Callable, std::add_lvalue_reference_t<Alternate>> 
-        message::visit_as(Callable&& callable)
-    {
-        static_assert(!std::is_reference_v<Alternate>);
-        static_assert(is_alternative<Alternate>::value);
-        auto& alternate = std::get<Alternate>(data_);               //exception if invalid
-        return std::invoke(std::forward<Callable>(callable), alternate);
-    }
+
     template <typename Archive>
-    void message::serialize(Archive& archive) 
+    void message::serialize(Archive& archive)
     {
         archive(
-            cereal::make_nvp("TimingNs",duration_), 
+            cereal::make_nvp("TimingNs", duration_),
             cereal::make_nvp("Description", description_),
             cereal::make_nvp("Message", data_));
     }
 
-    class DLLAPI channel : protected std::enable_shared_from_this<channel>
+    class DLLAPI channel 
     {
         std::atomic<bool> running_;
         struct endpoint
@@ -135,16 +124,24 @@ namespace ipc
         };           
         endpoint send_context_; 
         endpoint recv_context_;
+        std::function<unsigned(const ipc::message&)> prioritizer_;
     public:
         explicit channel(bool open_only = true);
-        std::pair<std::future<ipc::message>, size_t> async_receive();
+        channel(const channel&) = delete;
+        channel& operator=(const channel&) = delete;
+        void prioritize_by(std::function<unsigned(const ipc::message&)> prior);
+        std::future<ipc::message> async_receive();
         void async_send(ipc::message message);
         void send(ipc::message message);
+        ipc::message receive();
         bool valid() const;
         void wait();
         ~channel();
     private:
-        constexpr static size_t buffer_size() noexcept;
+        static constexpr size_t buffer_size() ;
+        static unsigned default_prioritize(const ipc::message& message);
+        void do_send(const ipc::message& message);
+        ipc::message do_receive();
         static_assert(std::is_same_v<size_t, interprocess::message_queue::size_type>);
         static_assert(std::chrono::high_resolution_clock::is_steady);
     };

@@ -1,24 +1,35 @@
 #include "stdafx.h"
 #include "interface.h"
+
 namespace
 {
     std::shared_ptr<ipc::channel> channel = nullptr;
-    std::shared_future<void> initial;
+    std::future<void> initial;
 }
+
 void dll::interprocess_create() {
     initial = std::async([]()
     {
-        std::this_thread::sleep_for(500ms);
-        try { channel = std::make_shared<ipc::channel>(true); }
-        catch (...) { channel = nullptr; }
+        auto url = dll::media_wait_decoding_start();
+        try
+        {
+            channel = std::make_shared<ipc::channel>(true);
+            channel->send(ipc::message{}.emplace(ipc::message::info_url{ std::move(url) }));
+        }
+        catch (...)
+        {
+            channel = nullptr;
+        }
     });
 
 }
+
 void dll::interprocess_release() {
     if (initial.valid()) 
-        initial.wait();
+        initial.get();
     channel = nullptr;
 }
+
 void dll::interprocess_async_send(ipc::message message)
 {
     static struct
@@ -34,7 +45,7 @@ void dll::interprocess_async_send(ipc::message message)
     }
     {
         std::lock_guard<std::mutex> exlock{ temp_mvec.mutex };
-        if (!channel) 
+        if (!channel)
             return temp_mvec.container.clear();
         if (!temp_mvec.container.empty())
             std::swap(local_mvec, temp_mvec.container);
@@ -46,4 +57,11 @@ void dll::interprocess_async_send(ipc::message message)
         local_mvec.clear();
     }
     channel->async_send(std::move(message));
+}
+
+void dll::interprocess_send(ipc::message message)
+{
+    if (initial.wait(); channel == nullptr)
+        return;
+    channel->send(std::move(message));
 }

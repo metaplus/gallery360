@@ -9,37 +9,35 @@ namespace
     IUnityInterfaces* unity_interface = nullptr;
     IUnityGraphics* unity_graphics = nullptr;
 }
-void StoreTime(FLOAT t)
+
+void unity::StoreTime(FLOAT t)
 {
     unity_time = t;
 }
-void StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV)
+
+void unity::StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV)
 {
     core::verify(texY != nullptr, texU != nullptr, texV != nullptr);
     dll_graphic->store_textures(texY, texU, texV);
-    auto msg_time = dll::timer_elapsed();
-    auto msg_body = ipc::message::info_started{};
-    auto msg = ipc::message{ std::move(msg_body), std::move(msg_time) };
-    dll::interprocess_async_send(std::move(msg));
+    dll::interprocess_async_send(ipc::message{}.emplace(ipc::message::info_started{}));
 }
-UINT32 StoreVrFrameTiming(HANDLE vr_timing)
+
+UINT32 unity::StoreVrFrameTiming(HANDLE vr_timing)
 {
-    auto msg_time = dll::timer_elapsed();
-    auto msg_body = vr::Compositor_FrameTiming{};
-    msg_body = *static_cast<vr::Compositor_FrameTiming*>(vr_timing);
-    auto msg = ipc::message{ msg_body, std::move(msg_time) };
-    dll::interprocess_async_send(std::move(msg));
+    ipc::message msg;
+    auto msg_body = *static_cast<vr::Compositor_FrameTiming*>(vr_timing);
+    dll::interprocess_async_send(std::move(msg.emplace(msg_body)));
     return msg_body.m_nFrameIndex;
 }
-UINT32 StoreVrCumulativeStatus(HANDLE vr_status)
+
+UINT32 unity::StoreVrCumulativeStatus(HANDLE vr_status)
 {
-    auto msg_time = dll::timer_elapsed();
-    auto msg_body = vr::Compositor_CumulativeStats{};
-    msg_body = *static_cast<vr::Compositor_CumulativeStats*>(vr_status);
-    auto msg = ipc::message{ std::move(msg_body), std::move(msg_time) };
-    dll::interprocess_async_send(std::move(msg));
+    ipc::message msg;
+    auto msg_body = *static_cast<vr::Compositor_CumulativeStats*>(vr_status);
+    dll::interprocess_send(std::move(msg.emplace(msg_body)));
     return msg_body.m_nNumFramePresents;
 }
+
 static void __stdcall OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
 {
     if (eventType == kUnityGfxDeviceEventInitialize)
@@ -60,6 +58,7 @@ static void __stdcall OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
         //dll_graphic = nullptr;
     }
 }
+
 EXTERN void UNITYAPI UnityPluginLoad(IUnityInterfaces* unityInterfaces)
 {
     unity_interface = unityInterfaces;
@@ -68,16 +67,19 @@ EXTERN void UNITYAPI UnityPluginLoad(IUnityInterfaces* unityInterfaces)
     OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
     //GlobalCreate();
 }
+
 EXTERN void UNITYAPI UnityPluginUnload()
 {
     //GlobalRelease();
     unity_graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
 }
+
 static void __stdcall OnRenderEvent(int eventID)
 {
     if (auto frame = dll::media_extract_frame(); frame.has_value())
         dll_graphic->update_textures(frame.value());
 }
+
 EXTERN UnityRenderingEvent UNITYAPI GetRenderEventFunc()
 {
     return OnRenderEvent;
