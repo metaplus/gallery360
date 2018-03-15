@@ -1,8 +1,8 @@
 #pragma once
+
 /**
  * @note Exported functions called by Unity engine. C# CamelCase naming style.
  */
-
 namespace unity
 {
     EXTERN BOOL UNITYAPI GlobalCreate();
@@ -23,8 +23,8 @@ namespace dll
     DLLAPI void media_prepare();
     DLLAPI void media_create();
     DLLAPI void media_release();
-    DLLAPI std::optional<av::frame> media_extract_frame();
-    DLLAPI std::string media_wait_decoding_start();
+    DLLAPI std::optional<av::frame> media_retrieve_frame();
+    DLLAPI std::pair<std::string, av::codec_context> media_retrieve_format();
     DLLAPI void interprocess_create();
     DLLAPI void interprocess_release();
     DLLAPI void interprocess_async_send(ipc::message message);

@@ -10,7 +10,7 @@ namespace
         std::shared_future<void> registry;
         std::shared_future<av::format_context> parse;
         std::shared_future<uint64_t> decode;
-        std::promise<std::string> urlstr;
+        std::promise<std::pair<std::string, av::codec_context>> retrieve;
         std::vector<std::function<void()>> cleanup;
     }
 
@@ -94,7 +94,7 @@ BOOL unity::StoreMediaUrl(LPCSTR url)
                 {
                     if (static std::optional<ipc::message> first_available; !first_available.has_value())
                     {
-                        routine::urlstr.set_value(routine::parse.get()->filename);
+                        routine::retrieve.set_value(std::make_pair(format->filename, codec));
                         first_available.emplace(ipc::message{}.emplace(ipc::first_frame_available{}));
                         dll::interprocess_async_send(first_available.value());
                         routine::cleanup.emplace_back(
@@ -109,7 +109,10 @@ BOOL unity::StoreMediaUrl(LPCSTR url)
             return decode_count;
         }).share();
     }
-    catch (...) { return false; }
+    catch (...)
+    {
+        return false;
+    }
     return true;
 }
 
@@ -125,20 +128,20 @@ BOOL unity::IsVideoAvailable()
     return status::available.load(std::memory_order_acquire) || !frames->empty.load(std::memory_order_relaxed);
 }
 
-std::optional<av::frame> dll::media_extract_frame()
+std::optional<av::frame> dll::media_retrieve_frame()
 {
     //if (IsVideoAvailable()) return std::nullopt;
     return pop_frame();
 }
 
-std::string dll::media_wait_decoding_start()
+std::pair<std::string, av::codec_context> dll::media_retrieve_format()
 {
-    return routine::urlstr.get_future().get();
+    return routine::retrieve.get_future().get();
 }
 
 void dll::media_prepare()
 {
-    routine::urlstr = {};
+    routine::retrieve = {};
 }
 
 void dll::media_create()
@@ -165,6 +168,6 @@ void dll::media_release()
             func();
         routine::cleanup.clear();
     }
-    routine::urlstr = {};
+    routine::retrieve = {};
     frames = nullptr;
 }

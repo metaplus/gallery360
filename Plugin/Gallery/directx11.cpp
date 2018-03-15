@@ -76,7 +76,7 @@ EXTERN void UNITYAPI UnityPluginUnload()
 
 static void __stdcall OnRenderEvent(int eventID)
 {
-    if (auto frame = dll::media_extract_frame(); frame.has_value())
+    if (auto frame = dll::media_retrieve_frame(); frame.has_value())
         dll_graphic->update_textures(frame.value());
 }
 

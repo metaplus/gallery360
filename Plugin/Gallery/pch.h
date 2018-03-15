@@ -11,6 +11,7 @@
 #include <cereal/types/tuple.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/utility.hpp>
+#include <cereal/types/map.hpp>
 #pragma warning(push)
 #pragma warning(disable:4267 4834)
 #include <cereal/types/variant.hpp>

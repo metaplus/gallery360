@@ -10,7 +10,6 @@ namespace
         constexpr auto identity_monitor = "___MessageQueue$MonitorExe_"sv;
         constexpr auto identity_plugin = "___MessageQueue$PluginDll_"sv;
         constexpr auto shmem_capacity = 512_kbyte;
-        //constexpr auto try_interval = 5ms;              // maximum 1s/90fps/2operation
         constexpr auto try_interval = 1s / 90 / 2;
     }
 }
@@ -35,9 +34,9 @@ const std::string& ipc::message::description() const
 }
 
 
-constexpr size_t ipc::channel::buffer_size() 
+constexpr size_t ipc::channel::max_msg_size()
 {
-    return ipc::message::size() * 2;
+    return ipc::message::size() * 3;
 }
 
 ipc::channel::channel(const bool open_only)
@@ -50,7 +49,7 @@ try : running_(true), send_context_(), recv_context_(), prioritizer_(&default_pr
     }
     else
     {
-        constexpr auto msg_size = message::size();
+        constexpr auto msg_size = max_msg_size();              // be cautious heap allocated container
         constexpr auto msg_capcity = config::shmem_capacity / msg_size;
         send_context_.shmem_remover.emplace([] { interprocess::message_queue::remove(config::identity_monitor.data()); }, true);
         recv_context_.shmem_remover.emplace([] { interprocess::message_queue::remove(config::identity_plugin.data()); }, true);
@@ -146,7 +145,7 @@ void ipc::channel::do_send(const ipc::message& message)
         oarchive << message;
     }
     auto buffer = stream.str();
-    core::verify(buffer.size() < buffer_size());            //assume buffer_size never achieved
+    core::verify(buffer.size() < max_msg_size());            //assume max_msg_size never achieved
     while (running_.load(std::memory_order_acquire))
     {
         if (send_context_.messages->try_send(buffer.data(), buffer.size(), prioritizer_(message)))
@@ -158,7 +157,7 @@ void ipc::channel::do_send(const ipc::message& message)
 
 ipc::message ipc::channel::do_receive()
 {
-    std::string buffer(buffer_size(), 0);
+    std::string buffer(max_msg_size(), 0);
     auto[recv_size, priority] = std::pair<size_t, unsigned>{};
     while (running_.load(std::memory_order_acquire))
     {
@@ -166,7 +165,7 @@ ipc::message ipc::channel::do_receive()
             std::this_thread::sleep_for(config::try_interval);
             continue;
         }
-        core::verify(recv_size < buffer_size());            //exception if filled
+        core::verify(recv_size < max_msg_size());            //exception if filled
         buffer.resize(recv_size);
         static thread_local std::stringstream stream;
         stream.clear(); stream.str(std::move(buffer));

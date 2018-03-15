@@ -51,7 +51,6 @@ void graphic::update_textures(av::frame& frame)
     {
         first_update.emplace(ipc::message{}.emplace(ipc::first_frame_updated{}));
         dll::interprocess_async_send(first_update.value());
-        //_
         cleanup_.emplace_back(
             []() { if (first_update.has_value()) first_update = std::nullopt; });
     }
@@ -60,13 +59,12 @@ void graphic::update_textures(av::frame& frame)
 
 void graphic::clean_up()
 {
-    if (!cleanup_.empty())
-    {
-        for (const auto& func : cleanup_)
-            func();
-        cleanup_.clear();
-    }
     update_index_ = 0;
+    if (cleanup_.empty())
+        return;
+    for (const auto& func : cleanup_)
+        func();
+    cleanup_.clear();
 }
 
 std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const

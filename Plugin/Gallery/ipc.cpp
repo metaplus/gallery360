@@ -8,13 +8,20 @@ namespace
 }
 
 void dll::interprocess_create() {
-    initial = std::async([]()
+    initial = std::async(std::launch::async, []()
     {
-        auto url = dll::media_wait_decoding_start();
+        const auto[url, codec] = dll::media_retrieve_format();
+        std::map<std::string, std::string> mformat;
+        mformat["url"] = url;
+        mformat["codec_name"] = codec->codec->long_name;
+        mformat["resolution"] = std::to_string(codec->width) + 'x' + std::to_string(codec->height);
+        mformat["gop_size"] = std::to_string(codec->gop_size);
+        mformat["pixel_format"] = av_get_pix_fmt_name(codec->pix_fmt);
+        mformat["frames_count"] = std::to_string(codec.frame_count());
         try
         {
             channel = std::make_shared<ipc::channel>(true);
-            channel->send(ipc::message{}.emplace(ipc::info_url{ std::move(url) }));
+            channel->send(ipc::message{}.emplace(ipc::media_format{ std::move(mformat) }));
         }
         catch (...)
         {

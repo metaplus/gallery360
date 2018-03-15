@@ -92,4 +92,11 @@ namespace core
             std::invoke(callable, args...);
         return std::forward<Callable>(callable);
     }
+
+    template <typename T>
+    std::reference_wrapper<T> make_empty_reference_wrapper()
+    {
+        static void* lval_nullptr = nullptr;
+        return std::reference_wrapper<T>{ *reinterpret_cast<std::add_pointer_t<T>&>(lval_nullptr) };
+    }
 }

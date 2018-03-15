@@ -16,7 +16,7 @@ namespace av
     private:
         //void prepare() const;
     private:
-        std::shared_ptr<AVFormatContext> handle_{};
+        std::shared_ptr<AVFormatContext> handle_;
     };
 
     template <typename Media>
@@ -66,13 +66,15 @@ namespace av
         using value_type = AVCodecContext;
         using pointer = AVCodecContext * ;
         using resolution = std::pair<decltype(AVCodecContext::width), decltype(AVCodecContext::height)>;
+        codec_context() = default;
         codec_context(codec cdc, stream srm, unsigned threads = std::thread::hardware_concurrency());
         pointer operator->() const;
         bool valid() const;
-        int64_t count() const;
+        int64_t decoded_count() const;      
+        int64_t frame_count() const;
         std::vector<frame> decode(const packet& compressed);
     private:
-        std::shared_ptr<AVCodecContext> handle_{};
+        std::shared_ptr<AVCodecContext> handle_;    
         stream stream_;
         struct state
         {

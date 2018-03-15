@@ -33,7 +33,7 @@ namespace ipc
     struct info_launch : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
     struct info_started : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
     struct info_exit : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
-    struct info_url : impl::basic_serializable<std::string> { using basic_serializable::basic_serializable; };
+    struct media_format : impl::basic_serializable<std::map<std::string, std::string>> { using basic_serializable::basic_serializable; };
     struct update_index : impl::basic_serializable<size_t> { using basic_serializable::basic_serializable; };
     struct tagged_pack : impl::basic_serializable<std::string, std::string> { using basic_serializable::basic_serializable; };
     struct first_frame_available : impl::basic_serializable<void> { using basic_serializable::basic_serializable; };
@@ -68,7 +68,7 @@ namespace ipc
         void serialize(Various& archive);
     private:
         std::variant<
-            info_launch, info_started, info_exit, info_url,
+            info_launch, info_started, info_exit, media_format,
             first_frame_available, first_frame_updated,
             vr::Compositor_FrameTiming, vr::Compositor_CumulativeStats,
             update_index, tagged_pack
@@ -130,7 +130,7 @@ namespace ipc
         void wait();
         ~channel();
     private:
-        static constexpr size_t buffer_size() ;
+        static constexpr size_t max_msg_size() ;
         static unsigned default_prioritize(const ipc::message& message);
         void do_send(const ipc::message& message);
         ipc::message do_receive();
