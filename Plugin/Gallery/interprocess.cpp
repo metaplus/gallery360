@@ -10,6 +10,7 @@ namespace
         constexpr auto identity_monitor = "___MessageQueue$MonitorExe_"sv;
         constexpr auto identity_plugin = "___MessageQueue$PluginDll_"sv;
         constexpr auto shmem_capacity = 512_kbyte;
+        //constexpr auto shmem_capacity = 2_mbyte;
         constexpr auto try_interval = 1s / 90 / 2;
     }
 }
@@ -46,6 +47,13 @@ try : running_(true), send_context_(), recv_context_(), prioritizer_(&default_pr
     {
         send_context_.messages.emplace(interprocess::open_only, config::identity_plugin.data());
         recv_context_.messages.emplace(interprocess::open_only, config::identity_monitor.data());
+        static_assert(std::is_unsigned_v<interprocess::message_queue::size_type>);
+        if (send_context_.messages->get_num_msg() || recv_context_.messages->get_num_msg())
+        {
+            interprocess::message_queue::remove(config::identity_monitor.data());
+            interprocess::message_queue::remove(config::identity_plugin.data());
+            throw std::runtime_error{ "encounter non-empty message queue" };
+        }
     }
     else
     {
@@ -125,7 +133,7 @@ ipc::channel::~channel()
     {
         if (!context.messages.has_value()) return;
         context.pending.abort_and_wait();
-        context.messages.reset();
+        context.messages = std::nullopt;
     }, send_context_, recv_context_);
 }
 
