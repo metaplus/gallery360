@@ -159,7 +159,7 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="revokable.hpp" />
     <ClInclude Include="stdafx.h" />
-    <ClInclude Include="sync.h" />
+    <ClInclude Include="concurrent.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
@@ -172,7 +172,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="sync.cpp" />
+    <ClCompile Include="concurrent.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

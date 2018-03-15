@@ -1,5 +1,4 @@
 #pragma once
-#include <cereal/cereal.hpp>
 
 namespace vr    //involved header clip
 {

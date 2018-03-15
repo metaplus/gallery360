@@ -25,4 +25,3 @@ size_t core::thread_hash_id(std::optional<std::thread::id> id)
     static const std::hash<std::thread::id> hasher;
     return hasher(id.value_or(std::this_thread::get_id()));
 }
-

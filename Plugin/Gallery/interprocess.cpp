@@ -41,9 +41,9 @@ constexpr size_t ipc::channel::max_msg_size()
 }
 
 ipc::channel::channel(const bool open_only)
-try : running_(true), send_context_(), recv_context_(), prioritizer_(&default_prioritize)
+try : running_(true), send_context_(), recv_context_(), prioritizer_(&default_prioritize), open_only_(open_only)
 {
-    if (open_only)
+    if (open_only_)
     {
         send_context_.messages.emplace(interprocess::open_only, config::identity_plugin.data());
         recv_context_.messages.emplace(interprocess::open_only, config::identity_monitor.data());
@@ -88,7 +88,7 @@ std::future<ipc::message> ipc::channel::async_receive()
     if (!valid()) 
         return {};
     return recv_context_.pending.append(
-        std::bind(&channel::do_receive, this), sync::use_future);
+        std::bind(&channel::do_receive, this), concurrent::use_future);
 }
 
 void ipc::channel::async_send(ipc::message message)
@@ -104,7 +104,7 @@ void ipc::channel::send(ipc::message message)
     if (!valid()) 
         return;
     send_context_.pending.append(
-        std::bind(&channel::do_send, this, std::move(message)), sync::use_future).wait();
+        std::bind(&channel::do_send, this, std::move(message)), concurrent::use_future).wait();
 }
 
 ipc::message ipc::channel::receive()
@@ -126,6 +126,12 @@ void ipc::channel::wait()
     }, send_context_, recv_context_);
 }
 
+void ipc::channel::clean_shared_memory()
+{
+    interprocess::message_queue::remove(config::identity_monitor.data());
+    interprocess::message_queue::remove(config::identity_plugin.data());
+}
+
 ipc::channel::~channel()
 {
     running_.store(false, std::memory_order_seq_cst);
@@ -135,6 +141,11 @@ ipc::channel::~channel()
         context.pending.abort_and_wait();
         context.messages = std::nullopt;
     }, send_context_, recv_context_);
+    if (!open_only_)
+    {
+        interprocess::message_queue::remove(config::identity_monitor.data());
+        interprocess::message_queue::remove(config::identity_plugin.data());
+    }
 }
 
 unsigned ipc::channel::default_prioritize(const ipc::message& message)

@@ -1,6 +1,5 @@
 #pragma once
-#undef min  //abolish vicious macros from <windows.h>, otherwise causing naming collision against STL
-#undef max  //another tolerable solution appears like #define max_RESUME max #undef max ... #define max max_RESUME
+
 namespace core
 {
     template<typename T>

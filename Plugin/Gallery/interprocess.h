@@ -60,6 +60,8 @@ namespace ipc
         constexpr static size_t index_size() { return std::variant_size_v<decltype(data_)>; }
         template<typename Various>
         bool is() const;
+        template<typename Various>
+        const Various& get() const &;
         const std::chrono::high_resolution_clock::duration& timing() const;
         const std::string& description() const;
     private:
@@ -106,6 +108,12 @@ namespace ipc
         return std::get_if<Various>(&data_) != nullptr;
     }
 
+    template <typename Various>
+    const Various& message::get() const &
+    {
+        return std::get<Various>(data_);
+    }
+
     template <typename Archive>
     void message::serialize(Archive& archive)
     {
@@ -128,6 +136,7 @@ namespace ipc
         void send(ipc::message message);
         bool valid() const;
         void wait();
+        static void clean_shared_memory();
         ~channel();
     private:
         static constexpr size_t max_msg_size() ;
@@ -138,11 +147,12 @@ namespace ipc
         static_assert(std::chrono::high_resolution_clock::is_steady);
     private:
         std::atomic<bool> running_;
+        const bool open_only_;
         struct endpoint
         {
             std::optional<core::scope_guard> shmem_remover;                        // RAII guarder for shared memory management 
             std::optional<interprocess::message_queue> messages;    // overcome NonDefaultConstructible limit
-            sync::chain pending;
+            concurrent::async_chain pending;
             endpoint() = default;
         }send_context_, recv_context_;
         std::function<unsigned(const ipc::message&)> prioritizer_;

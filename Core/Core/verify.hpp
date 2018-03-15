@@ -50,7 +50,7 @@ namespace core
         std::exception_ptr exception_handler{ nullptr };
         */
         try
-        {   // if constexpr
+        {   // TODO sfinae for boolean convertible case
             (..., core::verify_one<Types>(preds));
         }
         catch (...)

@@ -1,8 +1,8 @@
 ﻿#pragma once
-#ifndef NDEBUG
+#ifdef _DEBUG
 #define BOOST_MULTI_INDEX_ENABLE_INVARIANT_CHECKING
 #define BOOST_MULTI_INDEX_ENABLE_SAFE_MODE
-#endif  //NDEBUG
+#endif 
 #define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE
 #define BOOST_THREAD_VERSION 4
 #define BOOST_FILESYSTEM_NO_DEPRECATED 
@@ -11,6 +11,9 @@
 #define _SCL_SECURE_NO_WARNINGS
 #define _SILENCE_PARALLEL_ALGORITHMS_EXPERIMENTAL_WARNING   // <execution>
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS             
+
+#undef min          //abolish vicious macros from <windows.h>, otherwise causing naming collision against STL
+#undef max          //another tolerable solution appears like #define max_RESUME max #undef max ... #define max max_RESUME
 
 #include <algorithm>
 #include <any>
@@ -62,6 +65,6 @@ namespace filesystem = std::experimental::filesystem;
 #include "Core/revokable.hpp"
 #include "Core/guard.h"
 #include "Core/verify.hpp"
-#include "Core/sync.h"
+#include "Core/concurrent.h"
 #define STRING2(x) #x  
 #define STRING(x) STRING2(x)  

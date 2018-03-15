@@ -1,6 +1,6 @@
 #pragma once
 
-namespace sync
+namespace concurrent
 {
     // non-atomic lock upgrading
     template<typename Mutex>
@@ -42,12 +42,12 @@ namespace sync
     inline constexpr use_future_t use_future{};
 
     // thread-safe lock-free asynchronous task chain
-    class chain
+    class async_chain
     {
     public:
-        chain() = default;
-        chain(const chain&) = delete;
-        chain& operator=(const chain&) = delete;
+        async_chain() = default;
+        async_chain(const async_chain&) = delete;
+        async_chain& operator=(const async_chain&) = delete;
         template<typename Callable>
         void append(Callable&& callable);
         template<typename Callable>
@@ -60,7 +60,7 @@ namespace sync
     };
 
     template <typename Callable>
-    void chain::append(Callable&& callable)
+    void async_chain::append(Callable&& callable)
     {
         if (canceled_.load(std::memory_order_acquire))
             return;
@@ -99,7 +99,7 @@ namespace sync
     }
 
     template <typename Callable>
-    std::future<std::invoke_result_t<Callable>> chain::append(Callable&& callable, use_future_t)
+    std::future<std::invoke_result_t<Callable>> async_chain::append(Callable&& callable, use_future_t)
     {   // emplace from lambda or move construct std::packaged_task
         std::packaged_task<std::invoke_result_t<Callable>()> task{ std::forward<Callable>(callable) };
         auto task_result = task.get_future();
