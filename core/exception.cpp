@@ -20,11 +20,29 @@ int core::inspect_exception(const std::exception & e)
     return EXIT_FAILURE;
 }
 
-core::force_exit_exception::force_exit_exception(const std::string_view desc)
-    : description_(desc)
+core::aborted_error::aborted_error(const std::string_view desc)
+    : runtime_error(desc.data())
 {}
 
-const char* core::force_exit_exception::what() const
+const char* core::aborted_error::what() const
 {
-    return description_.empty() ? "force_exit_exception" : description_.data();
+    return what() ? what() : core::type_shortname<decltype(*this)>().data();
+}
+
+core::null_pointer_error::null_pointer_error(std::string_view desc)
+    : runtime_error(desc.data())
+{}
+
+const char* core::null_pointer_error::what() const
+{
+    return what() ? what() : core::type_shortname<decltype(*this)>().data();
+}
+
+core::dangling_pointer_error::dangling_pointer_error(std::string_view desc)
+    : runtime_error(desc.data())
+{}
+
+const char* core::dangling_pointer_error::what() const
+{
+    return what() ? what() : core::type_shortname<decltype(*this)>().data();
 }

@@ -25,4 +25,3 @@ private:
     std::vector<std::function<void()>> cleanup_;
     std::uint64_t update_index_ = 0;
 };
-

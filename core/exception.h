@@ -4,12 +4,27 @@ namespace core
 {
     int inspect_exception(const std::exception & e);
 
-    class force_exit_exception : public std::exception
+    class aborted_error : protected std::runtime_error
     {
     public:
-        explicit force_exit_exception(std::string_view desc = ""sv);
+        using runtime_error::runtime_error;
+        explicit aborted_error(std::string_view desc = ""sv);
         const char* what() const override;
-    private:
-        std::string_view description_;
     };
-}
+
+    class null_pointer_error : protected std::runtime_error
+    {
+    public:
+        using runtime_error::runtime_error;
+        explicit null_pointer_error(std::string_view desc = ""sv);
+        const char* what() const override;
+    };
+
+    class dangling_pointer_error : protected std::runtime_error
+    {
+    public:
+        using runtime_error::runtime_error;
+        explicit dangling_pointer_error(std::string_view desc = ""sv);
+        const char* what() const override;
+    };
+}   

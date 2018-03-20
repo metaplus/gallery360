@@ -5,6 +5,7 @@
 namespace
 {
     using namespace core::literals;
+
     namespace config
     {
         constexpr auto identity_monitor = "___MessageQueue$MonitorExe_"sv;
@@ -171,7 +172,7 @@ void ipc::channel::do_send(const ipc::message& message)
             return;
         std::this_thread::sleep_for(config::try_interval);
     }
-    throw core::force_exit_exception{};
+    throw core::aborted_error{};
 }
 
 ipc::message ipc::channel::do_receive()
@@ -195,5 +196,5 @@ ipc::message ipc::channel::do_receive()
         }
         return message;
     }
-    throw core::force_exit_exception{};
+    throw core::aborted_error{};
 }

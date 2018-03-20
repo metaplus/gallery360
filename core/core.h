@@ -3,13 +3,18 @@
 namespace core
 {
     template<typename T>
-    constexpr std::string_view type_shortname()
+    std::string type_shortname(std::add_pointer_t<T> = nullptr)
     {
-        auto type_name = std::string_view{ typeid(T).name() };
-        auto iter_begin = std::find(type_name.crbegin(), type_name.crend(), ':');
-        if (iter_begin == type_name.crend())
-            iter_begin = std::find(type_name.crbegin(), type_name.crend(), ' ');
-        type_name.remove_prefix(std::distance(iter_begin, type_name.crend()));
+        std::string type_name{ typeid(T).name() };
+        type_name.erase(0, type_name.find_last_of(": ") + 1);
+        return type_name;
+    }
+
+    template<typename T>
+    std::string type_name(std::add_pointer_t<T> = nullptr)
+    {
+        std::string type_name{ typeid(T).name() };
+        type_name.erase(0, type_name.rfind(' ') + 1);
         return type_name;
     }
 
@@ -39,6 +44,7 @@ namespace core
         {
             using namespace std::chrono;
             return
+                dura < 1us ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns" :
                 dura < 1ms ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us" :
                 dura < 1s ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms" :
                 dura < 1min ? os << duration_cast<duration<double>>(dura).count() << "s" :
@@ -105,7 +111,7 @@ namespace core
     }
 
     template <typename T>
-    std::reference_wrapper<T> make_empty_reference_wrapper()
+    std::reference_wrapper<T> make_null_reference_wrapper()
     {
         static void* lval_nullptr = nullptr;
         return std::reference_wrapper<T>{ *reinterpret_cast<std::add_pointer_t<T>&>(lval_nullptr) };
@@ -116,9 +122,9 @@ namespace core
     using rel = relative;
     using abs = absolute;
 
-    template<typename Future>
-    std::enable_if_t<meta::is_future<Future>::value>
-        persist_wait(Future&& future, std::atomic<bool>& permit, std::chrono::steady_clock::duration interval = 0ns)
+    template<typename Future, typename Represent, typename Period>
+    std::enable_if_t<meta::is_future<Future>::value> persist_wait(Future&& future,
+        std::atomic<bool>& permit, const std::chrono::duration<Represent, Period> interval = 0ns)
     {
         auto attempt = future.wait_for(0ns);
         if (attempt == std::future_status::deferred)
@@ -126,21 +132,21 @@ namespace core
         while (attempt != std::future_status::ready)
         {
             if (!permit.load(std::memory_order_acquire))
-                throw force_exit_exception{};
+                throw aborted_error{};
             attempt = future.wait_for(interval);
         }
     }
 
-    template<typename Callable>
-    std::enable_if_t<std::is_invocable_v<Callable>>
-        persist_wait(Callable callable, std::atomic<bool>& permit, std::chrono::steady_clock::duration interval = 0ns)
+    template<typename Callable, typename Represent, typename Period>
+    std::enable_if_t<std::is_invocable_v<Callable>> persist_wait(Callable callable,
+        std::atomic<bool>& permit, const std::chrono::duration<Represent, Period> interval = 0ns)
     {
         auto future = std::async(std::move(callable));
         while (future.wait_for(interval) != std::future_status::ready)
             if (!permit.load(std::memory_order_acquire))
-                throw force_exit_exception{};
+                throw aborted_error{};
     }
 
-    struct use_future_t {};                                 // tag dispatch for future overload
+    struct use_future_t {};
     inline constexpr use_future_t use_future{};
 }

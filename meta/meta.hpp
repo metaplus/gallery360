@@ -45,13 +45,13 @@ namespace meta
         : std::bool_constant<static_invoke<BinaryCallable>::by(L, R)>
     {};
 
-    template<typename Bl, typename Br>    //for std::bool_constant AND operation
+    template<typename Bl, typename Br>    // for std::bool_constant AND operation
     struct bool_and : bool_arithmetic<std::logical_and<bool>, Bl, Br> {};
 
-    template<typename Bl, typename Br>    //for std::bool_constant OR operation
+    template<typename Bl, typename Br>    // for std::bool_constant OR operation
     struct bool_or : bool_arithmetic<std::logical_or<bool>, Bl, Br> {};
 
-    template<typename Bl, typename Br>    //for std::bool_constant XOR operation
+    template<typename Bl, typename Br>    // for std::bool_constant XOR operation
     struct bool_xor : bool_arithmetic<std::bit_xor<bool>, Bl, Br> {};
 
     template<typename T, T ...Values>

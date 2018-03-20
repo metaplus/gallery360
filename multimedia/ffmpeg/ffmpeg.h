@@ -73,7 +73,7 @@ namespace av
         auto media() const { return params()->codec_type; }
         auto scale() const { return std::make_pair(params()->width, params()->height); } //use structure binding to get seperated dimension
         pointer operator->() const { return std::addressof(get()); }
-        stream() : reference_wrapper(core::make_empty_reference_wrapper<type>()) {};
+        stream() : reference_wrapper(core::make_null_reference_wrapper<type>()) {};
     };
 
     struct codec : std::reference_wrapper<AVCodec>
@@ -83,7 +83,7 @@ namespace av
         explicit codec(reference ref) : reference_wrapper(ref) {}
         explicit codec(const pointer ptr) : reference_wrapper(*ptr) {}
         pointer operator->() const { return std::addressof(get()); }
-        codec() : reference_wrapper(core::make_empty_reference_wrapper<type>()) {};
+        codec() : reference_wrapper(core::make_null_reference_wrapper<type>()) {};
     };
 
     template<typename T>

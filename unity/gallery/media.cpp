@@ -40,7 +40,7 @@ namespace
             frames->condition.wait(exlock, [] { return
                 frames->container.size() < max_fps || !status::running.load(std::memory_order_relaxed); });
         if (!status::running.load(std::memory_order_relaxed)) 
-            throw core::force_exit_exception{};
+            throw core::aborted_error{};
         std::move(fvec.begin(), fvec.end(), std::back_inserter(frames->container));
         frames->empty.store(frames->container.empty(), std::memory_order_relaxed);
         exlock.unlock();
@@ -55,7 +55,7 @@ namespace
             frames->condition.wait(exlock, [] { return
                 !frames->container.empty() || !status::running.load(std::memory_order_relaxed); });
         if (!status::running.load(std::memory_order_relaxed)) 
-            throw core::force_exit_exception{};
+            throw core::aborted_error{};
         const auto frame = std::move(frames->container.front());
         frames->container.pop_front();
         const auto size = frames->container.size();

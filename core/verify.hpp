@@ -3,7 +3,7 @@
 namespace core
 {
     template<typename Scalar>
-    constexpr auto verify_one(Scalar pred) -> std::enable_if_t<std::is_scalar_v<Scalar>>
+    constexpr std::enable_if_t<std::is_scalar_v<Scalar>> verify_one(Scalar pred)
     {
         if constexpr(std::is_integral_v<Scalar>)
         {
@@ -16,13 +16,13 @@ namespace core
                 throw std::out_of_range{ "negative value" };
         }
         else if constexpr(std::is_null_pointer_v<Scalar>)
-            throw std::runtime_error{ "null pointer" };
+            throw core::null_pointer_error{ "null pointer" };
         else if constexpr(std::is_pointer_v<Scalar>)
         {
             if (pred == nullptr)
-                throw std::bad_alloc{};
+                throw core::dangling_pointer_error{ "dangling pointer, pointer type: " + core::type_shortname<Scalar>() };
         }
-        else throw std::invalid_argument{ "illegal parameter" };
+        else throw std::invalid_argument{ "illegal parameter, type: "+ core::type_shortname<Scalar>() };
     }
 
     template<typename ...Types>

@@ -10,7 +10,7 @@ namespace util
         {
             core::verify(shared_lock.owns_lock());
             auto pmutex = shared_lock.release();
-            pmutex.unlock_shared();
+            pmutex->unlock_shared();
             return std::unique_lock<Mutex>{ *pmutex };
         }
 
