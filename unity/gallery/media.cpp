@@ -20,6 +20,8 @@ namespace
         std::atomic<bool> running = false;
     }
 
+
+
     struct frame_queue
     {
         std::deque<av::frame> container;
@@ -67,7 +69,7 @@ namespace
     };
 }
 
-BOOL unity::StoreMediaUrl(LPCSTR url)
+BOOL unity::store_media_url(LPCSTR url)
 {
     try
     {
@@ -116,14 +118,14 @@ BOOL unity::StoreMediaUrl(LPCSTR url)
     return true;
 }
 
-void unity::LoadVideoParams(INT& width, INT& height)
+void unity::load_video_params(INT& width, INT& height)
 {
     auto format = routine::parse.get();
     auto stream = format.demux<media::video>().first;
     std::tie(width, height) = stream.scale();
 }
 
-BOOL unity::IsVideoAvailable()
+BOOL unity::is_video_available()
 {
     return status::available.load(std::memory_order_acquire) || !frames->empty.load(std::memory_order_relaxed);
 }

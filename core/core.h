@@ -149,4 +149,18 @@ namespace core
 
     struct use_future_t {};
     inline constexpr use_future_t use_future{};
+
+    template<typename T, typename ...Types>
+    size_t hash_value(T&& a, Types&& ...args)
+    {
+        static_assert((meta::is_hashable<T>::value && ... && meta::is_hashable<Types>::value));
+        std::ostringstream ss{ std::ios::out | std::ios::binary };
+        ss << std::hex;
+        ((ss << std::setw(sizeof(size_t) * 2) << std::setfill('\0')
+            << std::hash<meta::remove_cv_ref_t<T>>{}(std::forward<T>(a)))
+            << ...
+            << std::hash<meta::remove_cv_ref_t<Types>>{}(std::forward<Types>(args)));
+        auto sssss = ss.str();
+        return std::hash<std::string>{}(ss.str());
+    }
 }

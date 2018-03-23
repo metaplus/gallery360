@@ -81,4 +81,14 @@ namespace meta
 
     template<typename T, typename ...Types>
     struct index <T, std::tuple<Types...>> : std::integral_constant<size_t, index<T, Types...>::value> {};
+
+    template<typename T, typename = void>
+    struct is_hashable :std::false_type {};
+
+    template<typename T>
+    struct is_hashable<T, std::void_t<decltype(
+        std::declval<std::hash<remove_cv_ref_t<T>>&>()(std::declval<const T&>()))>> :std::true_type {};
+    
+    template<typename T>
+    constexpr bool is_hashable_v = is_hashable<T>::value;
 }

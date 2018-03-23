@@ -5,15 +5,16 @@
  */
 namespace unity
 {
-    EXTERN BOOL UNITYAPI GlobalCreate();
-    EXTERN void UNITYAPI GlobalRelease();
-    EXTERN BOOL UNITYAPI StoreMediaUrl(LPCSTR url);
-    EXTERN void UNITYAPI StoreTime(FLOAT t);
-    EXTERN void UNITYAPI StoreAlphaTexture(HANDLE texY, HANDLE texU, HANDLE texV);
-    EXTERN UINT32 UNITYAPI StoreVrFrameTiming(HANDLE vr_timing);
-    EXTERN UINT32 UNITYAPI StoreVrCumulativeStatus(HANDLE vr_status);
-    EXTERN void UNITYAPI LoadVideoParams(INT& width, INT& height);
-    EXTERN BOOL UNITYAPI IsVideoAvailable();
+    EXTERN BOOL DLLAPI global_create();
+    EXTERN void DLLAPI global_release();
+    EXTERN BOOL DLLAPI store_media_url(LPCSTR url);
+    EXTERN void DLLAPI store_time(FLOAT t);
+    EXTERN void DLLAPI store_alpha_texture(HANDLE texY, HANDLE texU, HANDLE texV);
+    EXTERN UINT32 DLLAPI store_vr_frame_timing(HANDLE vr_timing);
+    EXTERN UINT32 DLLAPI store_vr_cumulative_status(HANDLE vr_status);
+    EXTERN void DLLAPI load_video_params(INT& width, INT& height);
+    EXTERN BOOL DLLAPI is_video_available();
+    EXTERN_C UINT DLLAPI media_create();
 }
 
 namespace dll
