@@ -159,7 +159,6 @@
     <ClInclude Include="..\detail\PlatformBase.h" />
     <ClInclude Include="graphic.h" />
     <ClInclude Include="interface.h" />
-    <ClInclude Include="interprocess.h" />
     <ClInclude Include="openvr.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stdafx.h" />
@@ -169,8 +168,8 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="gallery.cpp" />
     <ClCompile Include="graphic.cpp" />
-    <ClCompile Include="interprocess.cpp" />
     <ClCompile Include="media.cpp" />
+    <ClCompile Include="media_session.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

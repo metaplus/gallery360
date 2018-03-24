@@ -2,6 +2,8 @@
 #include "interprocess.h"
 #include "interface.h"
 
+#ifdef GALLERY_USE_LEGACY
+
 namespace
 {
     using namespace core::literals;
@@ -198,3 +200,5 @@ ipc::message ipc::channel::do_receive()
     }
     throw core::aborted_error{};
 }
+
+#endif  // GALLERY_USE_LEGACY

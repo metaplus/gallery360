@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef GALLERY_USE_LEGACY
+
 #pragma warning(push)
 #pragma warning(disable:4251)
 
@@ -161,3 +163,5 @@ namespace ipc
 }
 
 #pragma warning(pop)
+
+#endif  // GALLERY_USE_LEGACY

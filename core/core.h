@@ -160,7 +160,6 @@ namespace core
             << std::hash<meta::remove_cv_ref_t<T>>{}(std::forward<T>(a)))
             << ...
             << std::hash<meta::remove_cv_ref_t<Types>>{}(std::forward<Types>(args)));
-        auto sssss = ss.str();
         return std::hash<std::string>{}(ss.str());
     }
 }

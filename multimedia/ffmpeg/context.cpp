@@ -61,7 +61,7 @@ int64_t av::codec_context::frame_count() const
     return stream_->nb_frames;
 }
 
-std::vector<av::frame> av::codec_context::decode(const packet& compressed)
+std::vector<av::frame> av::codec_context::decode(const packet& compressed) const
 {
     if (std::exchange(state_.flushed, compressed.empty()))
         throw std::runtime_error{ "prohibit multiple codec context flush" };

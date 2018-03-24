@@ -11,8 +11,8 @@ public:
     };
     void process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
     void store_textures(HANDLE texY, HANDLE texU, HANDLE texV);
-    void update_textures(av::frame& frame);
-    void clean_up();
+    void update_textures(av::frame& frame) const;
+    void clean_up() const;
     graphic() = default;
 private:
     void clear();
@@ -20,8 +20,9 @@ private:
     //std::shared_ptr<ID3D11Device> device_;
     //std::vector<std::shared_ptr<ID3D11Texture2D>> alphas_;
 private:
-    ID3D11Device* device_ = nullptr;
+    const ID3D11Device* device_ = nullptr;
     std::array<ID3D11Texture2D*, 3> alphas_;
-    std::vector<std::function<void()>> cleanup_;
-    std::uint64_t update_index_ = 0;
+    mutable std::vector<std::function<void()>> cleanup_;
+    mutable std::uint64_t update_index_ = 0;
+    mutable std::recursive_mutex rmutex_;
 };

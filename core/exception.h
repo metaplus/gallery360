@@ -27,4 +27,12 @@ namespace core
         explicit dangling_pointer_error(std::string_view desc = ""sv);
         const char* what() const override;
     };
+
+    class not_implemented_error : protected std::logic_error
+    {
+    public:
+        using logic_error::logic_error;
+        explicit not_implemented_error(std::string_view desc = ""sv);
+        const char* what() const override;
+    };
 }   

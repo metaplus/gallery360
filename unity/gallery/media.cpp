@@ -1,5 +1,113 @@
 #include "stdafx.h"
 #include "interface.h"
+
+namespace
+{
+    std::vector<std::shared_ptr<dll::media_session>> media_sessions;
+    std::shared_mutex media_smutex;
+    std::optional<std::pair<decltype(media_sessions)::iterator, std::shared_lock<std::shared_mutex>>>
+        find_session_by_hashid(const size_t hashid)
+    {
+        std::shared_lock<std::shared_mutex> slock{ media_smutex };
+        if (!media_sessions.empty())
+        {
+            auto iter = std::find_if(media_sessions.begin(), media_sessions.end(),
+                [hashid](decltype(media_sessions)::const_reference pss) { return pss->hash_value() == hashid; });
+            if (iter != media_sessions.end())
+                return std::make_optional(std::make_pair(iter, std::move(slock)));
+        }
+        return std::nullopt;
+    }
+}
+
+void unity::_nativeMediaCreate()
+{
+    av::register_all();
+    media_sessions.clear();
+}
+
+void unity::_nativeMediaRelease()
+{
+    std::lock_guard<std::shared_mutex> exlock{ media_smutex };
+    for (const auto& session : media_sessions)
+    {
+        session->pause();
+    }
+    media_sessions.clear();
+}
+
+UINT64 unity::_nativeMediaSessionCreate(LPCSTR url)
+{
+    const auto session = std::make_shared<dll::media_session>(std::string{ url });
+    {
+        std::lock_guard<std::shared_mutex> exlock{ media_smutex };
+        media_sessions.push_back(session);
+    }
+    return session->hash_value();
+}
+
+void unity::_nativeMediaSessionPause(UINT64 hashID)
+{
+    const auto result = find_session_by_hashid(hashID);
+    if (!result.has_value()) return;
+    (*result->first)->pause();
+}
+
+void unity::_nativeMediaSessionRelease(UINT64 hashID)
+{
+    auto result = find_session_by_hashid(hashID);
+    if (!result.has_value()) return;
+    auto exlock = util::lock_upgrade(result->second);
+    *(result->first) = nullptr;
+    //std::cerr << "vec size " << media_sessions.size() << "\n";
+    media_sessions.erase(result->first);
+    //std::cerr << "vec size " << media_sessions.size() << "\n";
+}
+
+void unity::_nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height)
+{
+    const auto result = find_session_by_hashid(hashID);
+    if (!result.has_value()) return;
+    std::tie(width, height) = (*result->first)->resolution();
+}
+
+BOOL unity::_nativeMediaSessionHasNextFrame(UINT64 hashID)
+{
+    const auto result = find_session_by_hashid(hashID);
+    if (!result.has_value()) return false;
+    return !(*result->first)->empty();
+}
+
+UINT64 unity::debug::_nativeMediaSessionGetFrameCount(UINT64 hashID)
+{
+    const auto result = find_session_by_hashid(hashID);
+    if (!result.has_value()) return 0;
+    return  (*result->first)->count_frame();
+}
+
+BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, UINT64 count)
+{
+    if (count == 0) return false;
+    const auto result = find_session_by_hashid(hashID);
+    uint64_t drop_count = 0;
+    if (!result.has_value()) return false;
+    do
+    {
+        auto frame = (*result->first)->pop_frame();
+        drop_count += frame.has_value();
+    } while (--count != 0);
+    return drop_count > 0;
+}
+
+std::optional<av::frame> dll::media_module::getter::decoded_frame()
+{
+    std::lock_guard<std::shared_mutex> exlock{ media_smutex };
+    if (media_sessions.empty()) return std::nullopt;
+    return media_sessions.back()->pop_frame();
+}
+
+#ifdef GALLERY_USE_LEGACY 
+
 using namespace av;
 using namespace core;
 
@@ -41,7 +149,7 @@ namespace
         if (frames->container.size() > max_fps + 20)
             frames->condition.wait(exlock, [] { return
                 frames->container.size() < max_fps || !status::running.load(std::memory_order_relaxed); });
-        if (!status::running.load(std::memory_order_relaxed)) 
+        if (!status::running.load(std::memory_order_relaxed))
             throw core::aborted_error{};
         std::move(fvec.begin(), fvec.end(), std::back_inserter(frames->container));
         frames->empty.store(frames->container.empty(), std::memory_order_relaxed);
@@ -56,7 +164,7 @@ namespace
         if (frames->container.empty())
             frames->condition.wait(exlock, [] { return
                 !frames->container.empty() || !status::running.load(std::memory_order_relaxed); });
-        if (!status::running.load(std::memory_order_relaxed)) 
+        if (!status::running.load(std::memory_order_relaxed))
             throw core::aborted_error{};
         const auto frame = std::move(frames->container.front());
         frames->container.pop_front();
@@ -77,14 +185,14 @@ BOOL unity::store_media_url(LPCSTR url)
         core::verify(is_regular_file(path));
         std::promise<av::format_context> parse;
         routine::parse = parse.get_future().share();
-        routine::decode = std::async(std::launch::async, 
+        routine::decode = std::async(std::launch::async,
             [parse = std::move(parse), path = path.generic_string()]() mutable
         {
             uint64_t decode_count = 0;
             routine::registry.wait();
             format_context format{ source{path} };
             parse.set_value(format);
-            auto[srm, cdc] = format.demux<media::video>();
+            auto[cdc, srm] = format.demux<media::video>();
             codec_context codec{ cdc,srm };
             auto reading = true;
             while (status::running.load(std::memory_order_acquire) && reading)
@@ -104,7 +212,7 @@ BOOL unity::store_media_url(LPCSTR url)
                     }
                     decode_count += decode_frames.size();
                     push_frames(std::move(decode_frames));
-                    if(!reading)
+                    if (!reading)
                         status::available.store(false, std::memory_order_release);
                 }
             }
@@ -121,7 +229,7 @@ BOOL unity::store_media_url(LPCSTR url)
 void unity::load_video_params(INT& width, INT& height)
 {
     auto format = routine::parse.get();
-    auto stream = format.demux<media::video>().first;
+    auto stream = format.demux<media::video>().second;
     std::tie(width, height) = stream.scale();
 }
 
@@ -173,3 +281,5 @@ void dll::media_release()
     routine::retrieve = {};
     frames = nullptr;
 }
+
+#endif  // GALLERY_USE_LEGACY

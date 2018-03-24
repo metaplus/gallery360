@@ -1,5 +1,8 @@
 #pragma once
 //#include "Gallery/interface.h"
+#undef min         
+#undef max         
+
 #include <cereal/cereal.hpp>
 #include <cereal/access.hpp>
 #include <cereal/archives/binary.hpp> 
@@ -21,16 +24,15 @@
 
 #pragma warning(pop)
 
-#include "gallery/openvr.h"
-
 namespace interprocess = boost::interprocess;
 namespace asio = boost::asio;
 
-#if defined UNITYAPI || defined DLLAPI || defined EXTERN
+#if defined UNITYAPI || defined DLLAPI
 #error "macro naming collision"
 #pragma push_marcro("UNITYAPI")
-#pragma push_marcro("EXTERN")
+#pragma push_marcro("DLLAPI")
 #endif
+
 #ifdef GALLERY_EXPORTS
 #define DLLAPI __declspec(dllexport)
 #define UNITYAPI  __declspec(dllexport) __stdcall
@@ -39,8 +41,12 @@ namespace asio = boost::asio;
 #define UNITYAPI  __declspec(dllimport) __stdcall
 #endif  // GALLERY_EXPORTS
 
-#ifdef __cplusplus
-#define EXTERN extern "C"
-#else 
-#define EXTERN extern 
-#endif
+#include <d3d11.h>
+#include "gallery/openvr.h"
+#include "unity/detail/PlatformBase.h"
+#include "unity/detail/IUnityInterface.h"
+#include "unity/detail/IUnityGraphics.h"
+#include "unity/detail/IUnityGraphicsD3D11.h"
+#include "unity/gallery/interprocess.h"
+#include "unity/gallery/graphic.h"
+#include "unity/gallery/interface.h"

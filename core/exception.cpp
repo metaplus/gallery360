@@ -46,3 +46,12 @@ const char* core::dangling_pointer_error::what() const
 {
     return what() ? what() : core::type_shortname<decltype(*this)>().data();
 }
+
+core::not_implemented_error::not_implemented_error(std::string_view desc)
+    : logic_error(desc.data())
+{}
+
+const char* core::not_implemented_error::what() const
+{
+    return what() ? what() : core::type_shortname<decltype(*this)>().data();
+}

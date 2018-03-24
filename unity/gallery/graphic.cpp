@@ -11,7 +11,10 @@ void graphic::process_event(const UnityGfxDeviceEventType event_type, IUnityInte
         IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
         clear();
         //device_.reset(d3d->GetDevice(), deleter{});
-        device_ = d3d->GetDevice();
+        {
+            std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
+            const_cast<ID3D11Device*&>(device_) = d3d->GetDevice();
+        }
         break;
     }
     case kUnityGfxDeviceEventShutdown:
@@ -27,6 +30,7 @@ void graphic::process_event(const UnityGfxDeviceEventType event_type, IUnityInte
 void graphic::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
 {
     core::verify(alphas_.size() == 3);
+    std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
     //alphas_[0].reset(static_cast<ID3D11Texture2D*>(texY), deleter{});
     //alphas_[1].reset(static_cast<ID3D11Texture2D*>(texU), deleter{});
     //alphas_[2].reset(static_cast<ID3D11Texture2D*>(texV), deleter{});
@@ -35,8 +39,9 @@ void graphic::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
     alphas_[2] = static_cast<ID3D11Texture2D*>(texV);
 }
 
-void graphic::update_textures(av::frame& frame)
+void graphic::update_textures(av::frame& frame) const
 {
+    std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
     auto context = this->context();
     core::verify(context != nullptr);
     for (auto index : core::range<0, 2>())
@@ -47,18 +52,19 @@ void graphic::update_textures(av::frame& frame)
         texture->GetDesc(&desc);
         context->UpdateSubresource(texture, 0, nullptr, data, desc.Width, 0);
     }
-    if (static std::optional<ipc::message> first_update; !first_update.has_value())
-    {
-        first_update.emplace(ipc::message{}.emplace(ipc::first_frame_updated{}));
-        dll::interprocess_async_send(first_update.value());
-        cleanup_.emplace_back(
-            []() { if (first_update.has_value()) first_update = std::nullopt; });
-    }
-    dll::interprocess_async_send(ipc::message{}.emplace(ipc::update_index{ update_index_++ }));
+//    if (static std::optional<ipc::message> first_update; !first_update.has_value())
+//    {
+//        first_update.emplace(ipc::message{}.emplace(ipc::first_frame_updated{}));
+//        dll::interprocess_async_send(first_update.value());
+//        cleanup_.emplace_back(
+//            []() { if (first_update.has_value()) first_update = std::nullopt; });
+//    }
+//    dll::interprocess_async_send(ipc::message{}.emplace(ipc::update_index{ update_index_++ }));
 }
 
-void graphic::clean_up()
+void graphic::clean_up() const
 {
+    std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
     update_index_ = 0;
     if (cleanup_.empty())
         return;
@@ -70,13 +76,17 @@ void graphic::clean_up()
 std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const
 {
     ID3D11DeviceContext* ctx = nullptr;
-    device_->GetImmediateContext(&ctx);
+    {
+        std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
+        const_cast<ID3D11Device*&>(device_)->GetImmediateContext(&ctx);
+    }
     core::verify(ctx);
     return std::unique_ptr<ID3D11DeviceContext, deleter>{ctx, deleter{}};
 }
 
 void graphic::clear()
 {
+    std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
     update_index_ = 0;
     device_ = nullptr;
     alphas_.fill(nullptr);
