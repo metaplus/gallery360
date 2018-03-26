@@ -31,7 +31,7 @@ void unity::_nativeMediaRelease()
     std::lock_guard<std::shared_mutex> exlock{ media_smutex };
     for (const auto& session : media_sessions)
     {
-        session->pause();
+        session->stop();
     }
     media_sessions.clear();
 }
@@ -50,7 +50,7 @@ void unity::_nativeMediaSessionPause(UINT64 hashID)
 {
     const auto result = find_session_by_hashid(hashID);
     if (!result.has_value()) return;
-    (*result->first)->pause();
+    (*result->first)->stop();
 }
 
 void unity::_nativeMediaSessionRelease(UINT64 hashID)

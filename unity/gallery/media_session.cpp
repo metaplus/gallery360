@@ -11,9 +11,10 @@ namespace dll
     void media_session::start()
     {
         status_.is_active = true;
+        condvar_.notify_all();
     }
 
-    void media_session::pause()
+    void media_session::stop()
     {
         status_.is_active = false;
         condvar_.notify_all();
@@ -78,7 +79,7 @@ namespace dll
 
     media_session::~media_session()
     {
-        media_session::pause();
+        media_session::stop();
         core::repeat_each([](auto& future)
         {
             if (future.valid()) future.wait();

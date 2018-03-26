@@ -52,7 +52,7 @@ namespace dll
     {
     public:
         virtual void start() = 0;
-        virtual void pause() = 0;
+        virtual void stop() = 0;
         virtual size_t hash_value() const = 0;
         virtual bool operator<(const session&) const = 0;
         virtual ~session() = default;
@@ -62,7 +62,7 @@ namespace dll
     {
     public:
         void start() override;
-        void pause() override;
+        void stop() override;
         size_t hash_value() const override;
         bool operator<(const session&) const override;
         bool empty() const;
