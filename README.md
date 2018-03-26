@@ -3,10 +3,9 @@ Video player software project for 360-degreee omnidirectional video, supporting 
 
 ## User Interface
 Simple curved interactive panel. :art:
-<img src="https://s1.ax1x.com/2018/03/26/9LISMj.jpg" height="420">
+![9LISMj.jpg](https://s1.ax1x.com/2018/03/26/9LISMj.jpg)
 
 ## Experience Overview
 Equirectangular video is re-projected back to the original spherical format and user :person_with_blond_hair: observes proportional region within Field-Of-View. If head mounted displays (e.g. HTC Vive :crown:) available, virtual world arises at the present.
 
-<img src="https://s1.ax1x.com/2018/03/26/9L5vRg.jpg" height="280">
-<img src="https://s1.ax1x.com/2018/03/26/9LIpss.jpg" height="250">
+![9O9xrq.jpg](https://s1.ax1x.com/2018/03/26/9O9xrq.jpg)
