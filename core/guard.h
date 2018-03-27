@@ -29,27 +29,36 @@ namespace core
         std::function<void()> release_;
     };
 
-    namespace v2
+    template<typename Callable>
+    class scope_guard_generic : Callable
     {
-        template<typename Callable>
-        class generic_guard : Callable
-        {
-        public:
-            explicit generic_guard(Callable&& c) : Callable(std::forward<Callable>(c)) {}
-            generic_guard() = default;
-            generic_guard(const generic_guard&) = delete;
-            generic_guard(generic_guard&&) = default;
-            generic_guard& operator=(const generic_guard&) = delete;
-            generic_guard& operator=(generic_guard&& other) = default;
-            using Callable::operator();
-            ~generic_guard() { (*this)(); }
-        };
+    public:
+        explicit scope_guard_generic(Callable&& c);
+        scope_guard_generic() = default;
+        scope_guard_generic(const scope_guard_generic&) = delete;
+        scope_guard_generic(scope_guard_generic&&) = default;
+        scope_guard_generic& operator=(const scope_guard_generic&) = delete;
+        scope_guard_generic& operator=(scope_guard_generic&& other) = default;
+        ~scope_guard_generic();
+    private:
+        using Callable::operator();
+    };
 
-        template<typename Callable>
-        generic_guard<std::decay_t<Callable>> make_guard(Callable&& callable)
-        {
-            return generic_guard<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
-        }
+    template <typename Callable>
+    scope_guard_generic<Callable>::scope_guard_generic(Callable&& c): Callable(std::forward<Callable>(c))
+    {
+    }
+
+    template <typename Callable>
+    scope_guard_generic<Callable>::~scope_guard_generic()
+    {
+        (*this)();
+    }
+
+    template<typename Callable>
+    scope_guard_generic<std::decay_t<Callable>> make_guard(Callable&& callable)
+    {
+        return scope_guard_generic<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
     }
     // Todo: Exception guard
 }

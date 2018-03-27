@@ -41,19 +41,19 @@ namespace dll
 
     std::pair<int, int> media_session::resolution() const
     {
-        return media_format_.demux<av::media::video>().second.scale();
+        return media_format_.demux(av::media::video{}).scale();
     }
 
     uint64_t media_session::count_frame() const
     {
-        return std::max<int64_t>(0, media_format_.demux<av::media::video>().second->nb_frames);
+        return std::max<int64_t>(0, media_format_.demux(av::media::video{})->nb_frames);
     }
 
     media_session::media_session(const std::string& url)
     {
         av::register_all();
         const_cast<av::format_context&>(media_format_) = av::format_context{ av::source{url} };
-        const_cast<av::codec_context&>(video_codec_) = std::make_from_tuple<av::codec_context>(media_format_.demux<av::media::video>());
+        const_cast<av::codec_context&>(video_codec_) = std::make_from_tuple<av::codec_context>(media_format_.demux_with_codec(av::media::video{}));
         action_.video_decoding = std::async(std::launch::async,
             [/*self = shared_from_this()*/this, decode_count = size_t{ 0 }]() mutable
         {
@@ -61,7 +61,7 @@ namespace dll
             dll::media_session& session = *this;
             while (session.status_.is_active && !session.status_.has_read)
             {
-                auto packet = session.media_format_.read<av::media::video>();
+                auto packet = session.media_format_.read(av::media::video{});
                 session.status_.has_read = packet.empty();
                 if (auto decode_frames = session.video_codec_.decode(packet); !decode_frames.empty())
                 {

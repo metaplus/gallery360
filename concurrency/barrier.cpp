@@ -39,19 +39,19 @@ util::barrier::operator bool() const
 util::barrier_once::barrier_once(const std::size_t count)
     : count_(count)
     , completion_([] { return; })
-    , signal_(completion_.get_future().share())
+    , signal_(const_cast<std::packaged_task<void()>&>(completion_).get_future().share())
 {}
 
 util::barrier_once::barrier_once(const std::size_t count, std::packaged_task<void()> completion)
     : count_(count)
     , completion_(std::move(completion))
-    , signal_(completion_.get_future().share())
+    , signal_(const_cast<std::packaged_task<void()>&>(completion_).get_future().share())
 {}
 
 void util::barrier_once::arrive_and_wait()
 {
     if (1 == count_.fetch_sub(1, std::memory_order_acquire))
-        completion_();
+        const_cast<std::packaged_task<void()>&>(completion_)();
     else signal_.get();
 }
 

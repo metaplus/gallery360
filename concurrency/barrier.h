@@ -39,8 +39,8 @@ namespace util
             void arrive_and_drop();
         private:
             std::atomic<size_t> count_;
-            std::packaged_task<void()> completion_;
-            std::shared_future<void> signal_;
+            const std::packaged_task<void()> completion_;
+            const std::shared_future<void> signal_;
         };
     }
 }

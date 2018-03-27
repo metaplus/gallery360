@@ -192,7 +192,7 @@ BOOL unity::store_media_url(LPCSTR url)
             routine::registry.wait();
             format_context format{ source{path} };
             parse.set_value(format);
-            auto[cdc, srm] = format.demux<media::video>();
+            auto[cdc, srm] = format.demux_with_codec<media::video>();
             codec_context codec{ cdc,srm };
             auto reading = true;
             while (status::running.load(std::memory_order_acquire) && reading)
@@ -229,7 +229,7 @@ BOOL unity::store_media_url(LPCSTR url)
 void unity::load_video_params(INT& width, INT& height)
 {
     auto format = routine::parse.get();
-    auto stream = format.demux<media::video>().second;
+    auto stream = format.demux_with_codec<media::video>().second;
     std::tie(width, height) = stream.scale();
 }
 

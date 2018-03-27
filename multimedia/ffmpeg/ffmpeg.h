@@ -4,29 +4,26 @@ namespace av
 {
     namespace pixel
     {
-        struct base { using type = std::underlying_type_t<AVPixelFormat>; };
-        template<typename T> constexpr bool is_valid = std::is_base_of_v<base, T>;
-        struct nv12 : base, std::integral_constant<base::type, AV_PIX_FMT_NV12> {};
-        struct nv21 : base, std::integral_constant<base::type, AV_PIX_FMT_NV21> {};
-        struct rgb24 : base, std::integral_constant<base::type, AV_PIX_FMT_RGB24> {};
-        struct rgba : base, std::integral_constant<base::type, AV_PIX_FMT_RGBA> {};
-        struct yuv420 : base, std::integral_constant<base::type, AV_PIX_FMT_YUV420P> {};
-        struct yuv422 : base, std::integral_constant<base::type, AV_PIX_FMT_YUV422P> {};
-        struct uyvy : base, std::integral_constant<base::type, AV_PIX_FMT_UYVY422> {};
-        struct yuyv : base, std::integral_constant<base::type, AV_PIX_FMT_YUYV422> {};
-        struct yvyu : base, std::integral_constant<base::type, AV_PIX_FMT_YVYU422> {};
+        using type = AVPixelFormat;
+        struct nv12 : std::integral_constant<type, AV_PIX_FMT_NV12> {};
+        struct nv21 : std::integral_constant<type, AV_PIX_FMT_NV21> {};
+        struct rgb24 : std::integral_constant<type, AV_PIX_FMT_RGB24> {};
+        struct rgba : std::integral_constant<type, AV_PIX_FMT_RGBA> {};
+        struct yuv420 : std::integral_constant<type, AV_PIX_FMT_YUV420P> {};
+        struct yuv422 : std::integral_constant<type, AV_PIX_FMT_YUV422P> {};
+        struct uyvy : std::integral_constant<type, AV_PIX_FMT_UYVY422> {};
+        struct yuyv : std::integral_constant<type, AV_PIX_FMT_YUYV422> {};
+        struct yvyu : std::integral_constant<type, AV_PIX_FMT_YVYU422> {};
     }
 
-    namespace media
+    struct media
     {
-        struct base { using type = std::underlying_type_t<AVMediaType>; };
-        template<typename T> constexpr bool is_valid = std::is_base_of_v<base, T>;
-        struct audio : base, std::integral_constant<base::type, AVMEDIA_TYPE_AUDIO> {};
-        struct video : base, std::integral_constant<base::type, AVMEDIA_TYPE_VIDEO> {};
-        struct subtitle : base, std::integral_constant<base::type, AVMEDIA_TYPE_SUBTITLE> {};
-        struct unknown : base, std::integral_constant<base::type, AVMEDIA_TYPE_UNKNOWN> {};
-        struct all : base {};
-    }
+        using type = AVMediaType;
+        struct audio : std::integral_constant<type, AVMEDIA_TYPE_AUDIO> {};
+        struct video : std::integral_constant<type, AVMEDIA_TYPE_VIDEO> {};
+        struct subtitle : std::integral_constant<type, AVMEDIA_TYPE_SUBTITLE> {};
+        struct unknown : std::integral_constant<type, AVMEDIA_TYPE_UNKNOWN> {};
+    };
 
     inline void register_all()
     {
@@ -39,11 +36,11 @@ namespace av
     public:
         using pointer = AVFrame * ;
         using reference = AVFrame & ;
-        explicit frame(std::nullptr_t) : handle_() {}
-        frame() :handle_(av_frame_alloc(), [](pointer p) { av_frame_free(&p); }) {}
-        bool empty() const { return handle_ == nullptr || handle_->data == nullptr || handle_->data[0] == nullptr; }
-        pointer operator->() const { return handle_.get(); }
-        void unref() const { av_frame_unref(handle_.get()); }
+        bool empty() const;
+        pointer operator->() const;
+        void unref() const;
+        frame();
+        explicit frame(std::nullptr_t);
     private:
         std::shared_ptr<AVFrame> handle_;
     };
@@ -53,37 +50,42 @@ namespace av
     public:
         using pointer = AVPacket * ;
         using reference = AVPacket & ;
-        explicit packet(std::nullptr_t) : handle_() {}
-        packet() :handle_(av_packet_alloc(), [](pointer p) { av_packet_free(&p); }) {}
-        bool empty() const { return handle_ == nullptr || handle_->data == nullptr || handle_->size <= 0; }
-        pointer operator->() const { return handle_.get(); }
-        void unref() const { av_packet_unref(handle_.get()); }
+        bool empty() const;
+        std::basic_string_view<uint8_t> buffer_view() const;
+        std::string_view cbuffer_view() const;
+        pointer operator->() const;
+        void unref() const;
+        packet();
+        explicit packet(std::nullptr_t);
+        explicit packet(std::basic_string_view<uint8_t> sv); // copy by av_malloc from buffer view
     private:
         std::shared_ptr<AVPacket> handle_;
-    };
-
-    struct stream : std::reference_wrapper<AVStream>
-    {
-        using pointer = type * ;
-        using reference = type & ;
-        explicit stream(reference ref) : reference_wrapper(ref) {}
-        explicit stream(const pointer ptr) : reference_wrapper(*ptr) {}
-        auto index() const { return get().index; }
-        auto params() const { return get().codecpar; }
-        auto media() const { return params()->codec_type; }
-        auto scale() const { return std::make_pair(params()->width, params()->height); } //use structure binding to get seperated dimension
-        pointer operator->() const { return std::addressof(get()); }
-        stream() : reference_wrapper(core::make_null_reference_wrapper<type>()) {};
     };
 
     struct codec : std::reference_wrapper<AVCodec>
     {
         using pointer = type * ;
         using reference = type & ;
-        explicit codec(reference ref) : reference_wrapper(ref) {}
-        explicit codec(const pointer ptr) : reference_wrapper(*ptr) {}
-        pointer operator->() const { return std::addressof(get()); }
-        codec() : reference_wrapper(core::make_null_reference_wrapper<type>()) {};
+        using parameter = std::reference_wrapper<const AVCodecParameters>;
+        pointer operator->() const;
+        codec();
+
+        explicit codec(reference ref);
+        explicit codec(pointer ptr);
+    };
+
+    struct stream : std::reference_wrapper<AVStream>
+    {
+        using pointer = type * ;
+        using reference = type & ;
+        int index() const;
+        codec::parameter params() const;
+        media::type media() const;
+        std::pair<int, int> scale() const;
+        pointer operator->() const;
+        stream();
+        explicit stream(reference ref);
+        explicit stream(pointer ptr);
     };
 
     template<typename T>

@@ -2,7 +2,7 @@
 #include "context.h"
 
 av::format_context::format_context(std::variant<source, sink> io)
-    :handle_(nullptr)
+    : handle_(nullptr)
 {
     std::visit([this](auto&& arg)
     {
@@ -30,15 +30,40 @@ av::format_context::pointer av::format_context::operator->() const
     return handle_.get();
 }
 
-av::codec_context::codec_context(codec cdc, stream srm, unsigned threads)
-    :handle_(avcodec_alloc_context3(ptr(cdc)), [](pointer p) { avcodec_free_context(&p); })
-    , stream_(srm)
+av::stream av::format_context::demux(const media::type media_type) const
+{
+    return stream{ handle_->streams[av_find_best_stream(handle_.get(), media_type, -1, -1, nullptr, 0)] };
+}
+
+std::pair<av::codec, av::stream> av::format_context::demux_with_codec(const media::type media_type) const
+{
+    codec::pointer cdc = nullptr;
+    const auto ptr = handle_.get();
+    const auto index = av_find_best_stream(ptr, media_type, -1, -1, &cdc, 0);
+    return std::make_pair(codec{ cdc }, stream{ ptr->streams[index] });
+}
+
+av::packet av::format_context::read(const std::optional<media::type> media_type) const
+{
+    packet pkt;
+    while (av_read_frame(handle_.get(), ptr(pkt)) == 0
+        && media_type.has_value()
+        && handle_->streams[pkt->stream_index]->codecpar->codec_type != media_type)
+    {
+        pkt.unref();
+    }
+    return pkt;
+}
+
+av::codec_context::codec_context(codec codec, stream stream, unsigned threads)
+    : handle_(avcodec_alloc_context3(ptr(codec)), [](pointer p) { avcodec_free_context(&p); })
+    , stream_(stream)
     , state_()
 {
-    core::verify(avcodec_parameters_to_context(handle_.get(), stream_.params()));
+    core::verify(avcodec_parameters_to_context(handle_.get(), stream_->codecpar));
     core::verify(av_opt_set_int(handle_.get(), "refcounted_frames", 1, 0));
     core::verify(av_opt_set_int(handle_.get(), "threads", threads, 0));
-    core::verify(avcodec_open2(handle_.get(), ptr(cdc), nullptr));
+    core::verify(avcodec_open2(handle_.get(), ptr(codec), nullptr));
 }
 
 av::codec_context::pointer av::codec_context::operator->() const
