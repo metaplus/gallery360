@@ -5,12 +5,12 @@ namespace util
     inline namespace concurrency
     {
         // thread-safe lock-free asynchronous task chain
-        class async_slist
+        class async_chain
         {
         public:
-            async_slist() = default;
-            async_slist(const async_slist&) = delete;
-            async_slist& operator=(const async_slist&) = delete;
+            async_chain() = default;
+            async_chain(const async_chain&) = delete;
+            async_chain& operator=(const async_chain&) = delete;
             template<typename Callable>
             void append(Callable&& callable);
             template<typename Callable>
@@ -23,7 +23,7 @@ namespace util
         };
 
         template <typename Callable>
-        void async_slist::append(Callable&& callable)
+        void async_chain::append(Callable&& callable)
         {
             if (canceled_.load(std::memory_order_acquire))
                 return;
@@ -62,7 +62,7 @@ namespace util
         }
 
         template <typename Callable>
-        std::future<std::invoke_result_t<Callable>> async_slist::append(Callable&& callable, core::use_future_t)
+        std::future<std::invoke_result_t<Callable>> async_chain::append(Callable&& callable, core::use_future_t)
         {   // emplace from lambda or move construct std::packaged_task
             std::packaged_task<std::invoke_result_t<Callable>()> task{ std::forward<Callable>(callable) };
             auto task_result = task.get_future();

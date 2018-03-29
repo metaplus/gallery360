@@ -162,7 +162,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\concurrency\async_slist.h" />
+    <ClInclude Include="..\concurrency\async_chain.h" />
     <ClInclude Include="..\concurrency\barrier.h" />
     <ClInclude Include="..\concurrency\synchronize.h" />
     <ClInclude Include="..\meta\meta.hpp" />
@@ -178,7 +178,7 @@
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\concurrency\async_slist.cpp" />
+    <ClCompile Include="..\concurrency\async_chain.cpp" />
     <ClCompile Include="..\concurrency\barrier.cpp" />
     <ClCompile Include="..\concurrency\synchronize.cpp" />
     <ClCompile Include="core.cpp" />

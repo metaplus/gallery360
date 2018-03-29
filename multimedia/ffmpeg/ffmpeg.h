@@ -25,22 +25,21 @@ namespace av
         struct unknown : std::integral_constant<type, AVMEDIA_TYPE_UNKNOWN> {};
     };
 
-    inline void register_all()
-    {
-        static std::once_flag once;
-        std::call_once(once, [] { av_register_all(); });
-    }
+    void register_all();
 
     class frame
     {
     public:
         using pointer = AVFrame * ;
         using reference = AVFrame & ;
-        bool empty() const;
-        pointer operator->() const;
-        void unref() const;
+
         frame();
         explicit frame(std::nullptr_t);
+
+        pointer operator->() const;
+
+        bool empty() const;
+        void unref() const;
     private:
         std::shared_ptr<AVFrame> handle_;
     };
@@ -50,16 +49,23 @@ namespace av
     public:
         using pointer = AVPacket * ;
         using reference = AVPacket & ;
-        bool empty() const;
-        std::basic_string_view<uint8_t> buffer_view() const;
-        std::string_view cbuffer_view() const;
-        pointer operator->() const;
-        void unref() const;
+
         packet();
         explicit packet(std::nullptr_t);
         explicit packet(std::basic_string_view<uint8_t> sv); // copy by av_malloc from buffer view
+        explicit packet(std::string_view csv); 
+
+        pointer operator->() const;
+        explicit operator bool() const;
+
+        bool empty() const;
+        std::basic_string_view<uint8_t> buffer_view() const;
+        std::string_view cbuffer_view() const;
+        std::string serialize() const;
+        void unref() const;
     private:
         std::shared_ptr<AVPacket> handle_;
+        struct chunk;
     };
 
     struct codec : std::reference_wrapper<AVCodec>
@@ -67,29 +73,33 @@ namespace av
         using pointer = type * ;
         using reference = type & ;
         using parameter = std::reference_wrapper<const AVCodecParameters>;
-        pointer operator->() const;
-        codec();
 
+        codec();
         explicit codec(reference ref);
         explicit codec(pointer ptr);
+
+        pointer operator->() const;
     };
 
     struct stream : std::reference_wrapper<AVStream>
     {
         using pointer = type * ;
         using reference = type & ;
+
+        stream();
+        explicit stream(reference ref);
+        explicit stream(pointer ptr);
+
+        pointer operator->() const;
+
         int index() const;
         codec::parameter params() const;
         media::type media() const;
         std::pair<int, int> scale() const;
-        pointer operator->() const;
-        stream();
-        explicit stream(reference ref);
-        explicit stream(pointer ptr);
     };
 
     template<typename T>
-    decltype(auto) ptr(T&& handle)
+    decltype(auto) get_pointer(T&& handle)
     {
         //return static_cast<typename std::decay_t<T>::pointer>(handle);
         return std::forward<T>(handle).operator->();

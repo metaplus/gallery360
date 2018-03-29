@@ -4,10 +4,10 @@
 av::format_context::format_context(std::variant<source, sink> io)
     : handle_(nullptr)
 {
-    std::visit([this](auto&& arg)
+    std::visit([this](auto&& arg) constexpr
     {
         register_all();
-        if constexpr (std::is_same_v<av::source, std::decay_t<decltype(arg)>>)
+        if constexpr (std::is_same_v<source, std::decay_t<decltype(arg)>>)
         {
             pointer ptr = nullptr;
             core::verify(avformat_open_input(&ptr, arg.url.c_str(), nullptr, nullptr));
@@ -20,7 +20,7 @@ av::format_context::format_context(std::variant<source, sink> io)
         else
         {
             // TODO: SINK BRANCH
-            throw std::bad_variant_access{};
+            throw core::not_implemented_error{};
         }
     }, io);
 }
@@ -46,7 +46,7 @@ std::pair<av::codec, av::stream> av::format_context::demux_with_codec(const medi
 av::packet av::format_context::read(const std::optional<media::type> media_type) const
 {
     packet pkt;
-    while (av_read_frame(handle_.get(), ptr(pkt)) == 0
+    while (av_read_frame(handle_.get(), get_pointer(pkt)) == 0
         && media_type.has_value()
         && handle_->streams[pkt->stream_index]->codecpar->codec_type != media_type)
     {
@@ -55,15 +55,23 @@ av::packet av::format_context::read(const std::optional<media::type> media_type)
     return pkt;
 }
 
-av::codec_context::codec_context(codec codec, stream stream, unsigned threads)
-    : handle_(avcodec_alloc_context3(ptr(codec)), [](pointer p) { avcodec_free_context(&p); })
+std::vector<av::packet> av::format_context::read(const size_t count, std::optional<media::type> media_type) const
+{
+    std::vector<packet> packets; packets.reserve(count);
+    //std::generate_n(std::back_inserter(packets), count, std::bind(&format_context::read, this, media_type));
+    std::generate_n(std::back_inserter(packets), count, [this, media_type] { return read(media_type); });
+    return packets;
+}
+
+av::codec_context::codec_context(codec codec, const stream stream, const unsigned threads)
+    : handle_(avcodec_alloc_context3(get_pointer(codec)), [](pointer p) { avcodec_free_context(&p); })
     , stream_(stream)
     , state_()
 {
     core::verify(avcodec_parameters_to_context(handle_.get(), stream_->codecpar));
     core::verify(av_opt_set_int(handle_.get(), "refcounted_frames", 1, 0));
     core::verify(av_opt_set_int(handle_.get(), "threads", threads, 0));
-    core::verify(avcodec_open2(handle_.get(), ptr(codec), nullptr));
+    core::verify(avcodec_open2(handle_.get(), get_pointer(codec), nullptr));
 }
 
 av::codec_context::pointer av::codec_context::operator->() const
@@ -86,19 +94,18 @@ int64_t av::codec_context::frame_count() const
     return stream_->nb_frames;
 }
 
-std::vector<av::frame> av::codec_context::decode(const packet& compressed) const
+std::vector<av::frame> av::codec_context::decode(const packet& packets) const
 {
-    if (std::exchange(state_.flushed, compressed.empty()))
-        throw std::runtime_error{ "prohibit multiple codec context flush" };
-    if (stream_.index() != compressed->stream_index)
+    if (std::exchange(state_.flushed, packets.empty()))
+        throw std::logic_error{ "prohibit multiple codec context flush" };
+    if (stream_.index() != packets->stream_index)
         throw std::invalid_argument{ "prohibt decode disparate stream" };
-    std::vector<frame> decodeds;
-    if (compressed.empty())
-        decodeds.reserve(10);
-    core::verify(avcodec_send_packet(ptr(handle_), ptr(compressed)));
+    std::vector<frame> decoded_frames;
+    decoded_frames.reserve(packets.empty() ? 10 : 1);
+    core::verify(avcodec_send_packet(get_pointer(handle_), get_pointer(packets)));
     frame current;
-    while (avcodec_receive_frame(ptr(handle_), ptr(current)) == 0)
-        decodeds.push_back(std::exchange(current, frame{}));
-    state_.count += decodeds.size();
-    return decodeds;
+    while (avcodec_receive_frame(get_pointer(handle_), get_pointer(current)) == 0)
+        decoded_frames.push_back(std::exchange(current, frame{}));
+    state_.count += decoded_frames.size();
+    return decoded_frames;
 }

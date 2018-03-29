@@ -63,7 +63,7 @@
     <ClInclude Include="..\concurrency\synchronize.h">
       <Filter>Header Files\concurrency</Filter>
     </ClInclude>
-    <ClInclude Include="..\concurrency\async_slist.h">
+    <ClInclude Include="..\concurrency\async_chain.h">
       <Filter>Header Files\concurrency</Filter>
     </ClInclude>
   </ItemGroup>
@@ -86,7 +86,7 @@
     <ClCompile Include="..\concurrency\synchronize.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\concurrency\async_slist.cpp">
+    <ClCompile Include="..\concurrency\async_chain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

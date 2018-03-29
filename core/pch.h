@@ -76,4 +76,17 @@ namespace filesystem = std::experimental::filesystem;
 #include "core/verify.hpp"
 #include "concurrency/synchronize.h"
 #include "concurrency/barrier.h"
-#include "concurrency/async_slist.h"
+#include "concurrency/async_chain.h"
+
+#ifdef CORE_USE_FMTLIB
+#include <fmt/format.h>
+#include <fmt/container.h>
+#include <fmt/ostream.h>
+#include <fmt/string.h>
+#include <fmt/time.h>
+#ifdef _DEBUG
+#pragma comment(lib, "Debug/fmt")
+#else
+#pragma comment(lib, "Release/fmt")
+#endif // _DEBUG
+#endif // CORE_USE_FMTLIB

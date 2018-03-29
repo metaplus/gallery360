@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "ffmpeg/ffmpeg.h"
+#include <msgpack.hpp>
+#include <msgpack/adaptor/define_decl.hpp>
 
 av::frame::frame(std::nullptr_t)
     : handle_()
@@ -9,6 +11,12 @@ av::frame::frame(std::nullptr_t)
 av::frame::frame()
     : handle_(av_frame_alloc(), [](pointer p) { av_frame_free(&p); })
 {
+}
+
+void av::register_all()
+{
+    static std::once_flag once;
+    std::call_once(once, [] { av_register_all(); });
 }
 
 bool av::frame::empty() const
@@ -26,6 +34,27 @@ void av::frame::unref() const
     av_frame_unref(handle_.get());
 }
 
+struct av::packet::chunk
+{
+    explicit chunk(const packet& packet)
+        : stream_index(packet->stream_index)
+        , is_key_frame(packet->flags == AV_PKT_FLAG_KEY)
+        , duration(packet->duration)
+        , position(packet->pos)
+        , buffer_view(reinterpret_cast<const char*>(packet->data), packet->size)
+    {
+    }
+    
+    int stream_index = 0;
+    bool is_key_frame = false;
+    int64_t duration = 0;
+    int64_t position = 0;
+    //std::string_view buffer_view = ""sv;
+    msgpack::type::raw_ref buffer_view = {};
+
+    MSGPACK_DEFINE(stream_index, is_key_frame, duration, position, buffer_view)
+};
+
 av::packet::packet(std::nullptr_t)
     : handle_()
 {
@@ -35,9 +64,14 @@ av::packet::packet(std::basic_string_view<uint8_t> sv)
     : packet()
 {
     uint8_t* required_avbuffer = nullptr;
-    core::verify(required_avbuffer = static_cast<uint8_t*>(av_malloc(sv.size())));
+    core::verify(required_avbuffer = static_cast<uint8_t*>(av_malloc(sv.size() + AV_INPUT_BUFFER_PADDING_SIZE)));
     std::copy_n(sv.data(), sv.size(), required_avbuffer);
     av_packet_from_data(handle_.get(), required_avbuffer, static_cast<int>(sv.size()));
+}
+
+av::packet::packet(std::string_view csv)
+    : packet(std::basic_string_view<uint8_t>{reinterpret_cast<const uint8_t*>(csv.data()), csv.size()})
+{
 }
 
 av::packet::packet()
@@ -63,9 +97,21 @@ std::string_view av::packet::cbuffer_view() const
     };
 }
 
+std::string av::packet::serialize() const
+{
+    msgpack::sbuffer sbuf(handle_->size + sizeof(chunk));
+    msgpack::pack(sbuf, chunk{ *this });
+    return std::string{ sbuf.data(),sbuf.size() };
+}
+
 av::packet::pointer av::packet::operator->() const
 {
     return handle_.get();
+}
+
+av::packet::operator bool() const
+{
+    return !empty();
 }
 
 void av::packet::unref() const
