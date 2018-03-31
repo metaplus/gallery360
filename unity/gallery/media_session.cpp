@@ -52,13 +52,13 @@ namespace dll
     media_session::media_session(const std::string& url)
     {
         av::register_all();
-        const_cast<av::format_context&>(media_format_) = av::format_context{ av::source{url} };
+        const_cast<av::format_context&>(media_format_) = av::format_context{ av::source::path{url} };
         const_cast<av::codec_context&>(video_codec_) = std::make_from_tuple<av::codec_context>(media_format_.demux_with_codec(av::media::video{}));
         action_.video_decoding = std::async(std::launch::async,
             [/*self = shared_from_this()*/this, decode_count = size_t{ 0 }]() mutable
         {
             //auto& session = dynamic_cast<dll::media_session&>(*self);
-            dll::media_session& session = *this;
+            auto& session = *this;
             while (session.status_.is_active && !session.status_.has_read)
             {
                 auto packet = session.media_format_.read(av::media::video{});

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "ffmpeg/ffmpeg.h"
+#include "ffmpeg.h"
 #include <msgpack.hpp>
 #include <msgpack/adaptor/define_decl.hpp>
 
@@ -44,7 +44,7 @@ struct av::packet::chunk
         , buffer_view(reinterpret_cast<const char*>(packet->data), packet->size)
     {
     }
-    
+
     int stream_index = 0;
     bool is_key_frame = false;
     int64_t duration = 0;
