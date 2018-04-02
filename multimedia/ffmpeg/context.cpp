@@ -93,7 +93,7 @@ av::format_context::format_context(std::variant<source, sink> io)
             core::verify(avformat_find_stream_info(ptr, nullptr));   // 60ms+
 #ifdef _DEBUG
             av_dump_format(ptr, 0, ptr->filename, 0);
-#endif
+#endif // define _DEBUG
         }
         else
         {
@@ -102,7 +102,7 @@ av::format_context::format_context(std::variant<source, sink> io)
         }
     }, io);
 }
-#endif
+#endif // define MULTIMEDIA_USE_LEGACY
 
 av::format_context::format_context(io_context io, source::format iformat)
     : format_handle_(nullptr)

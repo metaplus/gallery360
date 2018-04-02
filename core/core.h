@@ -174,4 +174,11 @@ namespace core
         std::array<size_t, sizeof...(Types)> carray{ std::hash<std::decay_t<Types>>{}(args)... };
         return std::hash<std::string_view>{}({ reinterpret_cast<char*>(carray.data()), sizeof(carray) });
     }
+
+    template<typename Hash>
+    struct dereference_hash
+    {   // smart pointer or iterator
+        template<typename Handle>
+        size_t operator()(const Handle& handle) const { return Hash{}(*handle); }
+    };
 }
