@@ -52,6 +52,8 @@
 #include <thread>
 #include <type_traits>
 #include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 #include <boost/core/null_deleter.hpp>
@@ -74,6 +76,7 @@ namespace filesystem = std::experimental::filesystem;
 #include "core/core.h"
 #include "core/guard.h"
 #include "core/verify.hpp"
+#include "core/graph.hpp"
 #include "concurrency/synchronize.h"
 #include "concurrency/barrier.h"
 #include "concurrency/async_chain.h"
@@ -90,3 +93,8 @@ namespace filesystem = std::experimental::filesystem;
 #pragma comment(lib, "Release/fmt")
 #endif // _DEBUG
 #endif // CORE_USE_FMTLIB
+
+namespace std
+{
+    namespace filesystem = std::experimental::filesystem;
+}

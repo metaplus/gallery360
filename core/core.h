@@ -114,8 +114,21 @@ namespace core
     std::reference_wrapper<T> make_null_reference_wrapper()
     {
         static void* lval_nullptr = nullptr;
-        return std::reference_wrapper<T>{ *reinterpret_cast<std::add_pointer_t<T>&>(lval_nullptr) };
+        return std::reference_wrapper<T>{
+            *reinterpret_cast<std::add_pointer_t<std::decay_t<T>>&>(lval_nullptr) };
     }
+
+    // enable DefaultConstructible
+    template<typename T>
+    class reference : public std::reference_wrapper<T>
+    {
+    public:
+        using std::reference_wrapper<T>::reference_wrapper;
+        reference()
+            : std::reference_wrapper<T>(core::make_null_reference_wrapper<T>())
+        {
+        }
+    };
 
     using relative = std::int64_t;
     using absolute = std::uint64_t;
@@ -147,8 +160,20 @@ namespace core
                 throw aborted_error{};
     }
 
-    struct use_future_t {};
-    inline constexpr use_future_t use_future{};
+    inline namespace tag
+    {
+        struct use_future_t {};
+        inline constexpr use_future_t use_future{};
+
+        struct defer_construct_t {};
+        inline constexpr defer_construct_t defer_construct;
+
+        struct defer_execute_t {};
+        inline constexpr defer_execute_t defer_execute;
+
+        struct defer_destruct_t {};
+        inline constexpr defer_destruct_t defer_destruct;
+    }
 
     namespace v1
     {
@@ -174,6 +199,15 @@ namespace core
         std::array<size_t, sizeof...(Types)> carray{ std::hash<std::decay_t<Types>>{}(args)... };
         return std::hash<std::string_view>{}({ reinterpret_cast<char*>(carray.data()), sizeof(carray) });
     }
+
+    template<typename ...Types>
+    struct hash
+    {
+        size_t operator()(const std::decay_t<Types>& ...args) const noexcept
+        {
+            return hash_value(args...);
+        }
+    };
 
     template<typename Hash>
     struct dereference_hash
