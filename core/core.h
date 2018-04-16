@@ -160,10 +160,16 @@ namespace core
                 throw aborted_error{};
     }
 
-    inline namespace tag
+    inline namespace tag    // tag dispatching usage, clarify semantics
     {
         struct use_future_t {};
         inline constexpr use_future_t use_future{};
+
+        struct as_default_t {};
+        inline constexpr as_default_t as_default;
+
+        struct as_element_t {};
+        inline constexpr as_element_t as_element;
 
         struct defer_construct_t {};
         inline constexpr defer_construct_t defer_construct;

@@ -14,7 +14,7 @@ namespace util
             return std::unique_lock<Mutex>{ *pmutex };
         }
 
-        class[[deprecated]] spin_mutex
+        class [[deprecated]] spin_mutex
         {
         public:
             spin_mutex();

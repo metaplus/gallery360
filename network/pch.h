@@ -1,5 +1,5 @@
 #pragma once
-
+#include <boost/bind.hpp>
 #include <msgpack.hpp>
 #include <WinSock2.h>
 #pragma warning(push)
@@ -7,4 +7,4 @@
 #include <boost/asio.hpp>
 #pragma warning(pop)
 
-//#include "network/net.h"
+#include "network/session.hpp"

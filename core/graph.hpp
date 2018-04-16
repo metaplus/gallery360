@@ -1,7 +1,6 @@
 #pragma once
 
-namespace util
-{
+namespace util {
     struct compress_policy
     {
         struct edge_vertex_both {};
@@ -9,7 +8,7 @@ namespace util
         struct vertex_only {};       // TODO: template specialization
     };
 
-    struct layout_policy {};         // TODO: considering necessity
+    struct layout_policy {};                  // TODO: considering necessity
 
     // Directed Graph
     template<typename VertexValue, typename EdgeValue,
@@ -79,16 +78,36 @@ namespace util
     private:
         static_assert(std::is_object_v<VertexValue> && std::is_object_v<EdgeValue>);
     public:
-        using vertex_view_container = std::vector<core::reference<const vertex>>;
-        using vertex_edge_view_container = std::vector<std::pair<const vertex&, const edge&>>;
-        using edge_view_containter = std::vector<core::reference<const edge>>;
+        using vertex_container = std::vector<core::reference<const vertex>>;
+        using vertex_edge_container = std::vector<std::pair<const vertex&, const edge&>>;
+        using edge_containter = std::vector<core::reference<const edge>>;
+        class path_tree
+        {
+        public:
+            using edge_container = typename graph::edge_containter;
+            using distance_container = std::vector<typename edge::value_type>;
+            path_tree() = delete;
+            const vertex& source() const noexcept;
+            const edge_container& edge_to() const noexcept;
+            const distance_container& dist_to() const noexcept;
+            const typename edge::value_type& dist_to(const vertex& vert) const noexcept;
+        private:
+            path_tree(const vertex& source, edge_container&& econt, distance_container&& dcont) noexcept;
+            const vertex& source_;
+            const edge_container edge_to_;
+            const distance_container dist_to_;
+            friend graph;
+        };
         const vertex& find_vertex(uint64_t index) const;
         std::optional<vertex> try_find_vertex(uint64_t index) const noexcept;
-        vertex_edge_view_container find_adjacent_vertex(const vertex& vert) const;
-        uint64_t find_vertex_index(const vertex& vertex);
-        vertex_view_container topological_sort() const;
+        vertex_edge_container find_vertex_sink(const vertex& vert) const;
+        vertex_edge_container find_vertex_source(const vertex& vert) const;
+        uint64_t find_vertex_index(const vertex& vertex) const;
+        vertex_container topological_sort() const;
         template<typename Compare = std::less<EdgeValue>>
-        edge_view_containter shortest_path(Compare cmp = Compare{}) const;
+        path_tree shortest_path_for_acyclic(Compare compare = Compare{}) const;
+        template<typename Compare = std::less<EdgeValue>>
+        path_tree shortest_path(const vertex& source, Compare compare = Compare{}) const;
         const vertex& add_vertex(const VertexValue& vertex_data);
         //const vertex& add_vertex(VertexValue&& vertex_data);
         const edge& add_edge(const EdgeValue& edge_data, const vertex& from, const vertex& to);
@@ -219,17 +238,15 @@ namespace util
     }
 
     template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
-    const typename graph<VertexValue, EdgeValue, CompressPolicy>::vertex&
-        graph<VertexValue, EdgeValue, CompressPolicy>::
-        edge::from() const noexcept
+    auto graph<VertexValue, EdgeValue, CompressPolicy>::
+        edge::from() const noexcept -> const vertex&
     {
         return from_.get();
     }
 
     template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
-    const typename graph<VertexValue, EdgeValue, CompressPolicy>::vertex&
-        graph<VertexValue, EdgeValue, CompressPolicy>::
-        edge::to() const noexcept
+    auto graph<VertexValue, EdgeValue, CompressPolicy>::
+        edge::to() const noexcept -> const vertex&
     {
         return to_.get();
     }
@@ -246,7 +263,47 @@ namespace util
 
     template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
     auto graph<VertexValue, EdgeValue, CompressPolicy>
-        ::find_adjacent_vertex(const vertex& vert) const -> vertex_edge_view_container
+        ::path_tree::source() const noexcept -> const vertex&
+    {
+        return source_;
+    }
+
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    auto graph<VertexValue, EdgeValue, CompressPolicy>::
+        path_tree::edge_to() const noexcept -> const edge_container&
+    {
+        return edge_to_;
+    }
+
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    auto graph<VertexValue, EdgeValue, CompressPolicy>::
+        path_tree::dist_to() const noexcept -> const distance_container&
+    {
+        return dist_to_;
+    }
+
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    auto graph<VertexValue, EdgeValue, CompressPolicy>::path_tree::
+        dist_to(const vertex& vert) const noexcept -> const typename edge::value_type&
+    { 
+        const auto equal = vertex::equal{};
+        return equal(vert, source_) ? *std::find(dist_to_.cbegin(), dist_to_.cend(), 0) :
+            dist_to_.at(std::distance(edge_to_.cbegin(),
+                std::find_if(edge_to_.cbegin(), edge_to_.cend(), [&](const edge& edge) { return equal(vert, edge.to()); })));
+    }
+
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    graph<VertexValue, EdgeValue, CompressPolicy>::
+        path_tree::path_tree(const vertex& source, edge_container&& econt, distance_container&& dcont) noexcept
+        : source_(source)
+        , edge_to_(std::move(econt))
+        , dist_to_(std::move(dcont))
+    {
+    }
+
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    auto graph<VertexValue, EdgeValue, CompressPolicy>
+        ::find_vertex_sink(const vertex& vert) const -> vertex_edge_container
     {
         const auto iter = adjancency_.find(vert);
         core::verify(iter != adjancency_.cend());
@@ -256,7 +313,34 @@ namespace util
 
     template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
     auto graph<VertexValue, EdgeValue, CompressPolicy>
-        ::topological_sort() const -> vertex_view_container
+        ::find_vertex_source(const vertex& vert) const -> vertex_edge_container
+    {
+        vertex_edge_container source;
+        const typename vertex::equal equal;
+        for (const auto& vert_adj_vec_pair : adjancency_)
+        {
+            if (equal(vert_adj_vec_pair.first, vert))
+                continue;
+            for (const auto& adj_vert_edge_pair : vert_adj_vec_pair.second)
+            {
+                if (!equal(adj_vert_edge_pair.first, vert))
+                    continue;
+                source.push_back(std::make_pair(vert_adj_vec_pair.first, adj_vert_edge_pair.second));
+            }
+        }
+        return source;
+    }
+
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    uint64_t graph<VertexValue, EdgeValue, CompressPolicy>
+        ::find_vertex_index(const vertex& vertex) const
+    {
+        return std::distance(adjancency_.cbegin(), adjancency_.find(vertex));
+    }
+
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    auto graph<VertexValue, EdgeValue, CompressPolicy>
+        ::topological_sort() const -> vertex_container
     {
         std::vector<bool> marked(count_vertex(), false);
         std::vector<core::reference<const vertex>> trace;
@@ -268,42 +352,6 @@ namespace util
     }
 
     template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
-    template <typename Compare>
-    auto graph<VertexValue, EdgeValue, CompressPolicy>
-        ::shortest_path(const Compare cmp) const -> edge_view_containter
-    {
-        //const auto topological_order = topological_sort();
-        const std::vector<adjacency_iterator> topological_order = topological_sort_with_iterator();
-        core::verify(topological_order.size() == count_vertex());
-        const auto ref_less = [](const auto& lref, const auto& rref) { return *lref < *rref; };
-        std::vector<core::reference<const edge>> edge_to(count_vertex());
-        std::vector<EdgeValue> dist_to(count_vertex(), std::numeric_limits<EdgeValue>::max());
-        //dist_to.front() = 0;
-        dist_to.at(std::distance(adjancency_.cbegin(), topological_order.front())) = 0;
-        for (const adjacency_iterator& adj_iter : topological_order)
-        {
-            const vertex& vert = adj_iter->first;
-            const auto vert_index = std::distance(adjancency_.cbegin(), adj_iter);
-            // relax routine
-            for (const std::pair<const vertex&, const edge&>& pair : adj_iter->second)
-            {
-                const vertex& adj_vert = pair.first;
-                const edge& adj_edge = pair.second;
-                const auto adj_vert_iter = adjancency_.find(adj_vert);
-                const auto adj_vert_index = std::distance(adjancency_.cbegin(), adj_vert_iter);
-                if (dist_to.at(vert_index) + adj_edge.value() < dist_to.at(adj_vert_index))
-                {
-                    edge_to.at(adj_vert_index) = core::reference<const edge>{ adj_edge };
-                    dist_to.at(adj_vert_index) = dist_to.at(vert_index) + adj_edge.value();
-                }
-            }
-        }
-        //edge_view_containter result(count_vertex());
-        return edge_to;
-    }
-
-    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
-    //const typename graph<VertexValue, EdgeValue, CompressPolicy>::vertex& 
     auto graph<VertexValue, EdgeValue, CompressPolicy>
         ::add_vertex(const VertexValue& vertex_data) -> const vertex&
     {
@@ -314,8 +362,7 @@ namespace util
         return iterator->first;
     }
 
-        template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
-    //const typename graph<VertexValue, EdgeValue, CompressPolicy>::edge& 
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
     auto graph<VertexValue, EdgeValue, CompressPolicy>
         ::add_edge(const EdgeValue& edge_data, const vertex& from, const vertex& to) -> const edge&
     {
@@ -338,7 +385,7 @@ namespace util
         return *edge_iter;
     }
 
-        template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
     uint64_t graph<VertexValue, EdgeValue, CompressPolicy>
         ::count_vertex() const noexcept
     {
@@ -354,10 +401,11 @@ namespace util
 
     template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
     uint64_t graph<VertexValue, EdgeValue, CompressPolicy>
-        ::hash_edge_by_vertex(uint64_t vert0, uint64_t vert1) const noexcept
+        ::hash_edge_by_vertex(const uint64_t vert0, const uint64_t vert1) const noexcept
     {
-        const auto& minmax_pair = std::minmax(vert0, vert1);
-        const std::array<uint64_t, 2> array{ minmax_pair.first,minmax_pair.second };
+//        const auto& minmax_pair = std::minmax(vert0, vert1);
+//        const std::array<uint64_t, 2> array{ minmax_pair.first,minmax_pair.second };
+        const std::array<uint64_t, 2> array{ vert0,vert1 };
         static_assert(sizeof array == 16);
         return std::hash<std::string_view>{}(
             std::string_view{ reinterpret_cast<const char*>(array.data()),sizeof array });
@@ -416,7 +464,6 @@ namespace util
     }
 
     template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
-    //std::vector<typename graph<VertexValue, EdgeValue, CompressPolicy>::adjacency_iterator>
     auto graph<VertexValue, EdgeValue, CompressPolicy>
         ::topological_sort_with_iterator() const -> std::vector<adjacency_iterator>
     {
@@ -432,5 +479,101 @@ namespace util
         std::transform(indexed_iterators.begin(), indexed_iterators.end(),
             std::back_inserter(iterators), [](auto& pair) { return std::move(pair.second); });
         return iterators;
+    }
+
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    template <typename Compare>
+    auto graph<VertexValue, EdgeValue, CompressPolicy>
+        ::shortest_path_for_acyclic(const Compare compare) const -> path_tree
+    {
+        //const auto topological_order2 = topological_sort();
+        const std::vector<adjacency_iterator> topological_order = topological_sort_with_iterator();
+        core::verify(topological_order.size() == count_vertex());
+        //const auto ref_less = [](const auto& lref, const auto& rref) { return *lref < *rref; };
+        std::vector<core::reference<const edge>> edge_to(count_vertex());
+        std::vector<EdgeValue> dist_to(count_vertex(), std::numeric_limits<EdgeValue>::max());
+        //dist_to.front() = 0;
+        const vertex& front_vertex = topological_order.front()->first;
+        const auto front_vert_index = std::distance(adjancency_.cbegin(), topological_order.front());
+        dist_to.at(front_vert_index) = 0;
+        //auto iterate_count = 0;
+        for (const adjacency_iterator& adj_iter : topological_order)
+        {
+            const vertex& vert = adj_iter->first;
+            const auto vert_index = std::distance(adjancency_.cbegin(), adj_iter);
+            //  relax routine
+            for (const std::pair<const vertex&, const edge&>& pair : adj_iter->second)
+            {
+                const vertex& adj_vert = pair.first;
+                const edge& adj_edge = pair.second;
+                const auto adj_vert_iter = adjancency_.find(adj_vert);
+                const auto adj_vert_index = std::distance(adjancency_.cbegin(), adj_vert_iter);
+                //if (dist_to.at(vert_index) + adj_edge.value() < dist_to.at(adj_vert_index))
+                if (compare(dist_to.at(vert_index) + adj_edge.value(), dist_to.at(adj_vert_index)))
+                {
+                    edge_to.at(adj_vert_index) = core::reference<const edge>{ adj_edge };
+                    dist_to.at(adj_vert_index) = dist_to.at(vert_index) + adj_edge.value();
+                    core::verify(dist_to.at(adj_vert_index) >= 0);
+                    //++iterate_count;
+                }
+            }
+        }
+        //edge_containter result(count_vertex());
+        return path_tree{ front_vertex,std::move(edge_to),std::move(dist_to) };
+    }
+
+    //  TODO: negative cycle finder
+    template <typename VertexValue, typename EdgeValue, typename CompressPolicy>
+    template <typename Compare>
+    auto graph<VertexValue, EdgeValue, CompressPolicy>
+        ::shortest_path(const vertex& source, Compare compare) const -> path_tree
+    {
+        const auto vertex_count = count_vertex();
+        std::vector<bool> on_queue(vertex_count, false);
+        std::vector<core::reference<const edge>> edge_to(vertex_count, core::reference<const edge>{});
+        std::vector<EdgeValue> dist_to(vertex_count, std::numeric_limits<EdgeValue>::max());
+        std::deque<core::reference<const vertex>> vertex_queue{ source };
+        const auto source_index = find_vertex_index(source);
+        on_queue.at(source_index) = true;
+        dist_to.at(source_index) = 0;
+        uint64_t iterate_count = 0;
+        //uint64_t cost = 0;
+        while (!vertex_queue.empty())
+        {
+            const auto vertex_front = std::move(vertex_queue.front());
+            vertex_queue.pop_front();
+            const auto vert_iter = adjancency_.find(vertex_front);
+            const auto vert_index = std::distance(adjancency_.cbegin(), vert_iter);
+            on_queue.at(vert_index) = false;
+            //  relax routine
+            for (const std::pair<const vertex&, const edge&>& pair : vert_iter->second)
+            {
+                const vertex& adj_vert = pair.first;
+                const edge& adj_edge = pair.second;
+                //const auto adj_vert_iter = adjancency_.find(adj_vert);
+                const auto adj_vert_index = find_vertex_index(adj_vert);
+                //if (dist_to.at(vert_index) + adj_edge.value() < dist_to.at(adj_vert_index))
+                if (compare(dist_to.at(vert_index) + adj_edge.value(), dist_to.at(adj_vert_index)))
+                {
+                    edge_to.at(adj_vert_index) = core::reference<const edge>{ adj_edge };
+                    dist_to.at(adj_vert_index) = dist_to.at(vert_index) + adj_edge.value();
+                    ++iterate_count;
+                    core::verify(dist_to.at(adj_vert_index) >= 0);
+                    if (!on_queue.at(adj_vert_index))
+                    {
+                        vertex_queue.push_back(adj_vert);
+                        on_queue.at(adj_vert_index) = true;
+                    }
+                }
+                //if (cost++ % vertex_count == 0)
+                //if (cost++ % vertex_count == 0 && cost != 1)
+                //    throw std::logic_error{ "negative cycle found" };
+            }
+        }
+        auto max_dist_to = *std::max_element(dist_to.cbegin(), dist_to.cend());
+        auto edge_to_copy = edge_to;
+        std::sort(edge_to_copy.begin(), edge_to_copy.end(),
+            [](const auto& lref, const auto& rref) { return lref.get().value() < rref.get().value(); });
+        return path_tree{ source,std::move(edge_to),std::move(dist_to) };
     }
 }
