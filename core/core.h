@@ -221,4 +221,18 @@ namespace core
         template<typename Handle>
         size_t operator()(const Handle& handle) const { return Hash{}(*handle); }
     };
+
+    template<typename Handle>
+    decltype(auto) get_pointer(Handle&& handle,
+        std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr)
+    {
+        return std::forward<Handle>(handle).operator->();
+    }
+
+    template<typename Handle>
+    decltype(auto) get_pointer(Handle&& handle,
+        std::enable_if_t<std::is_pointer_v<std::decay_t<Handle>>>* = nullptr)
+    {
+        return std::forward<Handle>(handle);
+    }
 }

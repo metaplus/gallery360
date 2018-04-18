@@ -29,7 +29,7 @@ namespace util
                 return;
             std::promise<decltype(pending_)::element_type*> signal_promise;
             auto signal_sfuture = signal_promise.get_future().share();
-            const auto pcallable = std::make_shared<meta::remove_cv_ref_t<Callable>>(std::forward<Callable>(callable));
+            const auto pcallable = std::make_shared<std::decay_t<Callable>>(std::forward<Callable>(callable));
             decltype(pending_) pending_new = nullptr;
             static thread_local std::vector<decltype(pending_)> temporary;
             auto pending_old = std::atomic_load_explicit(&pending_, std::memory_order_relaxed);

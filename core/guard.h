@@ -33,19 +33,20 @@ namespace core
     class scope_guard_generic : Callable
     {
     public:
-        explicit scope_guard_generic(Callable&& c);
+        explicit scope_guard_generic(Callable&& callable);
         scope_guard_generic() = default;
         scope_guard_generic(const scope_guard_generic&) = delete;
         scope_guard_generic(scope_guard_generic&&) = default;
         scope_guard_generic& operator=(const scope_guard_generic&) = delete;
-        scope_guard_generic& operator=(scope_guard_generic&& other) = default;
+        scope_guard_generic& operator=(scope_guard_generic&&) = default;
         ~scope_guard_generic();
     private:
         using Callable::operator();
     };
 
     template <typename Callable>
-    scope_guard_generic<Callable>::scope_guard_generic(Callable&& c): Callable(std::forward<Callable>(c))
+    scope_guard_generic<Callable>::scope_guard_generic(Callable&& callable)
+        : Callable(std::forward<Callable>(callable))
     {
     }
 
@@ -60,5 +61,6 @@ namespace core
     {
         return scope_guard_generic<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
     }
+
     // Todo: Exception guard
 }
