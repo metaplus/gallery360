@@ -152,6 +152,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="client.hpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="session.hpp" />
     <ClInclude Include="stdafx.h" />
