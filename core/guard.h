@@ -7,9 +7,9 @@ namespace core
     public:
         time_guard();
         time_guard(const time_guard&) = delete;
-        time_guard(time_guard&&) = default;
+        time_guard(time_guard&&) noexcept = default;
         time_guard& operator=(const time_guard&) = delete;
-        time_guard& operator=(time_guard&&) = default;
+        time_guard& operator=(time_guard&&) noexcept = default;
         ~time_guard();
     private:
         std::chrono::steady_clock::time_point time_mark_;
@@ -26,34 +26,36 @@ namespace core
         scope_guard& operator=(scope_guard&& other) = default;
         ~scope_guard();
     private:
-        std::function<void()> release_;
+        std::function<void()> release_;         //  facilitate type erasure, efficiency depends on STL implementation
     };
 
     template<typename Callable>
-    class scope_guard_generic : Callable
+    class scope_guard_generic : std::decay_t<Callable>
     {
     public:
-        explicit scope_guard_generic(Callable&& callable);
+        explicit scope_guard_generic(const std::decay_t<Callable>&) = delete;
+        explicit scope_guard_generic(std::decay_t<Callable>&& callable);
         scope_guard_generic() = default;
         scope_guard_generic(const scope_guard_generic&) = delete;
-        scope_guard_generic(scope_guard_generic&&) = default;
+        scope_guard_generic(scope_guard_generic&&) /*noexcept(noexcept(std::declval<std::decay_t<Callable>&>()()))*/ noexcept = default;
         scope_guard_generic& operator=(const scope_guard_generic&) = delete;
-        scope_guard_generic& operator=(scope_guard_generic&&) = default;
+        scope_guard_generic& operator=(scope_guard_generic&&) /*noexcept(noexcept(std::declval<std::decay_t<Callable>&>()()))*/ noexcept = default;
         ~scope_guard_generic();
     private:
-        using Callable::operator();
+        using std::decay<Callable>::type::operator();
+        //static_assert(!std::is_reference_v<Callable> && !std::is_const_v<Callable> && !std::is_volatile_v<Callable>);
+        //static_assert(std::is_same_v<std::decay_t<Callable>, Callable>);
     };
 
     template <typename Callable>
-    scope_guard_generic<Callable>::scope_guard_generic(Callable&& callable)
+    scope_guard_generic<Callable>::scope_guard_generic(std::decay_t<Callable>&& callable)
         : Callable(std::forward<Callable>(callable))
-    {
-    }
+    {}
 
     template <typename Callable>
     scope_guard_generic<Callable>::~scope_guard_generic()
     {
-        (*this)();
+        operator()();
     }
 
     template<typename Callable>
@@ -62,5 +64,7 @@ namespace core
         return scope_guard_generic<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
     }
 
-    // Todo: Exception guard
+    //  Todo: make_multiple_guards(Callable&&... callables), consider multiple inheritance implementation
+
+    //  Todo: exception guard
 }

@@ -64,7 +64,7 @@ namespace meta
     constexpr bool is_packaged_task_v = is_packaged_task<T>::value;
 
     template<typename T, typename ...Types>
-    struct max_size : std::integral_constant<size_t, std::max<size_t>(max_size<T>::value, meta::max_size<Types...>::value)> {};
+    struct max_size : std::integral_constant<size_t, std::max<size_t>(max_size<T>::value, max_size<Types...>::value)> {};
 
     template<typename T>
     struct max_size<T> : std::integral_constant<size_t, sizeof(T)> {};
@@ -103,8 +103,8 @@ namespace meta
 
     template<typename Handle, typename = std::void_t<>>
     struct has_operator_dereference : std::false_type {};
-    template<typename Handle>
 
+    template<typename Handle>
     struct has_operator_dereference<Handle,
         std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
     > : std::true_type {};

@@ -6,6 +6,7 @@ namespace meta::detail
     {
         template<typename T, typename U, typename ...Types>
         struct is_within : bool_or<typename std::is_same<T, U>::type, typename is_within<T, Types...>::type> {};
+
         template<typename T, typename U>
         struct is_within<T, U> : std::is_same<T, U>::type {};
     }

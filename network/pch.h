@@ -8,3 +8,4 @@
 #pragma warning(pop)
 
 #include "network/session.hpp"
+#include "network/client.hpp" 

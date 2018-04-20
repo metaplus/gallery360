@@ -64,6 +64,10 @@ using namespace std::literals;
 //#if __has_include(<filesystem>)
 #include <filesystem>
 namespace filesystem = std::experimental::filesystem;
+namespace std
+{
+    namespace filesystem = std::experimental::filesystem;
+}
 //#elif __has_include(<boost/filesystem.hpp>)
 //#include <boost/filesystem.hpp>
 //namespace filesystem = boost::filesystem;
@@ -93,8 +97,3 @@ namespace filesystem = std::experimental::filesystem;
 #pragma comment(lib, "Release/fmt")
 #endif // _DEBUG
 #endif // CORE_USE_FMTLIB
-
-namespace std
-{
-    namespace filesystem = std::experimental::filesystem;
-}

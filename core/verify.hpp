@@ -16,11 +16,11 @@ namespace core
                 throw std::out_of_range{ "negative value" };
         }
         else if constexpr(std::is_null_pointer_v<Scalar>)
-            throw core::null_pointer_error{ "null pointer" };
+            throw null_pointer_error{ "null pointer" };
         else if constexpr(std::is_pointer_v<Scalar>)
         {
             if (pred == nullptr)
-                throw core::dangling_pointer_error{ "dangling pointer, pointer type: " + core::type_shortname<Scalar>() };
+                throw dangling_pointer_error{ "dangling pointer, pointer type: " + core::type_shortname<Scalar>() };
         }
         else throw std::invalid_argument{ "illegal parameter, type: "+ core::type_shortname<Scalar>() };
     }
@@ -51,7 +51,7 @@ namespace core
         std::exception_ptr exception_handler{ nullptr };
         */
         try
-        {   // TODO sfinae for boolean convertible case
+        {   // TODO: sfinae for boolean convertible case
             (..., core::verify_one<Types>(preds));
         }
         catch (...)
