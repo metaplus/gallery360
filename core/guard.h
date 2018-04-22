@@ -30,18 +30,18 @@ namespace core
     };
 
     template<typename Callable>
-    class scope_guard_generic : std::decay_t<Callable>
+    class scope_guard_generic : protected std::decay_t<Callable>
     {
     public:
         explicit scope_guard_generic(const std::decay_t<Callable>&) = delete;
         explicit scope_guard_generic(std::decay_t<Callable>&& callable);
-        scope_guard_generic() = default;
+        scope_guard_generic() = delete;
         scope_guard_generic(const scope_guard_generic&) = delete;
         scope_guard_generic(scope_guard_generic&&) /*noexcept(noexcept(std::declval<std::decay_t<Callable>&>()()))*/ noexcept = default;
         scope_guard_generic& operator=(const scope_guard_generic&) = delete;
         scope_guard_generic& operator=(scope_guard_generic&&) /*noexcept(noexcept(std::declval<std::decay_t<Callable>&>()()))*/ noexcept = default;
         ~scope_guard_generic();
-    private:
+    protected:
         using std::decay<Callable>::type::operator();
         //static_assert(!std::is_reference_v<Callable> && !std::is_const_v<Callable> && !std::is_volatile_v<Callable>);
         //static_assert(std::is_same_v<std::decay_t<Callable>, Callable>);
@@ -49,7 +49,7 @@ namespace core
 
     template <typename Callable>
     scope_guard_generic<Callable>::scope_guard_generic(std::decay_t<Callable>&& callable)
-        : Callable(std::forward<Callable>(callable))
+        : Callable(std::move(callable))
     {}
 
     template <typename Callable>
@@ -58,13 +58,39 @@ namespace core
         operator()();
     }
 
-    template<typename Callable>
-    scope_guard_generic<std::decay_t<Callable>> make_guard(Callable&& callable)
+    inline namespace v2 
     {
-        return scope_guard_generic<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
+        template<typename Callable>
+        scope_guard_generic<std::decay_t<Callable>> make_guard(Callable&& callable)
+        {
+            return scope_guard_generic<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
+        }
     }
 
-    //  Todo: make_multiple_guards(Callable&&... callables), consider multiple inheritance implementation
+    namespace v1    // TODO: experimental
+    {
+        template<typename... Callable>
+        class scope_guard_tuple : protected scope_guard_generic<std::decay_t<Callable>>...
+        {
+        public:
+            explicit scope_guard_tuple(std::decay_t<Callable>&&... callable)
+                : scope_guard_generic<std::decay_t<Callable>>(std::move(callable))...
+            {}
+            ~scope_guard_tuple()
+            {
+                (..., scope_guard_generic<std::decay_t<Callable>>::operator());
+                //(..., &scope_guard_generic<std::decay_t<Callable>>::operator()(this));
+            }
+        protected:
+            //using scope_guard_generic<Callable>::operator()...;
+        };
 
-    //  Todo: exception guard
+        template<typename... Callable>
+        scope_guard_tuple<std::decay_t<Callable>...> make_guard(Callable&&... callable)
+        {
+            return scope_guard_tuple<std::decay_t<Callable>...>{ std::forward<Callable>(callable)... };
+        }
+    }
+
+    //  Todo: consider exception guard
 }

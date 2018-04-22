@@ -7,7 +7,7 @@ void util::concurrency::async_chain::wait() const
     if (pending_old) pending_old->wait();
 }
 
-void util::concurrency::async_chain::abort_and_wait()
+void util::concurrency::async_chain::abort_and_wait() const
 {
     canceled_.store(true, std::memory_order_seq_cst);
     wait();

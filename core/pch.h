@@ -16,8 +16,8 @@
 
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS             // <tbb/tbb.h>          
 
-#undef min          //abolish vicious macros from <windows.h>, otherwise causing naming collision against STL
-#undef max          //another tolerable solution appears like #define max_RESUME max #undef max ... #define max max_RESUME
+#undef min          //  abolish vicious macros from <windows.h>, otherwise causing naming collision against STL
+#undef max          //  another tolerable solution appears like #define max_RESUME max #undef max ... #define max max_RESUME
 
 #define STRING2(x) #x  
 #define STRING(x) STRING2(x)  
@@ -86,14 +86,19 @@ namespace std
 #include "concurrency/async_chain.h"
 
 #ifdef CORE_USE_FMTLIB
+
 #include <fmt/format.h>
 #include <fmt/container.h>
 #include <fmt/ostream.h>
 #include <fmt/string.h>
 #include <fmt/time.h>
+
+using namespace fmt::literals;
+
 #ifdef _DEBUG
 #pragma comment(lib, "Debug/fmt")
 #else
 #pragma comment(lib, "Release/fmt")
 #endif // _DEBUG
+
 #endif // CORE_USE_FMTLIB

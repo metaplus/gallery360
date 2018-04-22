@@ -8,6 +8,7 @@ namespace core
     {
     public:
         using runtime_error::runtime_error;
+        using runtime_error::operator=;
         explicit aborted_error(std::string_view desc = ""sv);
         const char* what() const override;
     };
@@ -16,6 +17,7 @@ namespace core
     {
     public:
         using runtime_error::runtime_error;
+        using runtime_error::operator=;
         explicit null_pointer_error(std::string_view desc = ""sv);
         const char* what() const override;
     };
@@ -24,6 +26,7 @@ namespace core
     {
     public:
         using runtime_error::runtime_error;
+        using runtime_error::operator=;
         explicit dangling_pointer_error(std::string_view desc = ""sv);
         const char* what() const override;
     };
@@ -32,6 +35,7 @@ namespace core
     {
     public:
         using logic_error::logic_error;
+        using logic_error::operator=;
         explicit not_implemented_error(std::string_view desc = ""sv);
         const char* what() const override;
     };

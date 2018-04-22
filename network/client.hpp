@@ -22,6 +22,7 @@ namespace net::client
     private:
         struct make_session_callback
         {
+            make_session_callback() = delete;
             explicit make_session_callback(boost::asio::io_context& ioc)
                 : socket(ioc)
             {}
@@ -32,7 +33,7 @@ namespace net::client
         };
     public:
         std::future<std::weak_ptr<session<boost::asio::ip::tcp>>>
-            resolve_and_connect(std::string_view host, std::string_view service)
+            make_session(std::string_view host, std::string_view service)
         {
             auto callback = std::make_unique<make_session_callback>(*io_context_ptr_);
             auto make_session_future = callback->session_promise.get_future();
@@ -105,5 +106,4 @@ namespace net::client
             callback->session_promise.set_value(std::move(session_weak_ptr));
         }
     };
-
 }

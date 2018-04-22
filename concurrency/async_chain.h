@@ -11,22 +11,22 @@ namespace util
             async_chain() = default;
             async_chain(const async_chain&) = delete;
             async_chain& operator=(const async_chain&) = delete;
+            ~async_chain() = default;
             template<typename Callable>
             void append(Callable&& callable);
             template<typename Callable>
-            std::future<std::invoke_result_t<Callable>> append(Callable&& callable, core::use_future_t);
+            std::future<std::invoke_result_t<std::decay_t<Callable>>> append(Callable&& callable, core::use_future_t);
             void wait() const;
-            void abort_and_wait();
+            void abort_and_wait() const;
         private:
             std::shared_ptr<std::future<void>> pending_ = nullptr;
-            std::atomic<bool> canceled_ = false;
+            mutable std::atomic<bool> canceled_ = false;
         };
 
         template <typename Callable>
         void async_chain::append(Callable&& callable)
         {
-            if (canceled_.load(std::memory_order_acquire))
-                return;
+            if (canceled_.load(std::memory_order_acquire)) return;
             std::promise<decltype(pending_)::element_type*> signal_promise;
             auto signal_sfuture = signal_promise.get_future().share();
             const auto pcallable = std::make_shared<std::decay_t<Callable>>(std::forward<Callable>(callable));
@@ -39,13 +39,12 @@ namespace util
                     std::async([pending_old, signal_sfuture, pcallable]() mutable
                 {
                     signal_sfuture.wait();
-                    if (pending_old.get() != signal_sfuture.get())
-                        return;
+                    if (pending_old.get() != signal_sfuture.get()) return;
                     try
                     {
-                        if (pending_old)
-                            pending_old->get();                 // aborted predecessor throws exception here
-                        (*pcallable)();
+                        if (pending_old) pending_old->get();    // aborted predecessor throws exception here
+                        //(*pcallable)();
+                        pcallable->operator()();
                     }
                     catch (...)
                     {
@@ -56,15 +55,15 @@ namespace util
                 }));
                 temporary.push_back(pending_new);
             } while (!std::atomic_compare_exchange_strong_explicit(&pending_, &pending_old, pending_new,
-                std::memory_order_release, std::memory_order_relaxed));
+                std::memory_order_acq_rel, std::memory_order_relaxed));
             signal_promise.set_value(pending_old.get());
             temporary.clear();
         }
 
         template <typename Callable>
-        std::future<std::invoke_result_t<Callable>> async_chain::append(Callable&& callable, core::use_future_t)
+        std::future<std::invoke_result_t<std::decay_t<Callable>>> async_chain::append(Callable&& callable, core::use_future_t)
         {   // emplace from lambda or move construct std::packaged_task
-            std::packaged_task<std::invoke_result_t<Callable>()> task{ std::forward<Callable>(callable) };
+            std::packaged_task<std::invoke_result_t<std::decay_t<Callable>>()> task{ std::forward<Callable>(callable) };
             auto task_result = task.get_future();
             append(std::move(task));
             return task_result;
