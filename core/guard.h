@@ -78,11 +78,11 @@ namespace core
             {}
             ~scope_guard_tuple()
             {
-                (..., scope_guard_generic<std::decay_t<Callable>>::operator());
+                (..., scope_guard_generic<std::decay_t<Callable>>::operator()());
                 //(..., &scope_guard_generic<std::decay_t<Callable>>::operator()(this));
             }
         protected:
-            //using scope_guard_generic<Callable>::operator()...;
+            //using scope_guard_generic<std::decay_t<Callable>>::operator()...;
         };
 
         template<typename... Callable>

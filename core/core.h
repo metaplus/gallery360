@@ -235,4 +235,13 @@ namespace core
     {
         return std::forward<Handle>(handle);
     }
+
+    template<typename T>
+    [[nodiscard]] constexpr std::remove_const_t<T>& as_mutable(T& lval) noexcept
+    {
+        return const_cast<std::remove_const_t<T>&>(lval);
+    }
+
+    template<typename T>
+    void as_mutable(const T&&) = delete;
 }
