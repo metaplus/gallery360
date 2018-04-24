@@ -66,6 +66,8 @@ namespace net::client
             callback_collection,
             session_element::dereference_hash,
             session_element::dereference_equal
+            //core::dereference_callable<std::hash<session<boost::asio::ip::tcp>>>,
+            //core::dereference_callable<std::equal_to<session<boost::asio::ip::tcp>>>
         > session_pool_;
         std::shared_ptr<boost::asio::io_context> io_context_ptr_;
         boost::asio::ip::tcp::resolver resolver_;
