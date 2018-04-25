@@ -1,52 +1,35 @@
 #pragma once
 
-namespace core
-{
-    // //  TODO: experimental
-    // template<typename Callable>
-    // struct dereference_callable
-    // {
-    //     template<typename ...Handles>
-    //     decltype(auto) operator()(Handles&& ...args) const
-    //     //    ->  std::invoke_result_t<std::decay_t<Callable>, decltype(*std::forward<Handles>(args))...>
-    //     {
-    //         return std::decay_t<Callable>{}((*std::forward<Handles>(args))...);
-    //     }
-    // };
-}
-
-// TODO: class core::storage, type-erasure by STL 
-// TODO: class net::storage, type-erasure by ASIO
-
 namespace net
 {
-    template<typename Protocal>
-    class session;
+    template<
+        typename Protocal = boost::asio::ip::tcp,
+        template<typename> typename Socket = boost::asio::basic_stream_socket
+    > class session;
 
-    template<>
-    class session<core::as_element_t>
+    class session_element
     {
     public:
         struct dereference_hash
         {
-            template<typename SocketProtocal>
-            size_t operator()(const boost::asio::basic_stream_socket<SocketProtocal>& sock) const
+            template<typename Socket>
+            size_t operator()(const Socket& sock) const
             {
-                return std::hash<std::string>{}(endpoint_string(sock));
+                return std::hash<std::string>{}(endpoint_string<Socket>(sock));
             }
 
-            template<typename SessionProtocal>
-            size_t operator()(const std::shared_ptr<session<SessionProtocal>>& sess) const
+            template<typename Session>
+            size_t operator()(const std::shared_ptr<Session>& sess) const
             {
-                return operator()(sess->socket());
+                return operator()<typename Session::socket>(sess->socket_);
             }
         };
 
         struct dereference_equal
         {
-            template<typename SessionProtocal>
-            bool operator()(const std::shared_ptr<session<SessionProtocal>>& lsess, 
-                const std::shared_ptr<session<SessionProtocal>>& rsess) const
+            template<typename Session>
+            bool operator()(const std::shared_ptr<Session>& lsess, 
+                const std::shared_ptr<Session>& rsess) const
             {
                 return *lsess == *rsess;
             }
@@ -77,15 +60,9 @@ namespace net
                 : sequence(executor.context())
             {}
 
-            // struct invald_identity_error : std::logic_error
-            // {
-            //     using std::logic_error::logic_error;
-            //     using std::logic_error::operator=;
-            // };
-
             bool is_empty() const noexcept
             {
-                return queue.empty();
+                return std::empty(queue);
             }
 
             bool is_disposing() const noexcept
@@ -107,11 +84,11 @@ namespace net
 
         private:
             bool is_disposing_ = false;
-            //const enum identity { reader, writer } identity_;
         };
+
     protected:
-        template<typename SocketProtocal>
-        static std::string endpoint_string(const boost::asio::basic_stream_socket<SocketProtocal>& sock)
+        template<typename Socket>
+        static std::string endpoint_string(const Socket& sock)
         {
             std::ostringstream oss;
             oss << sock.local_endpoint() << sock.remote_endpoint();
@@ -119,20 +96,24 @@ namespace net
         }
     };
 
-    using session_element = session<core::as_element_t>;
+    //using session_element = session<core::as_element_t>;
 
-    template<typename Protocal>     //  primary template definition
-    class session
-        : protected std::enable_shared_from_this<session<Protocal>>
+    template<typename Protocal>     
+    class session<Protocal, boost::asio::basic_stream_socket>
+        : public std::enable_shared_from_this<session<Protocal, boost::asio::basic_stream_socket>>
     {
     public:
-        session(boost::asio::basic_stream_socket<Protocal>&& socket, std::string_view delim)
-            : socket_(std::move(socket))
+        using protocal = std::decay_t<Protocal>;
+        using element = session_element;
+        using socket = boost::asio::basic_stream_socket<protocal>;
+
+        session(socket&& sock, std::string_view delim)
+            : socket_(std::move(sock))
             , recv_sequence_(socket_.get_executor())
             , send_sequence_(socket_.get_executor())
             , session_strand_(socket_.get_executor().context())
             , recv_delim_(delim)
-            , hash_index_(session_element::dereference_hash{}(socket_))
+            , hash_index_(element::dereference_hash{}.operator()<socket>(socket_))
         {
             core::verify(socket_.is_open());
             fmt::print(std::cout, "socket connected, {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
@@ -141,7 +122,7 @@ namespace net
             dispose_receive();
         }
 
-        explicit session(boost::asio::basic_stream_socket<Protocal>&& socket)
+        explicit session(socket&& socket)
             : session(std::move(socket), ""sv)
         {}
 
@@ -219,7 +200,8 @@ namespace net
                     const boost::system::error_code& error, std::size_t transferred_size)
             {
                 const auto guard = make_fault_guard(error);
-                core::verify(recv_buffer_iter->size() == transferred_size);
+                //core::verify(recv_buffer_iter->size() == transferred_size);
+                fmt::print("handle: recv_buffer {}/ transferred {}\n", recv_buffer_iter->size(), transferred_size);
                 if (!recv_request_.empty())
                 {
                     //recv_request_.front().set_value(std::move(*recv_buffer_iter));
@@ -238,7 +220,7 @@ namespace net
             auto& send_queue = send_sequence_.queue;
             if (send_queue.empty())
                 return send_sequence_.is_disposing(false);
-            const auto send_buffer_view = std::move(send_queue.front());    // deque::iterator is conditionally stable
+            const auto send_buffer_view = std::move(send_queue.front());    //  deque::iterator is unstable
             send_queue.pop_front();
             boost::asio::async_write(socket_, send_buffer_view,
                 make_serial_handler([send_desired_size = send_buffer_view.size(), this, self = this->shared_from_this()](
@@ -256,10 +238,10 @@ namespace net
                 new_delim, this, self = this->shared_from_this()]() mutable
             {
                 if (!new_delim.empty()) recv_delim_ = new_delim;
-                if (!recv_request_.empty())
+                if (!recv_request_.empty())             //  append after existed receiving requests
                     return recv_request_.push_back(std::move(recv_promise));
                 if (!recv_sequence_.queue.empty())      //  is_disposing as well
-                {
+                {                                       //  retrieve first available received buffer
                     recv_promise.set_value(std::move(recv_sequence_.queue.front()));
                     return recv_sequence_.queue.pop_front();
                 }
@@ -284,17 +266,13 @@ namespace net
             }));
         }
 
-        boost::asio::basic_stream_socket<Protocal> socket_;
+        //element::socket<protocal> socket_;
+        socket socket_;
         std::deque<std::promise<std::vector<char>>> recv_request_;
-        session_element::sequence<std::vector<char>, std::list> recv_sequence_;
-        session_element::sequence<boost::asio::const_buffer, std::deque> send_sequence_;
+        element::sequence<std::vector<char>, std::list> recv_sequence_;
+        element::sequence<boost::asio::const_buffer, std::deque> send_sequence_;
 
     private:
-        const boost::asio::basic_stream_socket<Protocal>& socket() const noexcept
-        {
-            return socket_;
-        }
-
         bool is_index_valid() const noexcept
         {
             return hash_index_ != std::numeric_limits<size_t>::infinity();
@@ -310,13 +288,13 @@ namespace net
 
         const size_t hash_index_ = std::numeric_limits<size_t>::infinity();
 
-        friend session_element::dereference_hash;
-        friend session_element::dereference_equal;
+        friend element::dereference_hash;
+        friend element::dereference_equal;
     };
     
     template class session<boost::asio::ip::tcp>;
-    template class session<boost::asio::ip::udp>;
-    template class session<boost::asio::ip::icmp>;
+    //template class session<boost::asio::ip::udp>;
+    //template class session<boost::asio::ip::icmp>;
 
     using tcp_session = session<boost::asio::ip::tcp>;
     using udp_session = session<boost::asio::ip::udp>;

@@ -244,4 +244,15 @@ namespace core
 
     template<typename T>
     void as_mutable(const T&&) = delete;
+
+    template<typename Mandator>
+    struct dereference_delegate
+    {
+        template<typename ...Handles>
+        decltype(auto) operator()(Handles&& ...args) const
+            //    ->  std::invoke_result_t<std::decay_t<Callable>, decltype(*std::forward<Handles>(args))...>
+        {
+            return std::decay_t<Mandator>{}((*std::forward<Handles>(args))...);
+        }
+    };
 }
