@@ -19,28 +19,30 @@ namespace net::client
         session_pool& operator=(const session_pool&) = delete;
 
     private:
-        struct make_session_stage
-        {
-            make_session_stage() = delete;
+        struct stage {
+            struct making_session
+            {
+                making_session() = delete;
 
-            explicit make_session_stage(boost::asio::io_context& ioc)
-                : socket(ioc)
-            {}
+                explicit making_session(boost::asio::io_context& ioc)
+                    : socket(ioc)
+                {}
 
-            make_session_stage(make_session_stage&&) noexcept = default;
+                making_session(making_session&&) noexcept = default;
 
-            make_session_stage& operator=(make_session_stage&&) noexcept = default;
+                making_session& operator=(making_session&&) noexcept = default;
 
-            std::promise<std::weak_ptr<session<boost::asio::ip::tcp>>> session_promise;
-            boost::asio::ip::tcp::socket socket;
+                std::promise<std::weak_ptr<session<boost::asio::ip::tcp>>> session_promise;
+                boost::asio::ip::tcp::socket socket;
+            };
         };
 
     public:
         [[nodiscard]] std::future<std::weak_ptr<session<boost::asio::ip::tcp>>>
             make_session(std::string_view host, std::string_view service)
         {
-            auto stage = std::make_unique<make_session_stage>(*io_context_ptr_);
-            auto make_session_future = stage->session_promise.get_future();
+            auto stage = std::make_unique<stage::making_session>(*io_context_ptr_);
+            auto session_future = stage->session_promise.get_future();
             //  make concurrency access to tcp::resolver thread-safe
             post(resolver_strand_, [=, stage = std::move(stage)]() mutable
             {
@@ -48,7 +50,7 @@ namespace net::client
                     std::bind(&session_pool::handle_resolve, this,
                         std::placeholders::_1, std::placeholders::_2, std::move(stage)));
             });
-            return make_session_future;
+            return session_future;
         }
 
     private:
@@ -59,8 +61,8 @@ namespace net::client
 
         // struct handler  
         // {
-        //     struct for_resolve {};
-        //     struct for_connect {};
+        //     struct on_resolve {};
+        //     struct on_connect {};
         // };
 
         std::unordered_map<
@@ -80,7 +82,7 @@ namespace net::client
         void handle_resolve(
             const boost::system::error_code& error,
             const boost::asio::ip::tcp::resolver::results_type& endpoints,
-            std::unique_ptr<make_session_stage>& stage)
+            std::unique_ptr<stage::making_session>& stage)
         {
             const auto guard = core::make_guard([&error, &stage]
             {
@@ -97,7 +99,7 @@ namespace net::client
 
         void handle_connect(
             const boost::system::error_code& error,
-            std::unique_ptr<make_session_stage>& callback)
+            std::unique_ptr<stage::making_session>& callback)
         {
             const auto guard = core::make_guard([&error, &callback]
             {

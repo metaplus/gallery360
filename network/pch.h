@@ -10,8 +10,6 @@
 #define BOOST_ASIO_USE_FUTURE_HPP
 
 #include <boost/asio.hpp>
-#include <boost/asio/use_future.hpp>
-#include <boost/asio/buffer.hpp>
 
 static_assert(std::conjunction<
     std::is_same<boost::asio::ip::tcp::socket, boost::asio::basic_stream_socket<boost::asio::ip::tcp>>,

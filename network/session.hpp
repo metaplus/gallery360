@@ -36,15 +36,15 @@ namespace net
         };
 
         template<
-            typename Buffer = std::vector<char>,
+            typename Value = std::vector<char>,
             template<
-                typename Value,
-                typename = std::allocator<Value>
+                typename U,
+                typename = std::allocator<U>
             > typename Container = std::deque
         > class sequence
         {
         public:
-            using value_type = std::decay_t<Buffer>;
+            using value_type = std::decay_t<Value>;
             using container = Container<value_type>;
             using iterator = typename container::iterator;
             using const_iterator = typename container::const_iterator;
@@ -76,7 +76,7 @@ namespace net
                 is_disposing_ = reverse_status;
             }
 
-            //Container<std::decay_t<Buffer>> queue;
+            //Container<std::decay_t<Value>> queue;
             container queue;
 
             mutable boost::asio::io_context::strand strand;
@@ -99,7 +99,7 @@ namespace net
     //using session_element = session<core::as_element_t>;
 
     template<typename Protocal>     
-    class session<Protocal, boost::asio::basic_stream_socket>
+    class session<Protocal, boost::asio::basic_stream_socket>   
         : public std::enable_shared_from_this<session<Protocal, boost::asio::basic_stream_socket>>
     {
     public:
@@ -109,8 +109,8 @@ namespace net
 
         session(socket&& sock, std::string_view delim)
             : socket_(std::move(sock))
-            , recv_sequence_(socket_.get_executor())
-            , send_sequence_(socket_.get_executor())
+            , recv_streambuf_infos_(socket_.get_executor())
+            , send_buffer_views_(socket_.get_executor())
             , session_strand_(socket_.get_executor().context())
             , recv_delim_(delim)
             , hash_index_(element::dereference_hash{}.operator()<socket>(socket_))
@@ -118,7 +118,7 @@ namespace net
             core::verify(socket_.is_open());
             fmt::print(std::cout, "socket connected, {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
             if (!is_recv_delim_valid()) return;
-            recv_sequence_.is_disposing(true);
+            recv_streambuf_infos_.is_disposing(true);
             dispose_receive();
         }
 
@@ -138,9 +138,9 @@ namespace net
         [[nodiscard]] std::future<std::vector<char>> receive(std::string_view delim = ""sv)
         {
             std::promise<std::vector<char>> recv_promise;
-            auto recv_future = recv_promise.get_future();
+            auto&& recv_future = recv_promise.get_future();
             pending_recv_request(std::move(recv_promise), delim);
-            return recv_future;
+            return std::move(recv_future);
         }
 
         void send(boost::asio::const_buffer send_buffer_view)
@@ -161,6 +161,17 @@ namespace net
         bool operator==(const session& that) const
         {
             return !(*this < that) && !(that < *this);
+        }
+
+        void close_socket()
+        {
+            boost::asio::dispatch(make_serial_handler([this]
+            {
+                assert(session_strand_.running_in_this_thread());
+                socket_.cancel();
+                socket_.shutdown(socket::shutdown_both);
+                socket_.close();
+            }));
         }
 
     protected:
@@ -184,93 +195,100 @@ namespace net
                     if (std::uncaught_exceptions() > exception_count)
                         fmt::print(std::cerr, "exception detected during socket closing\n");
                 });
-                socket_.shutdown(decltype(socket_)::shutdown_both);
+                socket_.shutdown(socket::shutdown_both);
                 socket_.close();
                 fmt::print(std::cerr, "socket closed\n");
             });
         }
 
+        using std::enable_shared_from_this<session<Protocal, boost::asio::basic_stream_socket>>::shared_from_this;
+
+        using std::enable_shared_from_this<session<Protocal, boost::asio::basic_stream_socket>>::weak_from_this;
+
         void dispose_receive()
         {
-            core::verify(recv_sequence_.is_disposing(), session_strand_.running_in_this_thread(), is_recv_delim_valid());
-            auto& recv_queue = recv_sequence_.queue;
-            const auto recv_buffer_iter = recv_queue.emplace(std::end(recv_queue));
-            boost::asio::async_read_until(socket_, boost::asio::dynamic_buffer(*recv_buffer_iter), recv_delim_,
-                make_serial_handler([recv_buffer_iter, this, self = this->shared_from_this()](
-                    const boost::system::error_code& error, std::size_t transferred_size)
+            assert(recv_streambuf_infos_.is_disposing());
+            assert(session_strand_.running_in_this_thread());
+            assert(is_recv_delim_valid());
+            boost::asio::async_read_until(socket_, recv_streambuf_, recv_delim_,
+                make_serial_handler([delim_size = static_cast<uint16_t>(recv_delim_.size()),
+                    this, self = shared_from_this()](const boost::system::error_code& error, std::size_t transferred_size)
             {
+                if (delim_size == transferred_size)
+                    fmt::print("empty net pack received\n");
                 const auto guard = make_fault_guard(error);
-                //core::verify(recv_buffer_iter->size() == transferred_size);
-                fmt::print("handle: recv_buffer {}/ transferred {}\n", recv_buffer_iter->size(), transferred_size);
-                if (!recv_request_.empty())
+                fmt::print("handle: transferred {}\n", transferred_size);
+                if (!recv_requests_.empty())
                 {
-                    //recv_request_.front().set_value(std::move(*recv_buffer_iter));
-                    recv_request_.front().set_value(std::move(recv_sequence_.queue.front()));
-                    recv_request_.pop_front();
-                    //recv_sequence_.queue.erase(recv_buffer_iter);
-                    recv_sequence_.queue.pop_front();
+                    if (recv_streambuf_infos_.queue.size() > 1)
+                    {
+                        recv_streambuf_infos_.queue.emplace_back(delim_size, transferred_size);
+                        recv_requests_.front().set_value(drop_recv_streambuf_front());
+                    }
+                    else
+                        recv_requests_.front().set_value(drop_recv_streambuf_front(delim_size, transferred_size));
+                    recv_requests_.pop_front();
                 }
-                if (!error) dispose_receive();
+                if (!error && delim_size != transferred_size) dispose_receive();
+                else recv_streambuf_infos_.is_disposing(false);
             }));
         }
 
         void dispose_send()
         {
-            core::verify(send_sequence_.is_disposing(), session_strand_.running_in_this_thread());
-            auto& send_queue = send_sequence_.queue;
+            assert(send_buffer_views_.is_disposing());
+            assert(session_strand_.running_in_this_thread());
+            auto& send_queue = send_buffer_views_.queue;
             if (send_queue.empty())
-                return send_sequence_.is_disposing(false);
+                return send_buffer_views_.is_disposing(false);
             const auto send_buffer_view = std::move(send_queue.front());    //  deque::iterator is unstable
             send_queue.pop_front();
             boost::asio::async_write(socket_, send_buffer_view,
-                make_serial_handler([send_desired_size = send_buffer_view.size(), this, self = this->shared_from_this()](
+                make_serial_handler([send_desired_size = send_buffer_view.size(), this, self = shared_from_this()](
                     const boost::system::error_code& error, std::size_t transferred_size)
             {
                 const auto guard = make_fault_guard(error);
                 core::verify(send_desired_size == transferred_size);
                 if (!error) dispose_send();
+                else send_buffer_views_.is_disposing(false);
             }));
         }
 
         void pending_recv_request(std::promise<std::vector<char>>&& recv_promise, std::string_view new_delim)
         {
             boost::asio::post(make_serial_handler([recv_promise = std::move(recv_promise),
-                new_delim, this, self = this->shared_from_this()]() mutable
+                new_delim, this, self = shared_from_this()]() mutable
             {
-                if (!new_delim.empty()) recv_delim_ = new_delim;
-                if (!recv_request_.empty())             //  append after existed receiving requests
-                    return recv_request_.push_back(std::move(recv_promise));
-                if (!recv_sequence_.queue.empty())      //  is_disposing as well
-                {                                       //  retrieve first available received buffer
-                    recv_promise.set_value(std::move(recv_sequence_.queue.front()));
-                    return recv_sequence_.queue.pop_front();
-                }
-                recv_request_.push_back(std::move(recv_promise));
-                if (!recv_sequence_.is_disposing())
-                {
-                    core::verify(is_recv_delim_valid());
-                    recv_sequence_.is_disposing(true);
-                    dispose_receive();
-                }
+                if (!new_delim.empty() && new_delim != recv_delim_) recv_delim_ = new_delim;
+                if (!recv_requests_.empty())                //  append after existed receiving requests
+                    return recv_requests_.push_back(std::move(recv_promise));
+                if (!recv_streambuf_infos_.queue.empty())   //  retrieve front available received bytes
+                    return recv_promise.set_value(drop_recv_streambuf_front());
+                recv_requests_.push_back(std::move(recv_promise));
+                if (recv_streambuf_infos_.is_disposing()) return;
+                core::verify(is_recv_delim_valid());
+                recv_streambuf_infos_.is_disposing(true);
+                dispose_receive();
             }));
         }
 
         void pending_send_buffer_view(boost::asio::const_buffer send_buffer_view)
         {   
-            boost::asio::post(make_serial_handler([send_buffer_view, this, self = this->shared_from_this()]
+            boost::asio::post(make_serial_handler([send_buffer_view, this, self = shared_from_this()]
             {
-                send_sequence_.queue.push_back(send_buffer_view);
-                if (send_sequence_.is_disposing()) return;
-                send_sequence_.is_disposing(true);
+                send_buffer_views_.queue.push_back(send_buffer_view);
+                if (send_buffer_views_.is_disposing()) return;
+                send_buffer_views_.is_disposing(true);
                 dispose_send();
             }));
         }
 
         //element::socket<protocal> socket_;
         socket socket_;
-        std::deque<std::promise<std::vector<char>>> recv_request_;
-        element::sequence<std::vector<char>, std::list> recv_sequence_;
-        element::sequence<boost::asio::const_buffer, std::deque> send_sequence_;
+        boost::asio::streambuf recv_streambuf_;
+        std::deque<std::promise<std::vector<char>>> recv_requests_;
+        element::sequence<std::pair<uint16_t, uint64_t>, std::deque> recv_streambuf_infos_;
+        element::sequence<boost::asio::const_buffer, std::deque> send_buffer_views_;
 
     private:
         bool is_index_valid() const noexcept
@@ -281,6 +299,25 @@ namespace net
         bool is_recv_delim_valid() const noexcept
         {
             return !recv_delim_.empty();
+        }
+
+        std::vector<char> drop_recv_streambuf_front(uint16_t delim_size, uint64_t transferred_size)
+        {
+            assert(delim_size <= transferred_size);
+            assert(recv_streambuf_.size() >= transferred_size);
+            assert(session_strand_.running_in_this_thread());
+            const auto recv_streambuf_iter = buffers_begin(recv_streambuf_.data());
+            std::vector<char>&& recv_streambuf_front{ recv_streambuf_iter,std::next(recv_streambuf_iter,transferred_size - delim_size) };
+            recv_streambuf_.consume(transferred_size);
+            return std::move(recv_streambuf_front);
+        }
+
+        std::vector<char> drop_recv_streambuf_front()
+        {
+            assert(!recv_streambuf_infos_.queue.empty());
+            const auto[delim_size, transferred_size] = recv_streambuf_infos_.queue.front();
+            recv_streambuf_infos_.queue.pop_front();
+            return drop_recv_streambuf_front(delim_size, transferred_size);
         }
 
         mutable boost::asio::io_context::strand session_strand_;
