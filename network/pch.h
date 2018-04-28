@@ -19,5 +19,7 @@ static_assert(std::conjunction<
 
 #pragma warning(pop)
 
+#include "network/session_element.hpp"
 #include "network/session.hpp"
+#include "network/session_pool.hpp"
 #include "network/client.hpp" 

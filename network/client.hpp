@@ -1,88 +1,46 @@
 #pragma once
 
-namespace net::client
+namespace net
 {
-    class session_pool
+    class client
+        : protected base::session_pool<boost::asio::ip::tcp, boost::asio::basic_stream_socket, std::unordered_map, std::shared_ptr>
     {
     public:
-        session_pool() = delete;
+        client() = delete;
 
-        explicit session_pool(std::shared_ptr<boost::asio::io_context> context)
-            : io_context_ptr_(std::move(context))
+        explicit client(std::shared_ptr<boost::asio::io_context> context)
+            : session_pool(std::move(context))
             , resolver_(*io_context_ptr_)
-            , pool_strand_(*io_context_ptr_)
             , resolver_strand_(*io_context_ptr_)
         {}
 
-        session_pool(const session_pool&) = delete;
+        client(const client&) = delete;
 
-        session_pool& operator=(const session_pool&) = delete;
+        client& operator=(const client&) = delete;
 
-    private:
-        struct stage {
-            struct making_session
-            {
-                making_session() = delete;
-
-                explicit making_session(boost::asio::io_context& ioc)
-                    : socket(ioc)
-                {}
-
-                making_session(making_session&&) noexcept = default;
-
-                making_session& operator=(making_session&&) noexcept = default;
-
-                std::promise<std::weak_ptr<session<boost::asio::ip::tcp>>> session_promise;
-                boost::asio::ip::tcp::socket socket;
-            };
-        };
-
-    public:
-        [[nodiscard]] std::future<std::weak_ptr<session<boost::asio::ip::tcp>>>
+        [[nodiscard]] std::future<std::weak_ptr<session>>
             make_session(std::string_view host, std::string_view service)
         {
-            auto stage = std::make_unique<stage::making_session>(*io_context_ptr_);
+            auto stage = std::make_unique<stage::during_make_session>(*io_context_ptr_);
             auto session_future = stage->session_promise.get_future();
             //  make concurrency access to tcp::resolver thread-safe
             post(resolver_strand_, [=, stage = std::move(stage)]() mutable
             {
                 resolver_.async_resolve(host, service,
-                    std::bind(&session_pool::handle_resolve, this,
+                    std::bind(&client::handle_resolve, this,
                         std::placeholders::_1, std::placeholders::_2, std::move(stage)));
             });
             return session_future;
         }
 
     private:
-        struct callback_collection
-        {   //  TODO: currently a dummy placeholder
-            std::vector<std::shared_future<std::any>> dummy;
-        };
-
-        // struct handler  
-        // {
-        //     struct on_resolve {};
-        //     struct on_connect {};
-        // };
-
-        std::unordered_map<
-            std::shared_ptr<session<boost::asio::ip::tcp>>,
-            callback_collection,
-            session_element::dereference_hash,
-            session_element::dereference_equal
-            //core::dereference_delegate<std::hash<session<boost::asio::ip::tcp>>>,
-            //core::dereference_delegate<std::equal_to<session<boost::asio::ip::tcp>>>
-        > session_pool_;
-
-        std::shared_ptr<boost::asio::io_context> io_context_ptr_;
         boost::asio::ip::tcp::resolver resolver_;
-        boost::asio::io_context::strand pool_strand_;
         boost::asio::io_context::strand resolver_strand_;
 
         void handle_resolve(
             const boost::system::error_code& error,
             const boost::asio::ip::tcp::resolver::results_type& endpoints,
-            std::unique_ptr<stage::making_session>& stage)
+            std::unique_ptr<stage::during_make_session>& stage)
         {
             const auto guard = core::make_guard([&error, &stage]
             {
@@ -92,14 +50,14 @@ namespace net::client
                 if (error) fmt::print(std::cerr, "error: {}\n", error.message());
             });
             if (error) return;
-            auto& socket_ref = stage->socket;
+            auto& socket_ref = stage->session_socket;
             async_connect(socket_ref, endpoints,
-                std::bind(&session_pool::handle_connect, this, std::placeholders::_1, std::move(stage)));
+                std::bind(&client::handle_connect, this, std::placeholders::_1, std::move(stage)));
         }
 
         void handle_connect(
             const boost::system::error_code& error,
-            std::unique_ptr<stage::making_session>& callback)
+            std::unique_ptr<stage::during_make_session>& callback)
         {
             const auto guard = core::make_guard([&error, &callback]
             {
@@ -109,10 +67,11 @@ namespace net::client
                 if (error) fmt::print(std::cerr, "error: {}\n", error.message());
             });
             if (error) return;
-            auto session_ptr = std::make_shared<session<boost::asio::ip::tcp>>(std::move(callback->socket));
-            std::weak_ptr<session<boost::asio::ip::tcp>> session_weak_ptr = session_ptr;
-            session_pool_.emplace(std::move(session_ptr), callback_collection{});
+            auto session_ptr = std::make_shared<session>(std::move(callback->session_socket));
+            std::weak_ptr<session> session_weak_ptr = session_ptr;
+            session_pool_.emplace(std::move(session_ptr), callback_container{});
             callback->session_promise.set_value(std::move(session_weak_ptr));
         }
     };
+
 }

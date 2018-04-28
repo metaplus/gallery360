@@ -23,8 +23,8 @@ namespace core
     template<int Source, int Dest, int Stride = 1>
     constexpr auto range()
     {
-        static_assert(std::numeric_limits<int>::min() <= std::min<int>(Source, Dest));
-        static_assert(std::numeric_limits<int>::max() >= std::max<int>(Source, Dest));
+        //static_assert(std::numeric_limits<int>::min() <= std::min<IntType>(Source, Dest));
+        //static_assert(std::numeric_limits<int>::max() >= std::max<IntType>(Source, Dest));
         static_assert(Source != Dest && Stride != 0 && ((Source < Dest) ^ (Stride < 0)));
         constexpr auto element_count = std::divides<int>{}(Dest - Source + Stride, Stride);
         return meta::make_array(
@@ -40,7 +40,7 @@ namespace core
         constexpr size_t operator""_gbyte(const size_t n) { return n * 1024 * 1024 * 1024; }
 
         template<typename Represent, typename Period>
-        std::ostream& operator<<(std::ostream& os, std::chrono::duration<Represent, Period> dura)
+        std::ostream& operator<<(std::ostream& os, const std::chrono::duration<Represent, Period>& dura)
         {
             using namespace std::chrono;
             return
@@ -124,6 +124,8 @@ namespace core
     {
     public:
         using std::reference_wrapper<T>::reference_wrapper;
+        using std::reference_wrapper<T>::operator=;
+        using std::reference_wrapper<T>::operator();
         reference()
             : std::reference_wrapper<T>(core::make_null_reference_wrapper<T>())
         {
