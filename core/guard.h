@@ -37,9 +37,9 @@ namespace core
         explicit scope_guard_generic(std::decay_t<Callable>&& callable);
         scope_guard_generic() = delete;
         scope_guard_generic(const scope_guard_generic&) = delete;
-        scope_guard_generic(scope_guard_generic&&) /*noexcept(noexcept(std::declval<std::decay_t<Callable>&>()()))*/ noexcept = default;
+        scope_guard_generic(scope_guard_generic&&) noexcept/*(std::is_nothrow_invocable_v<std::decay_t<Callable>>)*/ = default;
         scope_guard_generic& operator=(const scope_guard_generic&) = delete;
-        scope_guard_generic& operator=(scope_guard_generic&&) /*noexcept(noexcept(std::declval<std::decay_t<Callable>&>()()))*/ noexcept = default;
+        scope_guard_generic& operator=(scope_guard_generic&&) noexcept/*(std::is_nothrow_invocable_v<std::decay_t<Callable>>)*/ = default;
         ~scope_guard_generic();
     protected:
         using std::decay<Callable>::type::operator();

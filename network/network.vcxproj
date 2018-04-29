@@ -154,6 +154,7 @@
   <ItemGroup>
     <ClInclude Include="client.hpp" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="server.hpp" />
     <ClInclude Include="session.hpp" />
     <ClInclude Include="session_element.hpp" />
     <ClInclude Include="session_pool.hpp" />

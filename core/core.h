@@ -128,8 +128,7 @@ namespace core
         using std::reference_wrapper<T>::operator();
         reference()
             : std::reference_wrapper<T>(core::make_null_reference_wrapper<T>())
-        {
-        }
+        {}
     };
 
     using relative = std::int64_t;
@@ -139,7 +138,7 @@ namespace core
 
     template<typename Future, typename Represent, typename Period>
     std::enable_if_t<meta::is_future<Future>::value> persist_wait(Future&& future,
-        std::atomic<bool>& permit, const std::chrono::duration<Represent, Period> interval = 0ns)
+        std::atomic<bool>& permit, std::chrono::duration<Represent, Period> interval = 0ns)
     {
         auto attempt = future.wait_for(0ns);
         if (attempt == std::future_status::deferred)
@@ -154,12 +153,11 @@ namespace core
 
     template<typename Callable, typename Represent, typename Period>
     std::enable_if_t<std::is_invocable_v<Callable>> persist_wait(Callable callable,
-        std::atomic<bool>& permit, const std::chrono::duration<Represent, Period> interval = 0ns)
+        std::atomic<bool>& permit, std::chrono::duration<Represent, Period> interval = 0ns)
     {
         auto future = std::async(std::move(callable));
         while (future.wait_for(interval) != std::future_status::ready)
-            if (!permit.load(std::memory_order_acquire))
-                throw aborted_error{};
+            if (!permit.load(std::memory_order_acquire)) throw aborted_error{};
     }
 
     inline namespace tag    // tag dispatching usage, clarify semantics
@@ -172,6 +170,9 @@ namespace core
 
         struct as_element_t {};
         inline constexpr as_element_t as_element;
+
+        struct as_observer_t {};
+        inline constexpr as_observer_t as_observer;
 
         struct defer_construct_t {};
         inline constexpr defer_construct_t defer_construct;
@@ -200,7 +201,7 @@ namespace core
     }
 
     template<typename ...Types>
-    size_t hash_value(Types&& ...args)
+    size_t hash_value(Types&& ...args) noexcept
     {
         static_assert(sizeof...(Types) > 0, "require at least 1 argument");
         static_assert((... && meta::is_hashable<Types>::value), "require hashable");

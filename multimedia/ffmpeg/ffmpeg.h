@@ -2,7 +2,7 @@
 
 namespace av
 {
-    namespace pixel
+    struct pixel
     {
         using type = AVPixelFormat;
         struct nv12 : std::integral_constant<type, AV_PIX_FMT_NV12> {};
@@ -14,7 +14,7 @@ namespace av
         struct uyvy : std::integral_constant<type, AV_PIX_FMT_UYVY422> {};
         struct yuyv : std::integral_constant<type, AV_PIX_FMT_YUYV422> {};
         struct yvyu : std::integral_constant<type, AV_PIX_FMT_YVYU422> {};
-    }
+    };
 
     struct media
     {

@@ -12,7 +12,6 @@ namespace net
             {
                 return std::hash<std::string>{}(endpoint_string<Socket>(sock));
             }
-
             template<typename Session>
             size_t operator()(const std::shared_ptr<Session>& sess) const
             {
@@ -23,8 +22,7 @@ namespace net
         struct dereference_equal
         {
             template<typename Session>
-            bool operator()(const std::shared_ptr<Session>& lsess,
-                const std::shared_ptr<Session>& rsess) const
+            bool operator()(const std::shared_ptr<Session>& lsess, const std::shared_ptr<Session>& rsess) const
             {
                 return *lsess == *rsess;
             }
@@ -71,12 +69,77 @@ namespace net
 
             //Container<std::decay_t<Value>> queue;
             container queue;
-
             mutable boost::asio::io_context::strand strand;
             mutable boost::asio::steady_timer timer;
-
         private:
             bool is_disposing_ = false;
+        };
+
+        class session_index
+        {
+        public:
+            session_index() = default;
+
+            explicit session_index(size_t hash_code)
+                : hash_code_(hash_code)
+            {}
+
+            template<typename SessionIndex>
+            explicit session_index(const SessionIndex& index)
+                : hash_code_(index.hash_code_)
+            {}
+
+            session_index(const session_index&) = default;
+
+            session_index(session_index&& that) noexcept
+                : hash_code_(std::exchange(that.hash_code_, default_hash_code()))
+            {}
+
+            session_index& operator=(const session_index&) = default;
+
+            session_index& operator=(session_index&& that) noexcept
+            {
+                hash_code_ = std::exchange(that.hash_code_, default_hash_code());
+                return *this;
+            }
+
+            bool valid() const noexcept
+            {
+                return hash_code_ != default_hash_code();
+            }
+
+            explicit operator bool() const noexcept
+            {
+                return valid();
+            }
+
+            bool operator<(const session_index& that) const noexcept
+            {
+                assert(valid() && that.valid());
+                return hash_code_ < that.hash_code_;
+            }
+
+            bool operator==(const session_index& that) const noexcept
+            {
+                assert(valid() && that.valid());
+                return hash_code_ == that.hash_code_;
+            }
+
+        protected:
+            // size_t& hash_code() noexcept
+            // {
+            //     return hash_code_;
+            // }
+            // size_t hash_code() const noexcept
+            // {
+            //     return hash_code_;
+            // }
+            size_t hash_code_ = default_hash_code();
+        private:
+            static size_t default_hash_code() noexcept
+            { 
+                return std::numeric_limits<size_t>::infinity();
+            }
         };
 
     protected:

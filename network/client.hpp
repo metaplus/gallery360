@@ -18,14 +18,12 @@ namespace net
 
         client& operator=(const client&) = delete;
 
-        [[nodiscard]] std::future<std::weak_ptr<session>>
-            make_session(std::string_view host, std::string_view service)
+        [[nodiscard]] std::future<std::weak_ptr<session>> make_session(std::string_view host, std::string_view service)
         {
             auto stage = std::make_unique<stage::during_make_session>(*io_context_ptr_);
             auto session_future = stage->session_promise.get_future();
-            //  make concurrency access to tcp::resolver thread-safe
             post(resolver_strand_, [=, stage = std::move(stage)]() mutable
-            {
+            {   // TODO: adapt std::bind to lambda-expression
                 resolver_.async_resolve(host, service,
                     std::bind(&client::handle_resolve, this,
                         std::placeholders::_1, std::placeholders::_2, std::move(stage)));
@@ -57,21 +55,20 @@ namespace net
 
         void handle_connect(
             const boost::system::error_code& error,
-            std::unique_ptr<stage::during_make_session>& callback)
+            std::unique_ptr<stage::during_make_session>& stage)
         {
-            const auto guard = core::make_guard([&error, &callback]
+            const auto guard = core::make_guard([&error, &stage]
             {
                 if (!std::uncaught_exceptions() && !error) return;
-                callback->session_promise.set_exception(
+                stage->session_promise.set_exception(
                     std::make_exception_ptr(std::runtime_error{ "socket connection failure" }));
                 if (error) fmt::print(std::cerr, "error: {}\n", error.message());
             });
             if (error) return;
-            auto session_ptr = std::make_shared<session>(std::move(callback->session_socket));
+            auto session_ptr = std::make_shared<session>(std::move(stage->session_socket));
             std::weak_ptr<session> session_weak_ptr = session_ptr;
             session_pool_.emplace(std::move(session_ptr), callback_container{});
-            callback->session_promise.set_value(std::move(session_weak_ptr));
+            stage->session_promise.set_value(std::move(session_weak_ptr));
         }
     };
-
 }
