@@ -3,7 +3,8 @@
 #ifdef _DEBUG
 #define BOOST_MULTI_INDEX_ENABLE_INVARIANT_CHECKING
 #define BOOST_MULTI_INDEX_ENABLE_SAFE_MODE
-#endif 
+#endif
+
 #define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE
 #define BOOST_THREAD_VERSION 4
 #define BOOST_FILESYSTEM_NO_DEPRECATED 
@@ -63,7 +64,7 @@ using namespace std::literals;
 
 //#if __has_include(<filesystem>)
 #include <filesystem>
-namespace filesystem = std::experimental::filesystem;
+//namespace filesystem = std::experimental::filesystem;
 namespace std
 {
     namespace filesystem = std::experimental::filesystem;
@@ -72,6 +73,12 @@ namespace std
 //#include <boost/filesystem.hpp>
 //namespace filesystem = boost::filesystem;
 //#endif
+
+#ifdef CORE_USE_COROUTINE
+
+#include <experimental/coroutine>
+
+#endif
 
 #include "meta/meta.hpp"
 #include "meta/detail/type_trait.hpp"

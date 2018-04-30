@@ -91,10 +91,7 @@ std::basic_string_view<uint8_t> av::packet::buffer_view() const
 
 std::string_view av::packet::cbuffer_view() const
 {
-    return {
-        reinterpret_cast<char*>(handle_->data),
-        static_cast<size_t>(handle_->size)
-    };
+    return { reinterpret_cast<char*>(handle_->data),static_cast<size_t>(handle_->size) };
 }
 
 std::string av::packet::serialize() const

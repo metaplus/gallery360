@@ -134,7 +134,18 @@ namespace net
             // {
             //     return hash_code_;
             // }
+
             size_t hash_code_ = default_hash_code();
+
+            struct default_hash
+            {
+                size_t operator()(const session_index& index) const noexcept
+                {
+                    return std::hash<size_t>{}(index.hash_code_);
+                }
+            };
+            friend default_hash;
+
         private:
             static size_t default_hash_code() noexcept
             { 

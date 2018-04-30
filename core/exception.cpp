@@ -20,13 +20,23 @@ int core::inspect_exception(const std::exception & e)
     return EXIT_FAILURE;
 }
 
+namespace
+{
+    template<typename T>
+    const char* deduce_error_cstring(const char* cstr, const T* = nullptr)
+    {
+        static thread_local std::string local_type_name;
+        return std::strlen(cstr) != 0 ? cstr : (local_type_name = core::type_shortname<std::remove_cv_t<T>>()).c_str();
+    }
+}
+
 core::aborted_error::aborted_error(const std::string_view desc)
     : runtime_error(desc.data())
 {}
 
 const char* core::aborted_error::what() const
 {
-    return what() ? what() : core::type_shortname<decltype(*this)>().data();
+    return deduce_error_cstring(what(), this);
 }
 
 core::null_pointer_error::null_pointer_error(std::string_view desc)
@@ -35,7 +45,7 @@ core::null_pointer_error::null_pointer_error(std::string_view desc)
 
 const char* core::null_pointer_error::what() const
 {
-    return what() ? what() : core::type_shortname<decltype(*this)>().data();
+    return deduce_error_cstring(what(), this);
 }
 
 core::dangling_pointer_error::dangling_pointer_error(std::string_view desc)
@@ -44,7 +54,7 @@ core::dangling_pointer_error::dangling_pointer_error(std::string_view desc)
 
 const char* core::dangling_pointer_error::what() const
 {
-    return what() ? what() : core::type_shortname<decltype(*this)>().data();
+    return deduce_error_cstring(what(), this);
 }
 
 core::not_implemented_error::not_implemented_error(std::string_view desc)
@@ -53,5 +63,14 @@ core::not_implemented_error::not_implemented_error(std::string_view desc)
 
 const char* core::not_implemented_error::what() const
 {
-    return what() ? what() : core::type_shortname<decltype(*this)>().data();
+    return deduce_error_cstring(what(), this);
+}
+
+core::already_exist_error::already_exist_error(std::string_view desc)
+    : logic_error(desc.data())
+{}
+
+const char* core::already_exist_error::what() const
+{
+    return deduce_error_cstring(what(), this);
 }

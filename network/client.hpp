@@ -2,8 +2,7 @@
 
 namespace net
 {
-    class client
-        : protected base::session_pool<boost::asio::ip::tcp, boost::asio::basic_stream_socket, std::unordered_map, std::shared_ptr>
+    class client : protected base::session_pool<boost::asio::ip::tcp, boost::asio::basic_stream_socket, std::unordered_map, std::shared_ptr>
     {
     public:
         client() = delete;
@@ -17,6 +16,18 @@ namespace net
         client(const client&) = delete;
 
         client& operator=(const client&) = delete;
+
+        struct stage {
+            struct during_make_session : boost::noncopyable
+            {
+                explicit during_make_session(boost::asio::io_context& context)
+                    : session_socket(context)
+                {}
+
+                std::promise<std::weak_ptr<session>> session_promise;
+                socket session_socket;
+            };
+        };
 
         [[nodiscard]] std::future<std::weak_ptr<session>> make_session(std::string_view host, std::string_view service)
         {

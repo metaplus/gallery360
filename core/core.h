@@ -3,7 +3,7 @@
 namespace core
 {
     template<typename T>
-    std::string type_shortname(std::add_pointer_t<T> = nullptr)
+    std::string type_shortname(const T* = nullptr)
     {
         std::string type_name{ typeid(T).name() };
         type_name.erase(0, type_name.find_last_of(": ") + 1);
@@ -11,7 +11,7 @@ namespace core
     }
 
     template<typename T>
-    std::string type_name(std::add_pointer_t<T> = nullptr)
+    std::string type_name(const T* = nullptr)
     {
         std::string type_name{ typeid(T).name() };
         type_name.erase(0, type_name.rfind(' ') + 1);
@@ -65,7 +65,7 @@ namespace core
         e = core::enum_next(e, offset);
     }
 
-    size_t count_entry(const std::experimental::filesystem::path& directory);
+    size_t count_entry(const std::filesystem::path& directory);
 
     size_t thread_hash_id(std::optional<std::thread::id> id = std::nullopt);
 
@@ -160,10 +160,13 @@ namespace core
             if (!permit.load(std::memory_order_acquire)) throw aborted_error{};
     }
 
-    inline namespace tag    // tag dispatching usage, clarify semantics
+    inline namespace tag    //  tag dispatching usage, clarify semantics
     {
         struct use_future_t {};
         inline constexpr use_future_t use_future{};
+
+        struct use_recursion_t{};
+        inline constexpr use_recursion_t use_recursion;
 
         struct as_default_t {};
         inline constexpr as_default_t as_default;

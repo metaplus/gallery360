@@ -39,4 +39,13 @@ namespace core
         explicit not_implemented_error(std::string_view desc = ""sv);
         const char* what() const override;
     };
+
+    class already_exist_error : protected std::logic_error
+    {
+    public:
+        using logic_error::logic_error;
+        using logic_error::operator=;
+        explicit already_exist_error(std::string_view desc = ""sv);
+        const char* what() const override;
+    };
 }   
