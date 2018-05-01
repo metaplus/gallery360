@@ -2,7 +2,9 @@
 
 namespace net
 {
-    class client : protected base::session_pool<boost::asio::ip::tcp, boost::asio::basic_stream_socket, std::unordered_map, std::shared_ptr>
+    class client    // non-generic initial version
+        : protected base::session_pool<boost::asio::ip::tcp, boost::asio::basic_stream_socket, std::unordered_map>
+        , public std::enable_shared_from_this<client>
     {
     public:
         client() = delete;
@@ -10,7 +12,7 @@ namespace net
         explicit client(std::shared_ptr<boost::asio::io_context> context)
             : session_pool(std::move(context))
             , resolver_(*io_context_ptr_)
-            , resolver_strand_(*io_context_ptr_)
+            , client_strand_(*io_context_ptr_)
         {}
 
         client(const client&) = delete;
@@ -20,66 +22,92 @@ namespace net
         struct stage {
             struct during_make_session : boost::noncopyable
             {
-                explicit during_make_session(boost::asio::io_context& context)
-                    : session_socket(context)
+                explicit during_make_session(std::shared_ptr<client> self, 
+                    std::string_view host, std::string_view service, std::promise<std::shared_ptr<session>> promise)
+                    : client_ptr(std::move(self))
+                    , host(host)
+                    , service(service)
+                    , session_promise(std::move(promise))
+                    , session_socket(*client_ptr->io_context_ptr_)
                 {}
-
-                std::promise<std::weak_ptr<session>> session_promise;
+                
+                std::shared_ptr<client> client_ptr;
+                std::string_view host; 
+                std::string_view service;
+                std::promise<std::shared_ptr<session>> session_promise;
                 socket session_socket;
             };
         };
 
-        [[nodiscard]] std::future<std::weak_ptr<session>> make_session(std::string_view host, std::string_view service)
+        [[nodiscard]] std::future<std::shared_ptr<session>> make_session(std::string_view host, std::string_view service)
         {
-            auto stage = std::make_unique<stage::during_make_session>(*io_context_ptr_);
-            auto session_future = stage->session_promise.get_future();
-            post(resolver_strand_, [=, stage = std::move(stage)]() mutable
-            {   // TODO: adapt std::bind to lambda-expression
-                resolver_.async_resolve(host, service,
-                    std::bind(&client::handle_resolve, this,
-                        std::placeholders::_1, std::placeholders::_2, std::move(stage)));
+            std::promise<std::shared_ptr<session>> session_promise;
+            auto session_future = session_promise.get_future();
+            post(client_strand_, [=, promise = std::move(session_promise), self = shared_from_this()]() mutable
+            {   
+                resolve_requests_.emplace_back(std::move(self), host, service, std::move(promise));
+                if (std::exchange(resolve_is_disposing_, true)) return;
+                fmt::print("start dispose resolve\n");
+                dispose_resolve(resolve_requests_.begin());
             });
             return session_future;
         }
 
+    protected:
+        void dispose_resolve(std::list<stage::during_make_session>::iterator stage_iter)
+        {
+            assert(resolve_is_disposing_);
+            assert(client_strand_.running_in_this_thread());
+            if (stage_iter == resolve_requests_.end())
+            {
+                resolve_is_disposing_ = false;
+                return fmt::print("stop dispose resolve\n");
+            }
+            resolver_.async_resolve(stage_iter->host, stage_iter->service,
+                bind_executor(client_strand_, [stage_iter, this](boost::system::error_code error, boost::asio::ip::tcp::resolver::results_type endpoints)
+            {
+                const auto guard = make_fault_guard(error, stage_iter->session_promise, "resolve failure");
+                if (error) return;
+                resolve_endpoints_.emplace_back(endpoints, stage_iter);
+                if (!std::exchange(connect_is_disposing_, true))
+                {
+                    fmt::print("start dispose connect\n");
+                    post(client_strand_, [this] { dispose_connect(); });
+                }
+                dispose_resolve(std::next(stage_iter));
+            }));
+        }
+
+        void dispose_connect()
+        {
+            assert(connect_is_disposing_);
+            assert(client_strand_.running_in_this_thread());
+            if(resolve_endpoints_.empty())
+            {
+                connect_is_disposing_ = false;
+                return fmt::print("stop dispose connect\n");
+            }
+            const auto[endpoints, stage_iter] = std::move(resolve_endpoints_.front());
+            resolve_endpoints_.pop_front();
+            async_connect(stage_iter->session_socket, endpoints, 
+                bind_executor(client_strand_, [stage_iter, this](boost::system::error_code error, boost::asio::ip::tcp::endpoint endpoint)
+            {
+                const auto guard = make_fault_guard(error, stage_iter->session_promise, "connect failure");
+                if (error) return;
+                auto session_ptr = std::make_shared<session>(std::move(stage_iter->session_socket));
+                stage_iter->client_ptr->add_session(session_ptr);
+                stage_iter->session_promise.set_value(std::move(session_ptr));
+                resolve_requests_.erase(stage_iter);    //  finish current stage 
+                dispose_connect();
+            }));
+        }
+
     private:
         boost::asio::ip::tcp::resolver resolver_;
-        boost::asio::io_context::strand resolver_strand_;
-
-        void handle_resolve(
-            const boost::system::error_code& error,
-            const boost::asio::ip::tcp::resolver::results_type& endpoints,
-            std::unique_ptr<stage::during_make_session>& stage)
-        {
-            const auto guard = core::make_guard([&error, &stage]
-            {
-                if (!std::uncaught_exceptions() && !error) return;
-                stage->session_promise.set_exception(
-                    std::make_exception_ptr(std::runtime_error{ "endpoint resolvement failure" }));
-                if (error) fmt::print(std::cerr, "error: {}\n", error.message());
-            });
-            if (error) return;
-            auto& socket_ref = stage->session_socket;
-            async_connect(socket_ref, endpoints,
-                std::bind(&client::handle_connect, this, std::placeholders::_1, std::move(stage)));
-        }
-
-        void handle_connect(
-            const boost::system::error_code& error,
-            std::unique_ptr<stage::during_make_session>& stage)
-        {
-            const auto guard = core::make_guard([&error, &stage]
-            {
-                if (!std::uncaught_exceptions() && !error) return;
-                stage->session_promise.set_exception(
-                    std::make_exception_ptr(std::runtime_error{ "socket connection failure" }));
-                if (error) fmt::print(std::cerr, "error: {}\n", error.message());
-            });
-            if (error) return;
-            auto session_ptr = std::make_shared<session>(std::move(stage->session_socket));
-            std::weak_ptr<session> session_weak_ptr = session_ptr;
-            session_pool_.emplace(std::move(session_ptr), callback_container{});
-            stage->session_promise.set_value(std::move(session_weak_ptr));
-        }
+        std::list<stage::during_make_session> resolve_requests_;
+        std::deque<std::pair<boost::asio::ip::tcp::resolver::results_type, decltype(resolve_requests_)::iterator>> resolve_endpoints_;
+        mutable boost::asio::io_context::strand client_strand_;
+        mutable bool resolve_is_disposing_ = false;
+        mutable bool connect_is_disposing_ = false;
     };
 }

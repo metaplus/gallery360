@@ -4,8 +4,8 @@ namespace net
 {
     template<
         typename Protocal = boost::asio::ip::tcp,
-        template<typename> typename Socket = boost::asio::basic_stream_socket
-    > class session;
+        template<typename> typename Socket = boost::asio::basic_stream_socket> 
+    class session;
 
     //using session_element = session<core::as_element_t>;
 
@@ -20,8 +20,6 @@ namespace net
 
         session(socket&& sock, std::string_view delim)
             : socket_(std::move(sock))
-            , recv_streambuf_infos_(socket_.get_executor())
-            , send_bufhandles_(socket_.get_executor())
             , session_strand_(socket_.get_executor().context())
             , recv_delim_(delim)
             , hash_code_(element::dereference_hash{}.operator()<socket>(socket_))
@@ -29,7 +27,7 @@ namespace net
             core::verify(socket_.is_open());
             fmt::print(std::cout, "socket connected, {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
             if (!is_recv_delim_valid()) return;
-            recv_streambuf_infos_.is_disposing(true);
+            recv_is_disposing_ = true;
             dispose_receive();
         }
 
@@ -151,7 +149,7 @@ namespace net
 
         void dispose_receive()
         {
-            assert(recv_streambuf_infos_.is_disposing());
+            assert(recv_is_disposing_);
             assert(session_strand_.running_in_this_thread());
             assert(is_recv_delim_valid());
             boost::asio::async_read_until(socket_, recv_streambuf_, recv_delim_,
@@ -164,31 +162,32 @@ namespace net
                 fmt::print(">>handle: transferred {}\n", transfer_size);
                 if (!recv_requests_.empty())
                 {
-                    if (!recv_streambuf_infos_.queue.empty())
+                    if (!recv_streambuf_infos_.empty())
                     {
-                        recv_requests_.front().set_value(drop_recv_streambuf_front());
-                        recv_streambuf_infos_.queue.emplace_back(delim_size, transfer_size);
+                        recv_requests_.front().set_value(pop_recv_streambuf_front());
+                        recv_streambuf_infos_.emplace_back(delim_size, transfer_size);
                     }
                     else
-                        recv_requests_.front().set_value(drop_recv_streambuf_front(delim_size, transfer_size));
+                        recv_requests_.front().set_value(pop_recv_streambuf_front(delim_size, transfer_size));
                     recv_requests_.pop_front();
                 }
                 if (!error && delim_size != transfer_size) dispose_receive();
-                else recv_streambuf_infos_.is_disposing(false);
+                else recv_is_disposing_ = false;
             }));
         }
 
         void dispose_send()
         {
-            assert(send_bufhandles_.is_disposing());
+            assert(send_is_disposing_);
             assert(session_strand_.running_in_this_thread());
-            auto& send_queue = send_bufhandles_.queue;
+            auto& send_queue = send_bufhandles_;
             // if (send_queue.empty())    
             if (is_send_finish())
             {
                 fmt::print("stop dispose send\n");
                 if (pending_close_ && is_recv_finish()) dispose_close_socket();
-                return send_bufhandles_.is_disposing(false);
+                send_is_disposing_ = false;
+                return;
             }
             auto[send_bufview, send_bufhandle] = std::move(send_queue.front());    //  deque::iterator is unstable
             send_queue.pop_front();
@@ -198,7 +197,7 @@ namespace net
             {
                 const auto guard = make_fault_guard(error);
                 fmt::print(">>handle: transferred {}, next to transfer {}, queue size {}\n", transfer_size,
-                    send_bufhandles_.queue.empty() ? 0 : send_bufhandles_.queue.front().first.size(), send_bufhandles_.queue.size());
+                    send_bufhandles_.empty() ? 0 : send_bufhandles_.front().first.size(), send_bufhandles_.size());
                 if (expect_size != transfer_size)
                     auto dummy = 1;
                 assert(expect_size == transfer_size);
@@ -208,7 +207,7 @@ namespace net
                 {
                     fmt::print(">>handle: stop dispose send\n");
                     dispose_close_socket();
-                    send_bufhandles_.is_disposing(false);
+                    send_is_disposing_ = false;
                 }
             }));
         }
@@ -223,12 +222,11 @@ namespace net
                 if (!new_delim.empty() && new_delim != recv_delim_) recv_delim_ = new_delim;
                 if (!recv_requests_.empty())                //  append after existed receiving requests
                     return recv_requests_.push_back(std::move(recv_promise));
-                if (!recv_streambuf_infos_.queue.empty())   //  retrieve front available received bytes
-                    return recv_promise.set_value(drop_recv_streambuf_front());
+                if (!recv_streambuf_infos_.empty())   //  retrieve front available received bytes
+                    return recv_promise.set_value(pop_recv_streambuf_front());
                 recv_requests_.push_back(std::move(recv_promise));
-                if (recv_streambuf_infos_.is_disposing()) return;
+                if (std::exchange(recv_is_disposing_, true)) return;
                 assert(is_recv_delim_valid());
-                recv_streambuf_infos_.is_disposing(true);
                 dispose_receive();
             });
             return recv_future;
@@ -239,9 +237,8 @@ namespace net
             boost::asio::post(session_strand_, [send_bufview, 
                 send_bufhandle = std::move(send_bufhandle), this, self = shared_from_this()]() mutable
             {
-                send_bufhandles_.queue.emplace_back(send_bufview,std::move(send_bufhandle));
-                if (send_bufhandles_.is_disposing()) return;
-                send_bufhandles_.is_disposing(true);
+                send_bufhandles_.emplace_back(send_bufview,std::move(send_bufhandle));
+                if (std::exchange(send_is_disposing_, true)) return;
                 dispose_send();
             });
         }
@@ -250,20 +247,20 @@ namespace net
         {
             boost::asio::dispatch(session_strand_, [this, self = shared_from_this()]()
             {
-                assert(session_strand_.running_in_this_thread());
                 //socket_.cancel();
                 socket_.shutdown(socket::shutdown_both);
                 socket_.close();
             });
         }
 
-        //element::socket<protocal> socket_;
         socket socket_;
         boost::asio::streambuf recv_streambuf_;
         std::deque<std::promise<std::vector<char>>> recv_requests_;
-        element::sequence<std::pair<uint16_t, uint64_t>, std::deque> recv_streambuf_infos_;
-        element::sequence<std::pair<boost::asio::const_buffer, std::unique_ptr<std::any>>, std::deque> send_bufhandles_;
-        bool pending_close_ = false;
+        std::deque<std::pair<uint16_t, uint64_t>> recv_streambuf_infos_;
+        std::deque<std::pair<boost::asio::const_buffer, std::unique_ptr<std::any>>> send_bufhandles_;
+        mutable bool pending_close_ = false;
+        mutable bool recv_is_disposing_ = false;
+        mutable bool send_is_disposing_ = false;
 
     private:
         bool is_hash_code_valid() const noexcept
@@ -278,15 +275,15 @@ namespace net
 
         bool is_recv_finish() const noexcept
         {
-            return recv_requests_.empty() && recv_streambuf_infos_.queue.empty();
+            return recv_requests_.empty() && recv_streambuf_infos_.empty();
         }
 
         bool is_send_finish() const noexcept
         {
-            return send_bufhandles_.queue.empty();
+            return send_bufhandles_.empty();
         }
 
-        std::vector<char> drop_recv_streambuf_front(uint16_t delim_size, uint64_t transferred_size)
+        std::vector<char> pop_recv_streambuf_front(uint16_t delim_size, uint64_t transferred_size)
         {
             assert(delim_size <= transferred_size);
             assert(recv_streambuf_.size() >= transferred_size);
@@ -297,12 +294,12 @@ namespace net
             return recv_streambuf_front;
         }
 
-        std::vector<char> drop_recv_streambuf_front()
+        std::vector<char> pop_recv_streambuf_front()
         {
-            assert(!recv_streambuf_infos_.queue.empty());
-            const auto[delim_size, transferred_size] = std::move(recv_streambuf_infos_.queue.front());
-            recv_streambuf_infos_.queue.pop_front();
-            return drop_recv_streambuf_front(delim_size, transferred_size);
+            assert(!recv_streambuf_infos_.empty());
+            const auto[delim_size, transferred_size] = std::move(recv_streambuf_infos_.front());
+            recv_streambuf_infos_.pop_front();
+            return pop_recv_streambuf_front(delim_size, transferred_size);
         }
 
         mutable boost::asio::io_context::strand session_strand_;

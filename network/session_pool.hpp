@@ -12,8 +12,10 @@ namespace net
                      typename Allocator = std::allocator<std::pair<const Key, Mapped>>>
                 typename UnorderedAssociativeContainer = std::unordered_map,
             template<typename Element>
-                typename KeyHandle = std::shared_ptr
-        > class session_pool
+                typename KeyHandle = std::shared_ptr,
+            template<typename Element>
+                typename KeyObserver = std::weak_ptr> 
+        class session_pool
         {
         protected:
             using session = session<Protocal, Socket>;
@@ -29,6 +31,7 @@ namespace net
             using element_index = typename element::session_index;
             using session_index = typename session::index;
             using session_key = KeyHandle<session>;
+            using session_observer = KeyObserver<session>;
             using session_container = UnorderedAssociativeContainer<session_key, callback_container,
                 typename element::dereference_hash, typename element::dereference_equal>;
             using session_iterator = typename session_container::iterator;
@@ -97,7 +100,7 @@ namespace net
             session_iterator add_session(session_key session_ptr)
             {
                 const auto session_index = session_ptr->hash_index();
-                const std::weak_ptr<session> session_weak_ptr = session_ptr;
+                const session_observer session_weak_ptr = release_ownership(session_ptr);
                 const auto[iterator, success] = session_pool_.emplace(std::move(session_ptr), callback_container{});
                 if (!success) throw core::already_exist_error{ "duplicate session_key" };
                 index_cache_.emplace(session_index, session_weak_ptr);
@@ -119,20 +122,58 @@ namespace net
                 remove_session(session_index{ session_ptr->hash_index() });
             }
 
+            static decltype(auto) make_fault_guard(const boost::system::error_code& error,
+                std::promise<std::shared_ptr<session>>& session_promise, std::string_view error_str)
+            {
+                return core::make_guard([&]
+                {
+                    if (!std::uncaught_exceptions() && !error) return;
+                    session_promise.set_exception(std::make_exception_ptr(std::runtime_error{ error_str.data() }));
+                    if (error) fmt::print(std::cerr, "error: {}\n", error.message());
+                });
+            }
+
             session_container session_pool_;
             std::shared_ptr<boost::asio::io_context> io_context_ptr_ = nullptr;
             boost::asio::io_context::strand session_pool_strand_;
 
         private:
-            std::unordered_map<session_index, std::weak_ptr<session>, typename session_index::hash> index_cache_;
+            std::unordered_map<session_index, session_observer, typename session_index::hash> index_cache_;
 
             std::optional<session_key> find_session_key_cache(const element_index& index) const
             {
                 if (index_cache_.empty()) return std::nullopt;
                 const auto index_cache_iter = index_cache_.find(session_index{ index });
-                if (index_cache_iter != index_cache_.end() && !index_cache_iter->second.expired())
-                    return std::make_optional(index_cache_iter->second.lock());
+                if (index_cache_iter != index_cache_.end() && has_ownership(index_cache_iter->second))
+                    return std::make_optional(acquire_ownership(index_cache_iter->second));
                 return std::nullopt;
+            }
+
+            template<template<typename> typename Handle>
+            struct is_same_handle : std::is_same<session_key, Handle<session>> {};
+
+            template<template<typename> typename Observer>
+            struct is_same_observer : std::is_same<session_observer, Observer<session>> {};
+
+            template<template<typename> typename Handle, template<typename> typename Observer>
+            struct is_same_handle_observer : std::conjunction<is_same_handle<Handle>, is_same_observer<Observer>> {};
+
+            static bool has_ownership(const session_observer& observer)
+            {
+                if constexpr(is_same_observer<std::weak_ptr>::value) return !observer.expired();
+                else static_assert(false, "not implemented type case"); throw core::not_implemented_error{};
+            }
+
+            static session_key acquire_ownership(const session_observer& observer)
+            {
+                if constexpr(is_same_handle_observer<std::shared_ptr, std::weak_ptr>::value) return observer.lock();
+                else static_assert(false, "not implemented type case"); throw core::not_implemented_error{};
+            }
+
+            static session_observer release_ownership(const session_key& handle)
+            {
+                if constexpr(is_same_handle_observer<std::shared_ptr, std::weak_ptr>::value) return session_observer{ handle };
+                else static_assert(false, "not implemented type case"); throw core::not_implemented_error{};
             }
         };
         template class session_pool<>;

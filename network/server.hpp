@@ -2,7 +2,9 @@
 
 namespace net
 {
-    class server : protected base::session_pool<boost::asio::ip::tcp, boost::asio::basic_stream_socket, std::unordered_map, std::shared_ptr>
+    class server     // non-generic initial version
+        : protected base::session_pool<boost::asio::ip::tcp, boost::asio::basic_stream_socket, std::unordered_map>
+        , public std::enable_shared_from_this<server>
     {
     public:
         using session_pool::session;
@@ -30,31 +32,9 @@ namespace net
         struct stage {
             struct during_wait_session
             {
+                std::shared_ptr<server> server_ptr;
                 std::promise<std::shared_ptr<session>> session_promise;
-            };
-
-            struct after_accept_socket
-            {
-                after_accept_socket() = delete;
-
-                void operator()(boost::system::error_code error, socket socket) const
-                {
-                    fmt::print("sock address {}/{}\n", socket.local_endpoint(), socket.remote_endpoint());
-                    auto& session_promise = stage->session_promise;
-                    const auto guard = core::make_guard([&session_promise, &error]() 
-                    {
-                        if (!std::uncaught_exceptions() && !error) return;
-                        session_promise.set_exception(std::make_exception_ptr(std::runtime_error{ "socket waiting failure" }));
-                        if (error) fmt::print(std::cerr, "error: {}\n", error.message());
-                    });
-                    if (error) return;
-                    auto session_ptr = std::make_shared<session>(std::move(socket));
-                    self.add_session(session_ptr);
-                    session_promise.set_value(std::move(session_ptr));
-                }
-
-                server& self;
-                std::unique_ptr<during_wait_session> stage;
+                std::optional<protocal::endpoint> endpoint;
             };
         };
 
@@ -68,22 +48,28 @@ namespace net
 
         [[nodiscard]] std::future<std::shared_ptr<session>> wait_session()
         {
-            auto stage = std::make_unique<stage::during_wait_session>();
-            auto session_future = stage->session_promise.get_future();
-            post(acceptor_strand_, [this, stage = std::move(stage)]() mutable
-            {
-                acceptor_.async_accept(stage::after_accept_socket{ *this,std::move(stage) });
+            std::promise<std::shared_ptr<session>> session_promise;
+            auto session_future = session_promise.get_future();
+            post(acceptor_strand_, [this, promise = std::move(session_promise), self = shared_from_this()]() mutable
+            {                
+                accept_requests_.emplace_back(stage::during_wait_session{ std::move(self),std::move(promise) });
+                if (std::exchange(accept_is_disposing_, true)) return;
+                fmt::print("start dispose accept\n");
+                dispose_accept(accept_requests_.begin());
             });
             return session_future;
         }
 
         [[nodiscard]] std::future<std::shared_ptr<session>> wait_session(protocal::endpoint endpoint)
         {
-            auto stage = std::make_unique<stage::during_wait_session>();
-            auto session_future = stage->session_promise.get_future();
-            post(acceptor_strand_, [this, endpoint, stage = std::move(stage)]() mutable
+            std::promise<std::shared_ptr<session>> session_promise;
+            auto session_future = session_promise.get_future();
+            post(acceptor_strand_, [this, endpoint, promise = std::move(session_promise), self = shared_from_this()]() mutable
             {
-                acceptor_.async_accept(endpoint, stage::after_accept_socket{ *this,std::move(stage) });
+                accept_requests_.emplace_back(stage::during_wait_session{ std::move(self),std::move(promise),endpoint });
+                if (std::exchange(accept_is_disposing_, true)) return;
+                fmt::print("start dispose accept\n");
+                dispose_accept(accept_requests_.begin());
             });
             return session_future;
         }
@@ -113,8 +99,36 @@ namespace net
             return is_open();
         }
 
+    protected:
+        void dispose_accept(std::list<stage::during_wait_session>::iterator stage_iter)
+        {
+            assert(accept_is_disposing_);
+            assert(acceptor_strand_.running_in_this_thread());
+            if (stage_iter == accept_requests_.end())
+            {
+                accept_is_disposing_ = false;
+                return fmt::print("stop dispose accept\n");
+            }
+            auto serial_handler = bind_executor(acceptor_strand_, [stage_iter, this](boost::system::error_code error, socket socket)
+            {
+                fmt::print("sock address {}/{}\n", socket.local_endpoint(), socket.remote_endpoint());
+                const auto guard = make_fault_guard(error, stage_iter->session_promise, "socket accept failure");
+                if (error) return;
+                auto session_ptr = std::make_shared<session>(std::move(socket));
+                stage_iter->server_ptr->add_session(session_ptr);
+                stage_iter->session_promise.set_value(std::move(session_ptr));
+                const auto next_iter = accept_requests_.erase(stage_iter);  //  finish current stage 
+                dispose_accept(next_iter);
+            });
+            if (stage_iter->endpoint.has_value())
+                return acceptor_.async_accept(stage_iter->endpoint.value(), std::move(serial_handler));
+            acceptor_.async_accept(std::move(serial_handler));
+        }
+
     private:
         boost::asio::ip::tcp::acceptor acceptor_;
-        boost::asio::io_context::strand acceptor_strand_;
+        std::list<stage::during_wait_session> accept_requests_;
+        mutable boost::asio::io_context::strand acceptor_strand_;
+        mutable bool accept_is_disposing_ = false;
     };
 }
