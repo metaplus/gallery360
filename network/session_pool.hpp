@@ -34,8 +34,8 @@ namespace net
             using session_observer = KeyObserver<session>;
             using session_container = UnorderedAssociativeContainer<session_key, callback_container,
                 typename element::dereference_hash, typename element::dereference_equal>;
-            using session_iterator = typename session_container::iterator;
-            using session_const_iterator = typename session_container::const_iterator;
+            using container_iterator = typename session_container::iterator;
+            using container_const_iterator = typename session_container::const_iterator;
             using session_reference = session&;
             using session_const_reference = const session&;
 
@@ -67,7 +67,7 @@ namespace net
                 return io_context_ptr_ != nullptr;
             }
 
-            session_iterator find(const element_index& index)
+            container_iterator find(const element_index& index)
             {
                 if (const auto key_cache = find_session_key_cache(index); key_cache.has_value())
                     return session_pool_.find(key_cache.value());
@@ -75,7 +75,7 @@ namespace net
                     [&index](typename session_container::const_reference pair) { return pair.first->hash_index() == index; });
             }
 
-            session_const_iterator find(const element_index& index) const
+            container_const_iterator find(const element_index& index) const
             {
                 if (const auto key_cache = find_session_key_cache(index); key_cache.has_value())
                     return session_pool_.find(key_cache.value());
@@ -97,7 +97,7 @@ namespace net
 
             session_const_reference operator[](const element_index& index) const = delete;
 
-            session_iterator add_session(session_key session_ptr)
+            container_iterator add_session(session_key session_ptr)
             {
                 const auto session_index = session_ptr->hash_index();
                 const session_observer session_weak_ptr = release_ownership(session_ptr);
@@ -133,6 +133,10 @@ namespace net
                 });
             }
 
+            //  TODO: callback relavent funcionality
+            //  void register_callback();
+            //  void deregister_callback();
+
             session_container session_pool_;
             std::shared_ptr<boost::asio::io_context> io_context_ptr_ = nullptr;
             boost::asio::io_context::strand session_pool_strand_;
@@ -161,19 +165,22 @@ namespace net
             static bool has_ownership(const session_observer& observer)
             {
                 if constexpr(is_same_observer<std::weak_ptr>::value) return !observer.expired();
-                else static_assert(false, "not implemented type case"); throw core::not_implemented_error{};
+                else static_assert(false, "not implemented type case"); 
+                throw core::unreachable_execution_branch{};
             }
 
             static session_key acquire_ownership(const session_observer& observer)
             {
                 if constexpr(is_same_handle_observer<std::shared_ptr, std::weak_ptr>::value) return observer.lock();
-                else static_assert(false, "not implemented type case"); throw core::not_implemented_error{};
+                else static_assert(false, "not implemented type case"); 
+                throw core::unreachable_execution_branch{};
             }
 
             static session_observer release_ownership(const session_key& handle)
             {
                 if constexpr(is_same_handle_observer<std::shared_ptr, std::weak_ptr>::value) return session_observer{ handle };
-                else static_assert(false, "not implemented type case"); throw core::not_implemented_error{};
+                else static_assert(false, "not implemented type case"); 
+                throw core::unreachable_execution_branch{};
             }
         };
         template class session_pool<>;

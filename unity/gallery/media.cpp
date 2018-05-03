@@ -3,17 +3,17 @@
 
 namespace
 {
-    std::vector<std::shared_ptr<dll::media_session>> media_sessions;
+    std::vector<std::shared_ptr<dll::media_context>> media_contexts;
     std::shared_mutex media_smutex;
-    std::optional<std::pair<decltype(media_sessions)::iterator, std::shared_lock<std::shared_mutex>>>
-        find_session_by_hashid(const size_t hashid)
+    std::optional<std::pair<decltype(media_contexts)::iterator, std::shared_lock<std::shared_mutex>>>
+        find_context_by_hashid(const size_t hashid)
     {
         std::shared_lock<std::shared_mutex> slock{ media_smutex };
-        if (!media_sessions.empty())
+        if (!media_contexts.empty())
         {
-            auto iter = std::find_if(media_sessions.begin(), media_sessions.end(),
-                [hashid](decltype(media_sessions)::const_reference pss) { return pss->hash_value() == hashid; });
-            if (iter != media_sessions.end())
+            auto iter = std::find_if(media_contexts.begin(), media_contexts.end(),
+                [hashid](decltype(media_contexts)::const_reference pss) { return pss->hash_code() == hashid; });
+            if (iter != media_contexts.end())
                 return std::make_optional(std::make_pair(iter, std::move(slock)));
         }
         return std::nullopt;
@@ -23,64 +23,62 @@ namespace
 void unity::_nativeMediaCreate()
 {
     av::register_all();
-    media_sessions.clear();
+    media_contexts.clear();
 }
 
 void unity::_nativeMediaRelease()
 {
     std::lock_guard<std::shared_mutex> exlock{ media_smutex };
-    for (const auto& session : media_sessions)
-    {
-        session->stop();
-    }
-    media_sessions.clear();
+    for (const auto& context : media_contexts)
+        context->stop();
+    media_contexts.clear();
 }
 
 UINT64 unity::_nativeMediaSessionCreate(LPCSTR url)
 {
-    const auto session = std::make_shared<dll::media_session>(std::string{ url });
+    const auto session = std::make_shared<dll::media_context>(std::string{ url });
     {
         std::lock_guard<std::shared_mutex> exlock{ media_smutex };
-        media_sessions.push_back(session);
+        media_contexts.push_back(session);
     }
-    return session->hash_value();
+    return session->hash_code();
 }
 
 void unity::_nativeMediaSessionPause(UINT64 hashID)
 {
-    const auto result = find_session_by_hashid(hashID);
+    const auto result = find_context_by_hashid(hashID);
     if (!result.has_value()) return;
     (*result->first)->stop();
 }
 
 void unity::_nativeMediaSessionRelease(UINT64 hashID)
 {
-    auto result = find_session_by_hashid(hashID);
+    auto result = find_context_by_hashid(hashID);
     if (!result.has_value()) return;
     auto exlock = util::lock_upgrade(result->second);
     *(result->first) = nullptr;
-    //std::cerr << "vec size " << media_sessions.size() << "\n";
-    media_sessions.erase(result->first);
-    //std::cerr << "vec size " << media_sessions.size() << "\n";
+    //std::cerr << "vec size " << media_contexts.size() << "\n";
+    media_contexts.erase(result->first);
+    //std::cerr << "vec size " << media_contexts.size() << "\n";
 }
 
 void unity::_nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height)
 {
-    const auto result = find_session_by_hashid(hashID);
+    const auto result = find_context_by_hashid(hashID);
     if (!result.has_value()) return;
     std::tie(width, height) = (*result->first)->resolution();
 }
 
 BOOL unity::_nativeMediaSessionHasNextFrame(UINT64 hashID)
 {
-    const auto result = find_session_by_hashid(hashID);
+    const auto result = find_context_by_hashid(hashID);
     if (!result.has_value()) return false;
     return !(*result->first)->empty();
 }
 
 UINT64 unity::debug::_nativeMediaSessionGetFrameCount(UINT64 hashID)
 {
-    const auto result = find_session_by_hashid(hashID);
+    const auto result = find_context_by_hashid(hashID);
     if (!result.has_value()) return 0;
     return  (*result->first)->count_frame();
 }
@@ -88,7 +86,7 @@ UINT64 unity::debug::_nativeMediaSessionGetFrameCount(UINT64 hashID)
 BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, UINT64 count)
 {
     if (count == 0) return false;
-    const auto result = find_session_by_hashid(hashID);
+    const auto result = find_context_by_hashid(hashID);
     uint64_t drop_count = 0;
     if (!result.has_value()) return false;
     do
@@ -102,8 +100,8 @@ BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, UINT64 count)
 std::optional<av::frame> dll::media_module::getter::decoded_frame()
 {
     std::lock_guard<std::shared_mutex> exlock{ media_smutex };
-    if (media_sessions.empty()) return std::nullopt;
-    return media_sessions.back()->pop_frame();
+    if (media_contexts.empty()) return std::nullopt;
+    return media_contexts.back()->pop_frame();
 }
 
 #ifdef GALLERY_USE_LEGACY 

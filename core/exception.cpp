@@ -74,3 +74,12 @@ const char* core::already_exist_error::what() const
 {
     return deduce_error_cstring(what(), this);
 }
+
+core::unreachable_execution_branch::unreachable_execution_branch(std::string_view desc)
+    : logic_error(desc.data())
+{}
+
+const char* core::unreachable_execution_branch::what() const
+{
+    return deduce_error_cstring(what(), this);
+}

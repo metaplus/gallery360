@@ -3,15 +3,12 @@
 #include <msgpack.hpp>
 #include <msgpack/adaptor/define_decl.hpp>
 
-av::frame::frame(std::nullptr_t)
-    : handle_()
-{
-}
-
 av::frame::frame()
     : handle_(av_frame_alloc(), [](pointer p) { av_frame_free(&p); })
-{
-}
+{}
+
+av::frame::frame(std::nullptr_t)
+{}
 
 void av::register_all()
 {
@@ -56,9 +53,7 @@ struct av::packet::chunk
 };
 
 av::packet::packet(std::nullptr_t)
-    : handle_()
-{
-}
+{}
 
 av::packet::packet(std::basic_string_view<uint8_t> sv)
     : packet()
@@ -71,25 +66,23 @@ av::packet::packet(std::basic_string_view<uint8_t> sv)
 
 av::packet::packet(std::string_view csv)
     : packet(std::basic_string_view<uint8_t>{reinterpret_cast<const uint8_t*>(csv.data()), csv.size()})
-{
-}
+{}
 
 av::packet::packet()
     : handle_(av_packet_alloc(), [](pointer p) { av_packet_free(&p); })
-{
-}
+{}
 
 bool av::packet::empty() const
 {
     return handle_ == nullptr || handle_->data == nullptr || handle_->size <= 0;
 }
 
-std::basic_string_view<uint8_t> av::packet::buffer_view() const
+std::basic_string_view<uint8_t> av::packet::ubufview() const
 {
     return { handle_->data,static_cast<size_t>(handle_->size) };
 }
 
-std::string_view av::packet::cbuffer_view() const
+std::string_view av::packet::bufview() const
 {
     return { reinterpret_cast<char*>(handle_->data),static_cast<size_t>(handle_->size) };
 }
@@ -118,23 +111,19 @@ void av::packet::unref() const
 
 av::stream::stream(reference ref)
     : reference_wrapper(ref)
-{
-}
+{}
 
 av::stream::stream(const pointer ptr)
     : reference_wrapper(*ptr)
-{
-}
+{}
 
 av::codec::codec(reference ref)
     : reference_wrapper(ref)
-{
-}
+{}
 
 av::codec::codec(const pointer ptr)
     : reference_wrapper(*ptr)
-{
-}
+{}
 
 av::codec::pointer av::codec::operator->() const
 {
@@ -143,8 +132,7 @@ av::codec::pointer av::codec::operator->() const
 
 av::codec::codec()
     : reference_wrapper(core::make_null_reference_wrapper<type>())
-{
-}
+{}
 
 av::codec::parameter av::stream::params() const
 {
@@ -168,8 +156,7 @@ av::stream::pointer av::stream::operator->() const
 
 av::stream::stream()
     : reference_wrapper(core::make_null_reference_wrapper<type>())
-{
-}
+{}
 
 int av::stream::index() const
 {

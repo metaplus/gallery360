@@ -53,8 +53,8 @@ namespace av
         pointer operator->() const;
         explicit operator bool() const;
         bool empty() const;
-        std::basic_string_view<uint8_t> buffer_view() const;
-        std::string_view cbuffer_view() const;
+        std::basic_string_view<uint8_t> ubufview() const;
+        std::string_view bufview() const;
         std::string serialize() const;
         void unref() const;
     private:
@@ -87,24 +87,38 @@ namespace av
         std::pair<int, int> scale() const;
     };
 
-    template<typename T>
-    decltype(auto) get_pointer(T&& handle)
-    {
-        //return static_cast<typename std::decay_t<T>::pointer>(handle);
-        return std::forward<T>(handle).operator->();
-    }
+    // template<typename T>
+    // decltype(auto) get_pointer(T&& handle)
+    // {
+    //     //return static_cast<typename std::decay_t<T>::pointer>(handle);
+    //     return std::forward<T>(handle).operator->();
+    // }
 
     struct source
     {
-        struct format { std::string_view name; };
-        struct path { std::string_view url; };
-        std::string url;
+        struct format : std::string_view
+        {
+            using std::string_view::string_view;
+            using std::string_view::operator=;
+        };
+        struct path : std::string_view
+        {
+            using std::string_view::string_view;
+            using std::string_view::operator=;
+        };
     };
 
     struct sink
     {
-        struct format { std::string_view name; };
-        struct path { std::string_view url; };
-        std::string url;
+        struct format : std::string_view
+        {
+            using std::string_view::string_view;
+            using std::string_view::operator=;
+        };
+        struct path : std::string_view
+        {
+            using std::string_view::string_view;
+            using std::string_view::operator=;
+        };
     };
 }

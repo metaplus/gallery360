@@ -19,33 +19,35 @@ namespace net
 
         client& operator=(const client&) = delete;
 
+        using session_pool::session;
+
         struct stage {
             struct during_make_session : boost::noncopyable
             {
-                explicit during_make_session(std::shared_ptr<client> self, 
-                    std::string_view host, std::string_view service, std::promise<std::shared_ptr<session>> promise)
+                explicit during_make_session(std::shared_ptr<client> self, std::promise<std::shared_ptr<session>> promise,
+                    std::string_view host, std::string_view service)
                     : client_ptr(std::move(self))
+                    , session_promise(std::move(promise))
                     , host(host)
                     , service(service)
-                    , session_promise(std::move(promise))
                     , session_socket(*client_ptr->io_context_ptr_)
                 {}
                 
                 std::shared_ptr<client> client_ptr;
+                std::promise<std::shared_ptr<session>> session_promise;
                 std::string_view host; 
                 std::string_view service;
-                std::promise<std::shared_ptr<session>> session_promise;
                 socket session_socket;
             };
         };
 
-        [[nodiscard]] std::future<std::shared_ptr<session>> make_session(std::string_view host, std::string_view service)
+        [[nodiscard]] std::future<std::shared_ptr<session>> establish_session(std::string_view host, std::string_view service)
         {
             std::promise<std::shared_ptr<session>> session_promise;
             auto session_future = session_promise.get_future();
             post(client_strand_, [=, promise = std::move(session_promise), self = shared_from_this()]() mutable
             {   
-                resolve_requests_.emplace_back(std::move(self), host, service, std::move(promise));
+                resolve_requests_.emplace_back(std::move(self), std::move(promise), host, service);
                 if (std::exchange(resolve_is_disposing_, true)) return;
                 fmt::print("start dispose resolve\n");
                 dispose_resolve(resolve_requests_.begin());

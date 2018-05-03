@@ -48,33 +48,33 @@ namespace dll
         };
     };
 
-    class session : protected std::enable_shared_from_this<session>
+    class context_interface
     {
     public:
         virtual void start() = 0;
         virtual void stop() = 0;
-        virtual size_t hash_value() const = 0;
-        virtual bool operator<(const session&) const = 0;
-        virtual ~session() = default;
+        virtual size_t hash_code() const = 0;
+        virtual bool operator<(const context_interface&) const = 0;
+        virtual ~context_interface() = default;
     };
 
-    class media_session : public session
+    class media_context : public context_interface, public std::enable_shared_from_this<media_context>
     {
     public:
         void start() override;
         void stop() override;
-        size_t hash_value() const override;
-        bool operator<(const session&) const override;
+        size_t hash_code() const override;
+        bool operator<(const context_interface&) const override;
         bool empty() const;
         static constexpr size_t capacity();
         std::pair<int, int> resolution() const;
         uint64_t count_frame() const;
         std::optional<av::frame> pop_frame();
-        media_session() = delete;
-        explicit media_session(const std::string& url);
-        media_session(const media_session&) = delete;
-        media_session& operator=(const media_session&) = delete;
-        ~media_session() override;
+        media_context() = delete;
+        explicit media_context(const std::string& url);
+        media_context(const media_context&) = delete;
+        media_context& operator=(const media_context&) = delete;
+        ~media_context() override;
     private:
         void push_frames(std::vector<av::frame>&& fvec);
         struct status
@@ -83,18 +83,18 @@ namespace dll
             std::atomic<bool> has_read = false;
             std::atomic<bool> has_decode = false;
         };
-        struct action
+        struct pending
         {
-            std::future<size_t> video_decoding{};
-            std::future<size_t> media_reading{};
+            std::future<size_t> decode_video;
+            std::future<size_t> read_media;
         };
-        mutable status status_{};
-        mutable std::recursive_mutex rmutex_{};
-        mutable std::condition_variable_any condvar_{};
-        action action_{};
-        std::deque<av::frame> frame_deque_{};
-        const av::format_context media_format_{};
-        const av::codec_context video_codec_{};
+        mutable status status_;
+        mutable std::recursive_mutex rmutex_;
+        mutable std::condition_variable_any condvar_;
+        pending pending_;
+        std::deque<av::frame> frame_deque_;
+        const av::format_context media_format_;
+        const av::codec_context video_codec_;
 };
 
 #ifdef GALLERY_USE_LEGACY 

@@ -48,4 +48,13 @@ namespace core
         explicit already_exist_error(std::string_view desc = ""sv);
         const char* what() const override;
     };
+
+    class unreachable_execution_branch : protected std::logic_error
+    {
+    public:
+        using logic_error::logic_error;
+        using logic_error::operator=;
+        explicit unreachable_execution_branch(std::string_view desc = ""sv);
+        const char* what() const override;
+    };
 }   

@@ -75,11 +75,11 @@ namespace av
     private:
         std::shared_ptr<AVCodecContext> codec_handle_;
         stream stream_;
-        struct state
+        struct status
         {
             int64_t count;
             bool flushed;
         };
-        mutable state state_{};
+        mutable status status_{};
     };
 }

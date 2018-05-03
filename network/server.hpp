@@ -7,8 +7,6 @@ namespace net
         , public std::enable_shared_from_this<server>
     {
     public:
-        using session_pool::session;
-
         server() = delete;
 
         explicit server(std::shared_ptr<boost::asio::io_context> context)
@@ -29,9 +27,23 @@ namespace net
 
         server& operator=(const server&) = delete;
 
+        using session_pool::session;
+
         struct stage {
-            struct during_wait_session
+            struct during_wait_session : boost::noncopyable
             {
+                during_wait_session(std::shared_ptr<server> self, std::promise<std::shared_ptr<session>> promise)
+                    : server_ptr(std::move(self))
+                    , session_promise(std::move(promise))
+                    , endpoint(std::nullopt)
+                {}
+
+                during_wait_session(std::shared_ptr<server> self, std::promise<std::shared_ptr<session>> promise, protocal::endpoint endpoint)
+                    : server_ptr(std::move(self))
+                    , session_promise(std::move(promise))
+                    , endpoint(endpoint)
+                {}
+
                 std::shared_ptr<server> server_ptr;
                 std::promise<std::shared_ptr<session>> session_promise;
                 std::optional<protocal::endpoint> endpoint;
@@ -46,13 +58,13 @@ namespace net
             acceptor_.bind(endpoint);
         }
 
-        [[nodiscard]] std::future<std::shared_ptr<session>> wait_session()
+        [[nodiscard]] std::future<std::shared_ptr<session>> accept_session()
         {
             std::promise<std::shared_ptr<session>> session_promise;
             auto session_future = session_promise.get_future();
-            post(acceptor_strand_, [this, promise = std::move(session_promise), self = shared_from_this()]() mutable
+            post(acceptor_strand_, [promise = std::move(session_promise), this, self = shared_from_this()]() mutable
             {                
-                accept_requests_.emplace_back(stage::during_wait_session{ std::move(self),std::move(promise) });
+                accept_requests_.emplace_back(std::move(self), std::move(promise));
                 if (std::exchange(accept_is_disposing_, true)) return;
                 fmt::print("start dispose accept\n");
                 dispose_accept(accept_requests_.begin());
@@ -60,13 +72,13 @@ namespace net
             return session_future;
         }
 
-        [[nodiscard]] std::future<std::shared_ptr<session>> wait_session(protocal::endpoint endpoint)
+        [[nodiscard]] std::future<std::shared_ptr<session>> accept_session(protocal::endpoint endpoint)
         {
             std::promise<std::shared_ptr<session>> session_promise;
             auto session_future = session_promise.get_future();
-            post(acceptor_strand_, [this, endpoint, promise = std::move(session_promise), self = shared_from_this()]() mutable
+            post(acceptor_strand_, [endpoint, promise = std::move(session_promise), this, self = shared_from_this()]() mutable
             {
-                accept_requests_.emplace_back(stage::during_wait_session{ std::move(self),std::move(promise),endpoint });
+                accept_requests_.emplace_back(std::move(self), std::move(promise), endpoint);
                 if (std::exchange(accept_is_disposing_, true)) return;
                 fmt::print("start dispose accept\n");
                 dispose_accept(accept_requests_.begin());
@@ -77,16 +89,6 @@ namespace net
         uint16_t listen_port() const
         {
             return acceptor_.local_endpoint().port();
-        }
-
-        bool is_non_blocking() const
-        {            
-            return acceptor_.non_blocking();
-        }
-
-        void is_non_blocking(bool mode)
-        {
-            acceptor_.non_blocking(mode);
         }
 
         bool is_open() const
