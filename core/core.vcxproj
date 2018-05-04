@@ -162,14 +162,13 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\concurrency\async_chain.h" />
+    <ClInclude Include="..\concurrency\async_chain.hpp" />
     <ClInclude Include="..\concurrency\barrier.h" />
     <ClInclude Include="..\concurrency\synchronize.h" />
     <ClInclude Include="..\meta\meta.hpp" />
     <ClInclude Include="..\meta\detail\type_trait.hpp" />
     <ClInclude Include="..\meta\type_trait.hpp" />
     <ClInclude Include="core.h" />
-    <ClInclude Include="basic_ptr.hpp" />
     <ClInclude Include="exception.h" />
     <ClInclude Include="graph.hpp" />
     <ClInclude Include="guard.h" />
@@ -179,7 +178,6 @@
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\concurrency\async_chain.cpp" />
     <ClCompile Include="..\concurrency\barrier.cpp" />
     <ClCompile Include="..\concurrency\synchronize.cpp" />
     <ClCompile Include="core.cpp" />

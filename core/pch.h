@@ -64,7 +64,6 @@ using namespace std::literals;
 
 //#if __has_include(<filesystem>)
 #include <filesystem>
-//namespace filesystem = std::experimental::filesystem;
 namespace std
 {
     namespace filesystem = std::experimental::filesystem;
@@ -90,7 +89,9 @@ namespace std
 #include "core/graph.hpp"
 #include "concurrency/synchronize.h"
 #include "concurrency/barrier.h"
-#include "concurrency/async_chain.h"
+#include "concurrency/async_chain.hpp"
+
+using namespace core::literals;
 
 #ifdef CORE_USE_FMTLIB
 

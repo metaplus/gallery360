@@ -65,7 +65,7 @@ namespace net
             post(acceptor_strand_, [promise = std::move(session_promise), this, self = shared_from_this()]() mutable
             {                
                 accept_requests_.emplace_back(std::move(self), std::move(promise));
-                if (std::exchange(accept_is_disposing_, true)) return;
+                if (std::exchange(accept_disposing_, true)) return;
                 fmt::print("start dispose accept\n");
                 dispose_accept(accept_requests_.begin());
             });
@@ -79,7 +79,7 @@ namespace net
             post(acceptor_strand_, [endpoint, promise = std::move(session_promise), this, self = shared_from_this()]() mutable
             {
                 accept_requests_.emplace_back(std::move(self), std::move(promise), endpoint);
-                if (std::exchange(accept_is_disposing_, true)) return;
+                if (std::exchange(accept_disposing_, true)) return;
                 fmt::print("start dispose accept\n");
                 dispose_accept(accept_requests_.begin());
             });
@@ -104,11 +104,11 @@ namespace net
     protected:
         void dispose_accept(std::list<stage::during_wait_session>::iterator stage_iter)
         {
-            assert(accept_is_disposing_);
+            assert(accept_disposing_);
             assert(acceptor_strand_.running_in_this_thread());
             if (stage_iter == accept_requests_.end())
             {
-                accept_is_disposing_ = false;
+                accept_disposing_ = false;
                 return fmt::print("stop dispose accept\n");
             }
             auto serial_handler = bind_executor(acceptor_strand_, [stage_iter, this](boost::system::error_code error, socket socket)
@@ -131,6 +131,6 @@ namespace net
         boost::asio::ip::tcp::acceptor acceptor_;
         std::list<stage::during_wait_session> accept_requests_;
         mutable boost::asio::io_context::strand acceptor_strand_;
-        mutable bool accept_is_disposing_ = false;
+        mutable bool accept_disposing_ = false;
     };
 }

@@ -43,12 +43,11 @@ namespace util
                     try
                     {
                         if (pending_old) pending_old->get();    // aborted predecessor throws exception here
-                        //(*pcallable)();
                         pcallable->operator()();
                     }
                     catch (...)
                     {
-                        if constexpr(meta::is_packaged_task_v<meta::remove_cv_ref_t<decltype(*pcallable)>>)
+                        if constexpr(meta::is_packaged_task_v<std::decay_t<decltype(*pcallable)>>)
                             const auto abolished_task = std::move(*pcallable);
                         std::rethrow_exception(std::current_exception());
                     }
@@ -67,6 +66,18 @@ namespace util
             auto task_result = task.get_future();
             append(std::move(task));
             return task_result;
+        }
+
+        inline void async_chain::wait() const
+        {
+            const auto pending_old = std::atomic_load_explicit(&pending_, std::memory_order_relaxed);
+            if (pending_old) pending_old->wait();
+        }
+
+        inline void async_chain::abort_and_wait() const
+        {
+            canceled_.store(true, std::memory_order_seq_cst);
+            wait();
         }
     }
 }

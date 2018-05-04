@@ -48,7 +48,7 @@ namespace net
             post(client_strand_, [=, promise = std::move(session_promise), self = shared_from_this()]() mutable
             {   
                 resolve_requests_.emplace_back(std::move(self), std::move(promise), host, service);
-                if (std::exchange(resolve_is_disposing_, true)) return;
+                if (std::exchange(resolve_disposing_, true)) return;
                 fmt::print("start dispose resolve\n");
                 dispose_resolve(resolve_requests_.begin());
             });
@@ -58,11 +58,11 @@ namespace net
     protected:
         void dispose_resolve(std::list<stage::during_make_session>::iterator stage_iter)
         {
-            assert(resolve_is_disposing_);
+            assert(resolve_disposing_);
             assert(client_strand_.running_in_this_thread());
             if (stage_iter == resolve_requests_.end())
             {
-                resolve_is_disposing_ = false;
+                resolve_disposing_ = false;
                 return fmt::print("stop dispose resolve\n");
             }
             resolver_.async_resolve(stage_iter->host, stage_iter->service,
@@ -71,7 +71,7 @@ namespace net
                 const auto guard = make_fault_guard(error, stage_iter->session_promise, "resolve failure");
                 if (error) return;
                 resolve_endpoints_.emplace_back(endpoints, stage_iter);
-                if (!std::exchange(connect_is_disposing_, true))
+                if (!std::exchange(connect_disposing_, true))
                 {
                     fmt::print("start dispose connect\n");
                     post(client_strand_, [this] { dispose_connect(); });
@@ -82,11 +82,11 @@ namespace net
 
         void dispose_connect()
         {
-            assert(connect_is_disposing_);
+            assert(connect_disposing_);
             assert(client_strand_.running_in_this_thread());
             if(resolve_endpoints_.empty())
             {
-                connect_is_disposing_ = false;
+                connect_disposing_ = false;
                 return fmt::print("stop dispose connect\n");
             }
             const auto[endpoints, stage_iter] = std::move(resolve_endpoints_.front());
@@ -109,7 +109,7 @@ namespace net
         std::list<stage::during_make_session> resolve_requests_;
         std::deque<std::pair<boost::asio::ip::tcp::resolver::results_type, decltype(resolve_requests_)::iterator>> resolve_endpoints_;
         mutable boost::asio::io_context::strand client_strand_;
-        mutable bool resolve_is_disposing_ = false;
-        mutable bool connect_is_disposing_ = false;
+        mutable bool resolve_disposing_ = false;
+        mutable bool connect_disposing_ = false;
     };
 }

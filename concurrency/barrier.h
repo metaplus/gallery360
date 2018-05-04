@@ -4,7 +4,8 @@ namespace util
 {
     inline namespace concurrency
     {
-        class barrier {
+        class barrier 
+        {
         public:
             explicit barrier(std::size_t count, std::function<void()> completion = nullptr);
             barrier(const barrier&) = delete;
@@ -20,7 +21,7 @@ namespace util
             std::atomic<size_t> count_;
             std::size_t generation_;
             const std::size_t threshold_;
-            const std::unique_ptr<std::function<void()>> completion_;   // 8B pointer 64B pointee
+            const std::unique_ptr<std::function<void()>> completion_;   // 8B pointer 64B pointee, std::function may be less efficient than lambda-expression, depending on vendor implementation
             mutable std::mutex mutex_;
             mutable std::condition_variable condition_;
         };

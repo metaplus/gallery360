@@ -25,8 +25,7 @@ namespace av
             virtual bool writable() = 0;
             virtual bool seekable() = 0;
         };
-        static std::shared_ptr<io_interface> make_io_interface(
-            func_tuple&& io_functions = { nullptr,nullptr,nullptr });
+        static std::shared_ptr<io_interface> make_io_interface(func_tuple&& io_functions = { nullptr,nullptr,nullptr });
     private:
         std::shared_ptr<io_interface> io_interface_;
         std::shared_ptr<AVIOContext> io_handle_;
@@ -41,7 +40,6 @@ namespace av
         using value_type = AVFormatContext;
         using pointer = AVFormatContext * ;
         format_context() = default;
-        //explicit format_context(std::variant<source, sink> io);
         format_context(io_context io, source::format iformat);
         format_context(io_context io, sink::format iformat);
         explicit format_context(source::path ipath);

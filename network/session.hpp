@@ -20,8 +20,8 @@ namespace net
 
         session(socket&& sock, std::string_view delim)
             : socket_(std::move(sock))
-            , session_strand_(socket_.get_executor().context())
             , recv_delim_(delim)
+            , session_strand_(socket_.get_executor().context())
             , hash_code_(element::dereference_hash{}.operator()<socket>(socket_))
         {
             core::verify(socket_.is_open());
@@ -41,15 +41,51 @@ namespace net
 
         ~session() = default;
 
+        std::shared_mutex& external_recvbuf(boost::asio::streambuf& recvbuf)
+        {
+            assert(!recv_actor_constructed());
+            auto& recv_actor = try_construct_recv_actor<external_recv_actor>(recvbuf);
+            return recv_actor.streambuf_mutex;
+        }
+
+        template<template<typename Mutex> typename Lock = std::unique_lock>
+        Lock<std::shared_mutex> external_recvbuf_lock()
+        {
+            auto& recv_actor = std::get<external_recv_actor>(recv_actor_);
+            return Lock<std::shared_mutex>{ recv_actor.streambuf_mutex };
+        }
+
+        std::string_view recv_delim() const noexcept
+        {
+            return recv_delim_;
+        }
+
+        std::string_view recv_delim(std::string_view new_delim) noexcept
+        {
+            return std::exchange(recv_delim_, new_delim);
+        }
+
         [[nodiscard]] std::future<std::vector<char>> receive(core::use_future_t, std::string_view delim = ""sv)
         {
             std::promise<std::vector<char>> recv_promise;
             return pending_recv_request(std::move(recv_promise), delim);
         }
-        
+
+        [[nodiscard]] std::future<std::tuple<uint16_t, uint64_t, std::unique_lock<std::shared_mutex>>>
+            receive_externally(core::use_future_t, std::string_view delim = ""sv)
+        {
+            std::promise<std::tuple<uint16_t, uint64_t, std::unique_lock<std::shared_mutex>>> recv_promise;
+            return pending_recv_request(std::move(recv_promise), delim);
+        }
+
         std::vector<char> receive(std::string_view delim = ""sv)
         {
             return receive(core::use_future, delim).get();
+        }
+
+        std::tuple<uint16_t, uint64_t, std::unique_lock<std::shared_mutex>> receive_externally(std::string_view delim = ""sv)
+        {
+            return receive_externally(core::use_future, delim).get();
         }
 
         void send(boost::asio::const_buffer sendbuf_view)
@@ -117,10 +153,6 @@ namespace net
         }
 
     protected:
-        using promise_bufvec = std::promise<std::vector<char>>;
-        using promise_bufinfo = std::promise<std::pair<uint16_t, uint64_t>>;
-        using promise_streambuf = std::pair<promise_bufinfo, boost::asio::streambuf&>;
-
         template<typename Callable>
         boost::asio::executor_binder<std::decay_t<Callable>, boost::asio::io_context::strand>
             make_serial_handler(Callable&& handler)
@@ -135,7 +167,7 @@ namespace net
                 const auto exception_count = std::uncaught_exceptions();
                 if (!exception_count && !error) return;
                 fmt::print(std::cerr, "fault guard triggered\n");
-                if (error) fmt::print(std::cerr, "error: {}, connection is connected by peer: {}\n", 
+                if (error) fmt::print(std::cerr, "error: {}\n" "connection is connected by peer: {}\n",
                     error.message(), error == boost::asio::error::eof);
                 const auto socket_close_guard = core::make_guard([exception_count]
                 {
@@ -157,9 +189,11 @@ namespace net
             assert(session_strand_.running_in_this_thread());
             assert(recv_delim_valid());
             assert(recv_delim_.size() <= std::numeric_limits<uint16_t>::max());
-            boost::asio::async_read_until(socket_, ref_recv_streambuf(), recv_delim_,
-                make_serial_handler([delim_size = static_cast<uint16_t>(recv_delim_.size()),
-                    this, self = shared_from_this()](boost::system::error_code error, std::size_t transfer_size)
+            std::unique_lock<std::shared_mutex> streambuf_lock;
+            auto& streambuf_ref = ref_recv_streambuf(streambuf_lock);
+            boost::asio::async_read_until(socket_, streambuf_ref, recv_delim_,
+                make_serial_handler([delim_size = static_cast<uint16_t>(recv_delim_.size()), streambuf_lock = std::move(streambuf_lock),
+                    this, self = shared_from_this()](boost::system::error_code error, std::size_t transfer_size) mutable
             {
                 if (delim_size == transfer_size)
                     fmt::print("empty net pack received\n");
@@ -167,17 +201,13 @@ namespace net
                 fmt::print(">>handle: transferred {}\n", transfer_size);
                 if (!recv_request_empty())
                 {
-                    reply_recv_request(delim_size, transfer_size);
-                    // if (!recv_streambuf_infos_.empty())
-                    // {
-                    //     recv_requests_.front().set_value(pop_recv_streambuf_front());
-                    //     recv_streambuf_infos_.emplace_back(delim_size, transfer_size);
-                    // }
-                    // else
-                    //     recv_requests_.front().set_value(pop_recv_streambuf_front(delim_size, transfer_size));
-                    // recv_requests_.pop_front();
+                    assert(streambuf_lock.mutex() != nullptr);      // __temp
+                    if (streambuf_lock.mutex() != nullptr)
+                        reply_recv_request(delim_size, transfer_size, std::move(streambuf_lock));
+                    else reply_recv_request(delim_size, transfer_size);
                 }
-                if (!error && delim_size != transfer_size) return dispose_receive();
+                if (streambuf_lock.owns_lock()) streambuf_lock.unlock();
+                if (!error && delim_size != transfer_size) return dispose_receive();    // TODO: consider boost::asio::defer
                 recv_disposing_ = false;
             }));
         }
@@ -186,7 +216,7 @@ namespace net
         {
             assert(send_disposing_);
             assert(session_strand_.running_in_this_thread());
-            // if (send_queue.empty())    
+            assert(recv_delim_valid());
             if (finish_send())
             {
                 fmt::print("stop dispose send\n");
@@ -196,9 +226,10 @@ namespace net
             }
             auto[sendbuf_view, sendbuf_handle] = std::move(sendbuf_handles_.front());   //  deque::iterator is unstable
             sendbuf_handles_.pop_front();
-            boost::asio::async_write(socket_, sendbuf_view,
-                make_serial_handler([expect_size = sendbuf_view.size(), sendbuf_handle = std::move(sendbuf_handle), 
-                    this, self = shared_from_this()](boost::system::error_code error, std::size_t transfer_size) 
+            std::array<boost::asio::const_buffer, 2> sendbuf_delim_view{ sendbuf_view ,boost::asio::buffer(recv_delim_) };
+            boost::asio::async_write(socket_, sendbuf_delim_view,
+                make_serial_handler([expect_size = buffer_size(sendbuf_delim_view), sendbuf_handle = std::move(sendbuf_handle),
+                    this, self = shared_from_this()](boost::system::error_code error, std::size_t transfer_size)
             {
                 const auto guard = make_fault_guard(error);
                 fmt::print(">>handle: transferred {}, next to transfer {}, queue size {}\n", transfer_size,
@@ -212,22 +243,35 @@ namespace net
             }));
         }
 
-        [[nodiscard]] std::future<std::vector<char>> pending_recv_request(
-            std::promise<std::vector<char>>&& recv_promise, std::string_view new_delim)
+        [[nodiscard]] std::future<std::vector<char>> 
+            pending_recv_request(std::promise<std::vector<char>>&& recv_promise, std::string_view new_delim)
+        {
+            auto recv_future = recv_promise.get_future();
+            boost::asio::post(session_strand_, 
+                [recv_promise = std::move(recv_promise), new_delim, this, self = shared_from_this()]() mutable
+            {
+                [[maybe_unused]] auto& recv_actor = try_construct_recv_actor<internal_recv_actor>();
+                if (!new_delim.empty() && new_delim != recv_delim_) recv_delim_ = new_delim;
+                recv_actor.requests.push_back(std::move(recv_promise));
+                if (std::exchange(recv_disposing_, true)) return;
+                assert(recv_delim_valid());
+                dispose_receive();
+            });
+            return recv_future;
+        }
+
+        [[nodiscard]] std::future<std::tuple<uint16_t, uint64_t, std::unique_lock<std::shared_mutex>>>
+            pending_recv_request(std::promise<std::tuple<uint16_t, uint64_t, std::unique_lock<std::shared_mutex>>>&& recv_promise, std::string_view new_delim)
         {
             auto recv_future = recv_promise.get_future();
             boost::asio::post(session_strand_, [recv_promise = std::move(recv_promise),
                 new_delim, this, self = shared_from_this()]() mutable
             {
-                if (!recv_actor_constructed())
-                    recv_actor_.template emplace<internal_recv_actor>();
+                [[maybe_unused]] auto& recv_actor = std::get<external_recv_actor>(recv_actor_);
                 if (!new_delim.empty() && new_delim != recv_delim_) recv_delim_ = new_delim;
-                auto& recv_requests = std::get<internal_recv_actor>(recv_actor_).requests;
-                if (!recv_requests.empty())                //  append after existed receiving requests
-                    return recv_requests.push_back(std::move(recv_promise));
-                if (!recv_streambuf_infos_.empty())         //  retrieve front available received bytes
-                    return recv_promise.set_value(pop_recv_streambuf_front());
-                recv_requests.push_back(std::move(recv_promise));
+                recv_actor.requests.push_back(std::move(recv_promise));
+                if (!recv_streambuf_infos_.empty())
+                    reply_recv_request(std::unique_lock<std::shared_mutex>{recv_actor.streambuf_mutex});
                 if (std::exchange(recv_disposing_, true)) return;
                 assert(recv_delim_valid());
                 dispose_receive();
@@ -237,8 +281,8 @@ namespace net
 
         void pending_sendbuf_handle(boost::asio::const_buffer sendbuf_view, std::unique_ptr<std::any> sendbuf_handle)
         {   
-            boost::asio::post(session_strand_, [sendbuf_view, 
-                sendbuf_handle = std::move(sendbuf_handle), this, self = shared_from_this()]() mutable
+            boost::asio::post(session_strand_, 
+                [sendbuf_view, sendbuf_handle = std::move(sendbuf_handle), this, self = shared_from_this()]() mutable
             {
                 sendbuf_handles_.emplace_back(sendbuf_view,std::move(sendbuf_handle));
                 if (std::exchange(send_disposing_, true)) return;
@@ -253,25 +297,50 @@ namespace net
                 // socket_.cancel();
                 socket_.shutdown(socket::shutdown_both);
                 socket_.close();
+                close_pending_ = false;
             });
         }
 
         struct internal_recv_actor
         {
+            internal_recv_actor() = default;
+
+            std::vector<char> pop_streambuf_front(uint16_t delim_size, uint64_t transferred_size)
+            {
+                assert(delim_size <= transferred_size);
+                assert(streambuf.size() >= transferred_size);
+                const auto streambuf_iter = buffers_begin(streambuf.data());
+                std::vector<char> streambuf_front{ streambuf_iter,std::next(streambuf_iter,transferred_size - delim_size) };
+                streambuf.consume(transferred_size);
+                return streambuf_front;
+            }
+
+            std::vector<char> pop_streambuf_front(std::deque<std::pair<uint16_t,uint64_t>>& streambuf_infos)
+            {
+                assert(!streambuf_infos.empty());
+                const auto[delim_size, transfer_size] = std::move(streambuf_infos.front());
+                streambuf_infos.pop_front();
+                return pop_streambuf_front(delim_size, transfer_size);
+            }
+
             std::deque<std::promise<std::vector<char>>> requests;
             boost::asio::streambuf streambuf;
         };
 
         struct external_recv_actor
         {
-            std::deque<std::promise<std::pair<uint16_t, uint64_t>>> requests;
-            boost::asio::streambuf& streambuf;
+            explicit external_recv_actor(boost::asio::streambuf& recvbuf)
+                : streambuf_ref(recvbuf)
+            {}
+
+            std::deque<std::promise<std::tuple<uint16_t, uint64_t, std::unique_lock<std::shared_mutex>>>> requests;
+            boost::asio::streambuf& streambuf_ref;
+            std::shared_mutex streambuf_mutex;
         };
 
         socket socket_;
         std::variant<std::monostate, internal_recv_actor, external_recv_actor> recv_actor_;
-        // boost::asio::streambuf recv_streambuf_;
-        // std::deque<std::promise<std::vector<char>>> recv_requests_;
+        std::string_view recv_delim_;
         std::deque<std::pair<uint16_t, uint64_t>> recv_streambuf_infos_;
         std::deque<std::pair<boost::asio::const_buffer, std::unique_ptr<std::any>>> sendbuf_handles_;
         mutable bool close_pending_ = false;
@@ -292,7 +361,6 @@ namespace net
         bool finish_receive() const noexcept
         {
             return recv_request_empty() && recv_streambuf_infos_.empty();
-            // return recv_requests_.empty() && recv_streambuf_infos_.empty();
         }
 
         bool finish_send() const noexcept
@@ -300,76 +368,70 @@ namespace net
             return sendbuf_handles_.empty();
         }
 
-        std::vector<char> pop_recv_streambuf_front(uint16_t delim_size, uint64_t transferred_size)
-        {
-            auto& recv_streambuf = std::get<internal_recv_actor>(recv_actor_).streambuf;
-            assert(delim_size <= transferred_size);
-            assert(recv_streambuf.size() >= transferred_size);
-            assert(session_strand_.running_in_this_thread());
-            const auto recv_streambuf_iter = buffers_begin(recv_streambuf.data());
-            std::vector<char> recv_streambuf_front{ recv_streambuf_iter,std::next(recv_streambuf_iter,transferred_size - delim_size) };
-            recv_streambuf.consume(transferred_size);
-            return recv_streambuf_front;
-        }
-
-        std::vector<char> pop_recv_streambuf_front()
-        {
-            assert(!recv_streambuf_infos_.empty());
-            const auto[delim_size, transfer_size] = std::move(recv_streambuf_infos_.front());
-            recv_streambuf_infos_.pop_front();
-            return pop_recv_streambuf_front(delim_size, transfer_size);
-        }
-
         bool recv_actor_constructed() const
         {
-            static_assert(std::is_same_v<std::monostate, std::variant_alternative_t<0, decltype(recv_actor_)>>);
-            return recv_actor_.index() != 0;
+            return recv_actor_.index() != meta::index<std::monostate, decltype(recv_actor_)>::value;
+        }
+
+        template<typename VariantType, typename... Types>
+        VariantType& try_construct_recv_actor(Types&&... args)
+        {
+            if (!recv_actor_constructed())
+                return recv_actor_.template emplace<VariantType>(std::forward<Types>(args)...);
+            return std::get<VariantType>(recv_actor_);
         }
 
         bool recv_request_empty() const
         {
-            if (!recv_actor_constructed()) return false;
-            if (const internal_recv_actor* internal_actor = std::get_if<internal_recv_actor>(&recv_actor_))
-                return internal_actor->requests.empty();
-            if (const external_recv_actor* external_actor = std::get_if<external_recv_actor>(&recv_actor_))
-                return external_actor->requests.empty();
+            if (!recv_actor_constructed()) return true;
+            if (const auto* actor = std::get_if<internal_recv_actor>(&recv_actor_)) return std::empty(actor->requests);
+            if (const auto* actor = std::get_if<external_recv_actor>(&recv_actor_)) return std::empty(actor->requests);
             throw core::unreachable_execution_branch{};
         }
 
-        boost::asio::streambuf& ref_recv_streambuf()
+        boost::asio::streambuf& ref_recv_streambuf(std::unique_lock<std::shared_mutex>& streambuf_lock)
         {
-            if (internal_recv_actor* actor = std::get_if<internal_recv_actor>(&recv_actor_))
-                return actor->streambuf;
-            if (external_recv_actor* actor = std::get_if<external_recv_actor>(&recv_actor_))
-                return actor->streambuf;
+            if (auto* actor = std::get_if<internal_recv_actor>(&recv_actor_)) return actor->streambuf;
+            if (auto* actor = std::get_if<external_recv_actor>(&recv_actor_))
+            {
+                streambuf_lock = std::unique_lock<std::shared_mutex>{ actor->streambuf_mutex };
+                return actor->streambuf_ref;
+            }
             throw core::unreachable_execution_branch{};
         }
 
         void reply_recv_request(uint16_t delim_size, uint64_t transfer_size)
         {
-            if (internal_recv_actor* actor = std::get_if<internal_recv_actor>(&recv_actor_))
+            auto& recv_actor = std::get<internal_recv_actor>(recv_actor_);
+            assert(!recv_actor.requests.empty());
+            if (!recv_streambuf_infos_.empty())
             {
-                assert(!actor->requests.empty());
-                if (!recv_streambuf_infos_.empty())
-                {
-                    actor->requests.front().set_value(pop_recv_streambuf_front());
-                    recv_streambuf_infos_.emplace_back(delim_size, transfer_size);
-                }
-                else
-                    actor->requests.front().set_value(pop_recv_streambuf_front(delim_size, transfer_size));
-                return actor->requests.pop_front();
+                recv_actor.requests.front().set_value(recv_actor.pop_streambuf_front(recv_streambuf_infos_));
+                recv_streambuf_infos_.emplace_back(delim_size, transfer_size);
             }
-            if (external_recv_actor* actor = std::get_if<external_recv_actor>(&recv_actor_))
-            {
-                assert(!actor->requests.empty());
-                actor->requests.front().set_value(std::make_pair(delim_size, transfer_size));
-                return actor->requests.pop_front();
-            }
-            throw core::unreachable_execution_branch{};
+            else
+                recv_actor.requests.front().set_value(recv_actor.pop_streambuf_front(delim_size, transfer_size));
+            recv_actor.requests.pop_front();
+        }
+
+        void reply_recv_request(std::unique_lock<std::shared_mutex> streambuf_lock)
+        {
+            auto& recv_actor = std::get<external_recv_actor>(recv_actor_);
+            assert(!std::empty(recv_actor.requests));
+            assert(!std::empty(recv_streambuf_infos_));
+            recv_actor.requests.front().set_value(std::make_tuple(
+                recv_streambuf_infos_.front().first, recv_streambuf_infos_.front().second, std::move(streambuf_lock)));
+            recv_streambuf_infos_.pop_front();
+            recv_actor.requests.pop_front();
+        }
+
+        void reply_recv_request(uint16_t delim_size, uint64_t transfer_size, std::unique_lock<std::shared_mutex> streambuf_lock)
+        {
+            recv_streambuf_infos_.emplace_back(delim_size, transfer_size);
+            reply_recv_request(std::move(streambuf_lock));
         }
 
         mutable boost::asio::io_context::strand session_strand_;
-        mutable std::string_view recv_delim_;
         const size_t hash_code_ = std::numeric_limits<size_t>::infinity();
 
         friend element::dereference_hash;
