@@ -108,4 +108,30 @@ namespace meta
     struct has_operator_dereference<Handle,
         std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
     > : std::true_type {};
+
+    template<typename Return, typename Object, bool HasConst, typename... Args>
+    struct member_function_trait
+    {
+        using return_type = Return;
+        using object_type = Object;
+        using args_tuple = std::tuple<Args...>;
+        static constexpr bool has_args = true;
+        static constexpr bool has_const = HasConst;
+    };
+
+    template<typename Return, typename Object, bool HasConst>
+    struct member_function_trait<Return, Object, HasConst>
+    {
+        using return_type = Return;
+        using object_type = Object;
+        using args_tuple = void;
+        static constexpr bool has_args = false;
+        static constexpr bool has_const = HasConst;
+    };
+
+    template<typename R, typename T, typename... Args>
+    constexpr member_function_trait<R, T, true> deduce_member_function_pointer(R(T::*)(Args...)const) { return {}; }
+
+    template<typename R, typename T, typename... Args>
+    constexpr member_function_trait<R, T, false> deduce_member_function_pointer(R(T::*)(Args...)) { return {}; }
 }
