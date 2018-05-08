@@ -43,13 +43,11 @@ namespace core
         ~scope_guard_generic();
     protected:
         using std::decay<Callable>::type::operator();
-        //static_assert(!std::is_reference_v<Callable> && !std::is_const_v<Callable> && !std::is_volatile_v<Callable>);
-        //static_assert(std::is_same_v<std::decay_t<Callable>, Callable>);
     };
 
     template <typename Callable>
     scope_guard_generic<Callable>::scope_guard_generic(std::decay_t<Callable>&& callable)
-        : Callable(std::move(callable))
+        : std::decay_t<Callable>(std::move(callable))
     {}
 
     template <typename Callable>
@@ -70,19 +68,19 @@ namespace core
     namespace v1    // TODO: experimental
     {
         template<typename... Callable>
-        class scope_guard_tuple : protected scope_guard_generic<std::decay_t<Callable>>...
+        class scope_guard_tuple : protected std::decay_t<Callable>...
         {
         public:
             explicit scope_guard_tuple(std::decay_t<Callable>&&... callable)
-                : scope_guard_generic<std::decay_t<Callable>>(std::move(callable))...
+                : std::decay_t<Callable>(std::move(callable))...
             {}
             ~scope_guard_tuple()
             {
-                (..., scope_guard_generic<std::decay_t<Callable>>::operator()());
+                (..., std::decay_t<Callable>::operator()());
                 //(..., &scope_guard_generic<std::decay_t<Callable>>::operator()(this));
             }
         protected:
-            //using scope_guard_generic<std::decay_t<Callable>>::operator()...;
+            using std::decay<Callable>::type::operator()...;
         };
 
         template<typename... Callable>

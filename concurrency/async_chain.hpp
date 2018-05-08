@@ -27,7 +27,7 @@ namespace util
         void async_chain::append(Callable&& callable)
         {
             if (canceled_.load(std::memory_order_acquire)) return;
-            std::promise<decltype(pending_)::element_type*> signal_promise;
+            std::promise<std::future<void>*> signal_promise;
             auto signal_sfuture = signal_promise.get_future().share();
             const auto pcallable = std::make_shared<std::decay_t<Callable>>(std::forward<Callable>(callable));
             decltype(pending_) pending_new = nullptr;

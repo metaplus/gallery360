@@ -104,7 +104,7 @@ namespace net
             dispose_close_socket();
         }
 
-        void close_socket_finally()
+        void close_socket(core::defer_execute_t)
         {
             boost::asio::dispatch(session_strand_, [this, self = shared_from_this()]()
             {
@@ -155,7 +155,7 @@ namespace net
                     if (std::uncaught_exceptions() > exception_count)
                         fmt::print(std::cerr, "exception detected during socket closing\n");
                 });
-                close_socket_finally();
+                close_socket(core::defer_execute);
                 fmt::print(std::cerr, "socket closed\n");
             });
         }
@@ -186,7 +186,6 @@ namespace net
                     if (!recv_actor_.has_request()) return;
                     reply_recv_request(delim_size, transfer_size);
                 });
-
                 // if (streambuf_lock.owns_lock()) streambuf_lock.unlock();
                 if (!error && transfer_size != 0 && delim_size < transfer_size) return dispose_receive();
                 recv_disposing_ = false;
@@ -237,21 +236,12 @@ namespace net
                 assert(!delim_suffix_.empty());
                 // if (!new_delim.empty() && new_delim != delim_suffix_) delim_suffix_ = new_delim;
                 recv_actor_.requests.push_back(std::move(recv_promise));
-                if (recv_actor_.is_streambuf_available())
-                {
-                    //return reply_recv_request(std::in_place_type<internal_recv_actor>);
-                    //recv_actor_.reply_request();
-                    return reply_recv_request();
-                }
+                if (recv_actor_.is_streambuf_available()) return reply_recv_request();
                 boost::asio::dispatch(session_strand_,
                     [recv_promise = std::move(recv_promise), this, self = std::move(self)]() mutable
                 {
                     if (close_pending_ || !socket_.is_open())
-                    {
                         return recv_actor_.clear_request();
-                        // for (auto& promise : recv_actor.requests) promise.set_value(std::vector<char>{});
-                        // return recv_actor.requests.clear();
-                    }
                     if (std::exchange(recv_disposing_, true)) return;
                     assert(delim_suffix_valid());
                     dispose_receive();
@@ -320,17 +310,25 @@ namespace net
                 return front_info;
             }
 
-            std::tuple<uint64_t, uint64_t, bool> reply_request(uint16_t delim_size = 0, uint64_t transfer_size = 0)
+            std::tuple<uint64_t, uint64_t, bool> reply_request()
             {
                 assert(has_request());
                 // assert(is_streambuf_available());
-                std::pair<uint16_t, uint64_t> streambuf_info_pair;
-                if (delim_size != 0 || transfer_size != 0)
-                    streambuf_info_pair = rotate_streambuf_info(delim_size, transfer_size);
-                else streambuf_info_pair = rotate_streambuf_info();
-                delim_size = streambuf_info_pair.first;
-                transfer_size = streambuf_info_pair.second;
-                std::tuple<uint64_t, uint64_t, bool> reply_result{ 0,0,false };
+                const auto[delim_size, transfer_size] = rotate_streambuf_info();
+                return dispose_reply_request(delim_size, transfer_size);
+            }
+
+            std::tuple<uint64_t, uint64_t, bool> reply_request(uint16_t delim_size, uint64_t transfer_size)
+            {
+                assert(has_request());
+                // assert(is_streambuf_available());
+                std::tie(delim_size, transfer_size) = rotate_streambuf_info(delim_size, transfer_size);
+                return dispose_reply_request(delim_size, transfer_size);
+            }
+
+            std::tuple<uint64_t, uint64_t, bool> dispose_reply_request(uint16_t delim_size, uint64_t transfer_size)
+            {
+                std::tuple<uint64_t, uint64_t, bool> reply_context{ 0,0,false };
                 if (delim_size < transfer_size && transfer_size != 0)
                 {
                     if (!requests.empty())
@@ -338,7 +336,7 @@ namespace net
                         std::vector<char> streambuf_front(transfer_size - delim_size);
                         const auto copy_size = buffer_copy(boost::asio::buffer(streambuf_front), streambuf.data());
                         assert(copy_size == streambuf_front.size());
-                        std::get<0>(reply_result) = copy_size;
+                        std::get<0>(reply_context) = copy_size;
                         requests.front().set_value(std::move(streambuf_front));
                         requests.pop_front();
                     }
@@ -346,18 +344,18 @@ namespace net
                     {
                         const auto copy_size = boost::asio::buffer_copy(
                             external->streambuf.prepare(transfer_size - delim_size), streambuf.data());
-                        std::get<1>(reply_result) = copy_size;
+                        std::get<1>(reply_context) = copy_size;
                         external->streambuf.commit(copy_size);
                         if (external->request.has_value())
                         {
                             external->request->set_value(std::unique_lock<std::shared_mutex>{external->streambuf_mutex});
-                            std::get<2>(reply_result) = true;
+                            std::get<2>(reply_context) = true;
                             external->request.reset();              //  optional::reset
                         }
                     }
                 }
                 else clear_request();
-                return reply_result;
+                return reply_context;
             }
 
             void clear_request()
@@ -413,7 +411,6 @@ namespace net
             return sendbuf_handles_.empty();
         }
 
-
 #pragma warning(push)
 #pragma warning(disable: 4101)
         void reply_recv_request(uint16_t delim_size = 0, uint64_t transfer_size = 0)
@@ -436,7 +433,7 @@ namespace net
             picked_delim.clear();
             picked_delim.reserve(delim_prefix_.size() + sizeof delim_index + delim_suffix_.size());
             return picked_delim
-                .append(delim_prefix_)          //  TODO: consider big/little endian
+                .append(delim_prefix_)          //  Cautious: processor-dependent endianness
                 .append(reinterpret_cast<const char*>(&delim_index), sizeof delim_index)
                 .append(delim_suffix_);
         }

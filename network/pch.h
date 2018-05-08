@@ -8,6 +8,7 @@
 
 #define BOOST_ASIO_NO_DEPRECATED
 #define BOOST_ASIO_USE_FUTURE_HPP
+// #define BOOST_ASIO_DISABLE_BUFFER_DEBUGGING
 
 #include <boost/asio.hpp>
 

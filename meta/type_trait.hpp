@@ -109,29 +109,23 @@ namespace meta
         std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
     > : std::true_type {};
 
-    template<typename Return, typename Object, bool HasConst, typename... Args>
-    struct member_function_trait
+    template<auto MemFuncPtr>
+    class member_function_trait
     {
-        using return_type = Return;
-        using object_type = Object;
-        using args_tuple = std::tuple<Args...>;
-        static constexpr bool has_args = true;
-        static constexpr bool has_const = HasConst;
+    private:
+        template<typename R, typename T, typename... Args>
+        static constexpr detail::member_function_trait<R, T, true> deduce_mem_func_trait(R(T::*)(Args...)const) { return {}; }
+
+        template<typename R, typename T, typename... Args>
+        static constexpr detail::member_function_trait<R, T, false> deduce_mem_func_trait(R(T::*)(Args...)) { return {}; }
+
+    public:
+        using pointer = decltype(MemFuncPtr);
+        using type = decltype(deduce_mem_func_trait(MemFuncPtr));
+        using return_type = type::template return_type;
+        using object_type = type::template object_type;
+        using args_tuple = type::template args_tuple;
+        static constexpr bool has_args = type::template has_args;
+        static constexpr bool has_const = type::template has_const;
     };
-
-    template<typename Return, typename Object, bool HasConst>
-    struct member_function_trait<Return, Object, HasConst>
-    {
-        using return_type = Return;
-        using object_type = Object;
-        using args_tuple = void;
-        static constexpr bool has_args = false;
-        static constexpr bool has_const = HasConst;
-    };
-
-    template<typename R, typename T, typename... Args>
-    constexpr member_function_trait<R, T, true> deduce_member_function_pointer(R(T::*)(Args...)const) { return {}; }
-
-    template<typename R, typename T, typename... Args>
-    constexpr member_function_trait<R, T, false> deduce_member_function_pointer(R(T::*)(Args...)) { return {}; }
 }

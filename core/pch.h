@@ -13,7 +13,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _SCL_SECURE_NO_WARNINGS
 
-#define _SILENCE_PARALLEL_ALGORITHMS_EXPERIMENTAL_WARNING   // <execution>
+// #define _SILENCE_PARALLEL_ALGORITHMS_EXPERIMENTAL_WARNING   // <execution>
 
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS             // <tbb/tbb.h>          
 
@@ -55,21 +55,11 @@
 #include <unordered_set>
 #include <variant>
 #include <vector>
+#include <filesystem>
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
 
 using namespace std::literals;
-
-//#if __has_include(<filesystem>)
-#include <filesystem>
-namespace std
-{
-    namespace filesystem = std::experimental::filesystem;
-}
-//#elif __has_include(<boost/filesystem.hpp>)
-//#include <boost/filesystem.hpp>
-//namespace filesystem = boost::filesystem;
-//#endif
 
 #ifdef CORE_USE_COROUTINE
 
