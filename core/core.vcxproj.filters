@@ -16,9 +16,6 @@
     <Filter Include="Header Files\meta">
       <UniqueIdentifier>{d4d7beb7-8170-4d6b-a101-b98767ae254e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\meta\detail">
-      <UniqueIdentifier>{83b02e61-caf8-4868-8f8d-14363c569361}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\concurrency">
       <UniqueIdentifier>{68829032-33c3-4892-a267-a9e0aeac0533}</UniqueIdentifier>
     </Filter>
@@ -35,9 +32,6 @@
     </ClInclude>
     <ClInclude Include="..\meta\type_trait.hpp">
       <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="..\meta\detail\type_trait.hpp">
-      <Filter>Header Files\meta\detail</Filter>
     </ClInclude>
     <ClInclude Include="guard.h">
       <Filter>Header Files</Filter>
@@ -65,6 +59,15 @@
     </ClInclude>
     <ClInclude Include="..\concurrency\async_chain.hpp">
       <Filter>Header Files\concurrency</Filter>
+    </ClInclude>
+    <ClInclude Include="..\meta\member_function_trait.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="..\meta\detail.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="..\meta\function_trait.hpp">
+      <Filter>Header Files\meta</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

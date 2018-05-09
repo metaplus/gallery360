@@ -101,31 +101,11 @@ namespace meta
     template<typename T>
     constexpr bool is_hashable_v = is_hashable<T>::value;
 
-    template<typename Handle, typename = std::void_t<>>
+    template<typename Handle, typename = void>
     struct has_operator_dereference : std::false_type {};
 
     template<typename Handle>
     struct has_operator_dereference<Handle,
         std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
     > : std::true_type {};
-
-    template<auto MemFuncPtr>
-    class member_function_trait
-    {
-    private:
-        template<typename R, typename T, typename... Args>
-        static constexpr detail::member_function_trait<R, T, true> deduce_mem_func_trait(R(T::*)(Args...)const) { return {}; }
-
-        template<typename R, typename T, typename... Args>
-        static constexpr detail::member_function_trait<R, T, false> deduce_mem_func_trait(R(T::*)(Args...)) { return {}; }
-
-    public:
-        using pointer = decltype(MemFuncPtr);
-        using type = decltype(deduce_mem_func_trait(MemFuncPtr));
-        using return_type = type::template return_type;
-        using object_type = type::template object_type;
-        using args_tuple = type::template args_tuple;
-        static constexpr bool has_args = type::template has_args;
-        static constexpr bool has_const = type::template has_const;
-    };
 }

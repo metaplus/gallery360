@@ -165,8 +165,10 @@
     <ClInclude Include="..\concurrency\async_chain.hpp" />
     <ClInclude Include="..\concurrency\barrier.h" />
     <ClInclude Include="..\concurrency\synchronize.h" />
+    <ClInclude Include="..\meta\detail.hpp" />
+    <ClInclude Include="..\meta\function_trait.hpp" />
+    <ClInclude Include="..\meta\member_function_trait.hpp" />
     <ClInclude Include="..\meta\meta.hpp" />
-    <ClInclude Include="..\meta\detail\type_trait.hpp" />
     <ClInclude Include="..\meta\type_trait.hpp" />
     <ClInclude Include="core.h" />
     <ClInclude Include="exception.h" />

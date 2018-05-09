@@ -68,8 +68,10 @@ using namespace std::literals;
 #endif
 
 #include "meta/meta.hpp"
-#include "meta/detail/type_trait.hpp"
+#include "meta/detail.hpp"
 #include "meta/type_trait.hpp"
+#include "meta/function_trait.hpp"
+#include "meta/member_function_trait.hpp"
 #include "core/exception.h"
 #include "core/core.h"
 #include "core/guard.h"

@@ -45,24 +45,4 @@ namespace meta::detail
     {
         using type = std::disjunction<is_same_indexed<T, Types, Indexes>...>;
     };
-
-    template<typename Return, typename Object, bool HasConst, typename... Args>
-    struct member_function_trait
-    {
-        using return_type = Return;
-        using object_type = Object;
-        using args_tuple = std::tuple<Args...>;
-        static constexpr bool has_args = true;
-        static constexpr bool has_const = HasConst;
-    };
-
-    template<typename Return, typename Object, bool HasConst>
-    struct member_function_trait<Return, Object, HasConst>
-    {
-        using return_type = Return;
-        using object_type = Object;
-        using args_tuple = std::tuple<>;
-        static constexpr bool has_args = false;
-        static constexpr bool has_const = HasConst;
-    };
 }
