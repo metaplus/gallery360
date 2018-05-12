@@ -31,5 +31,5 @@ extern "C" {
 #pragma comment(lib,"swscale")
 #endif //_WIN32
 
-#include "multimedia/ffmpeg/ffmpeg.h"
-#include "multimedia/ffmpeg/context.h"
+#include "multimedia/ffmpeg.h"
+#include "multimedia/context.h"

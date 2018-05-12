@@ -162,15 +162,15 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="ffmpeg\ffmpeg.h" />
-    <ClInclude Include="ffmpeg\context.h" />
+    <ClInclude Include="context.h" />
+    <ClInclude Include="ffmpeg.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ffmpeg\context.cpp" />
-    <ClCompile Include="ffmpeg\ffmpeg.cpp" />
+    <ClCompile Include="context.cpp" />
+    <ClCompile Include="ffmpeg.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

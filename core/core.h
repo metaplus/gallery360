@@ -20,17 +20,17 @@ namespace core
 
     std::string time_string(std::string_view tformat = "%c"sv, std::tm*(*tfunc)(const std::time_t*) = &std::localtime);
 
-    template<int Source, int Dest, int Stride = 1>
+    template<auto Source, auto Dest, auto Stride = 1>
     constexpr auto range()
     {
         //static_assert(std::numeric_limits<int>::min() <= std::min<IntType>(Source, Dest));
         //static_assert(std::numeric_limits<int>::max() >= std::max<IntType>(Source, Dest));
         static_assert(Source != Dest && Stride != 0 && ((Source < Dest) ^ (Stride < 0)));
-        constexpr auto element_count = std::divides<int>{}(Dest - Source + Stride, Stride);
+        constexpr auto element_count = std::divides<void>{}(Dest - Source + Stride, Stride);
         return meta::make_array(
             meta::sequence_arithmetic<std::plus<void>, Source>(
                 meta::sequence_arithmetic<std::multiplies<void>, Stride>(
-                    std::make_integer_sequence<int, element_count>{})));
+                    std::make_integer_sequence<decltype(element_count), element_count>{})));
     }
 
     namespace literals
@@ -84,32 +84,6 @@ namespace core
         return std::forward<Callable>(callable);
     }
 
-    template<typename Expr>
-    constexpr bool identify(Expr&& condition)
-    {
-        using expr_type = meta::remove_cv_ref_t<Expr>;
-        if constexpr(std::is_same_v<expr_type, bool>)
-            return condition;
-        else if constexpr(std::is_null_pointer_v<expr_type>)
-            return false;
-        else if constexpr(std::is_pointer_v<expr_type> && !std::is_member_pointer_v<expr_type>)
-            return condition != nullptr;
-        else if constexpr(meta::is_atomic<expr_type>::value && std::is_lvalue_reference_v<Expr>)
-            return condition.load(std::memory_order_acquire);
-        else if constexpr(std::is_invocable_r_v<bool, expr_type>)
-            return std::invoke(std::forward<Expr>(condition));
-        else
-            static_assert(false, "taste undesirable expression");
-    }
-
-    template<typename Expr, typename Callable, typename... Types>
-    Callable&& condition_loop(Expr&& condition, Callable&& callable, Types&& ...args)
-    {
-        while (core::identify(condition))
-            std::invoke(callable, args...);
-        return std::forward<Callable>(callable);
-    }
-
     template <typename T>
     std::reference_wrapper<T> make_null_reference_wrapper()
     {
@@ -135,30 +109,6 @@ namespace core
     using absolute = std::uint64_t;
     using rel = relative;
     using abs = absolute;
-
-    template<typename Future, typename Represent, typename Period>
-    std::enable_if_t<meta::is_future<Future>::value> persist_wait(Future&& future,
-        std::atomic<bool>& permit, std::chrono::duration<Represent, Period> interval = 0ns)
-    {
-        auto attempt = future.wait_for(0ns);
-        if (attempt == std::future_status::deferred)
-            throw std::invalid_argument{ "prohibit deferred future, otherwise inevitably suffers infinite blocking potential" };
-        while (attempt != std::future_status::ready)
-        {
-            if (!permit.load(std::memory_order_acquire))
-                throw aborted_error{};
-            attempt = future.wait_for(interval);
-        }
-    }
-
-    template<typename Callable, typename Represent, typename Period>
-    std::enable_if_t<std::is_invocable_v<Callable>> persist_wait(Callable callable,
-        std::atomic<bool>& permit, std::chrono::duration<Represent, Period> interval = 0ns)
-    {
-        auto future = std::async(std::move(callable));
-        while (future.wait_for(interval) != std::future_status::ready)
-            if (!permit.load(std::memory_order_acquire)) throw aborted_error{};
-    }
 
     inline namespace tag    //  tag dispatching usage, clarify semantics
     {
@@ -261,4 +211,10 @@ namespace core
             return std::decay_t<Mandator>{}((*std::forward<Handles>(args))...);
         }
     };
+
+    template<typename T, typename U>
+    constexpr bool address_same(const T& a0, const U& a1) noexcept
+    {
+        return std::addressof(a0) == std::addressof(a1);
+    }
 }

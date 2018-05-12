@@ -14,12 +14,14 @@ namespace meta
         }
     };
 
-    template<typename BinaryCallable, int64_t Factor, typename T, T ...Values>
-    constexpr auto sequence_arithmetic(std::integer_sequence<T, Values...> = {})
+    template<typename BinaryCallable, auto Factor, auto... Values>
+    constexpr auto sequence_arithmetic(
+        std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> = {})
     {
-        static_assert(std::is_invocable_r_v<T, BinaryCallable, const T&, const T&>);
-        static_assert(std::is_convertible_v<decltype(Factor), T>);
-        return std::integer_sequence<T, static_invoke<BinaryCallable>::by(Values, Factor)...>{};
+        using factor_type = decltype(Factor);
+        using value_type = std::common_type_t<decltype(Values)...>;
+        static_assert(std::is_invocable_r_v<value_type, BinaryCallable, value_type, factor_type>);
+        return std::integer_sequence<value_type, static_invoke<BinaryCallable>::by(Values, Factor)...>{};
     }
 
     template<typename T, typename ...Types>
@@ -37,7 +39,7 @@ namespace meta
         constexpr static size_t size = 1;
     };
 
-    template<typename BinaryCallable, typename, typename >
+    template<typename BinaryCallable, typename, typename>
     struct bool_arithmetic;
 
     template<typename BinaryCallable, bool L, bool R>

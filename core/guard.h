@@ -65,6 +65,9 @@ namespace core
         }
     }
 
+    template<typename Callable>
+    scope_guard_generic(std::decay_t<Callable>&& callable) -> scope_guard_generic<std::decay_t<Callable>>;
+
     namespace v1    // TODO: experimental
     {
         template<typename... Callable>

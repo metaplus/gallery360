@@ -15,7 +15,7 @@ namespace meta
         using object_type = Object;
         using args_tuple = std::tuple<Args...>;
 
-        static constexpr bool has_args = sizeof...(Args);
+        static constexpr bool has_args = sizeof...(Args) > 0;
         static constexpr bool has_const = HasConst;
     };
 
