@@ -42,12 +42,6 @@
     <ClInclude Include="verify.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\concurrency\barrier.h">
-      <Filter>Header Files\concurrency</Filter>
-    </ClInclude>
-    <ClInclude Include="core.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\meta\meta.hpp">
       <Filter>Header Files\meta</Filter>
     </ClInclude>
@@ -69,6 +63,15 @@
     <ClInclude Include="..\meta\function_trait.hpp">
       <Filter>Header Files\meta</Filter>
     </ClInclude>
+    <ClInclude Include="core.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\concurrency\latch.hpp">
+      <Filter>Header Files\concurrency</Filter>
+    </ClInclude>
+    <ClInclude Include="..\concurrency\barrier.hpp">
+      <Filter>Header Files\concurrency</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -81,9 +84,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\concurrency\barrier.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="core.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\concurrency\synchronize.cpp">

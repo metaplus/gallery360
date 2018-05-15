@@ -11,11 +11,13 @@ namespace meta::detail
         struct is_within<T, U> : std::is_same<T, U>::type {};
     }
 
-    inline namespace v2
+    namespace v2
     {
         template<typename T, typename ...Types>
         struct is_within : std::disjunction<std::is_same<T, Types>...> {};
     }
+
+    using v2::is_within;
 
     template<typename T>
     struct value_trait;
@@ -32,8 +34,8 @@ namespace meta::detail
     template<typename T, typename U, size_t I>
     struct is_same_indexed : std::is_same<T, U>
     {
-        using left_type = T;
-        using right_type = U;
+        using left_argument = T;
+        using right_argument = U;
         constexpr static size_t index = I;
     };
 
@@ -41,7 +43,7 @@ namespace meta::detail
     struct index;
 
     template<typename T, size_t ...Indexes, typename ...Types>
-    struct index <T, std::index_sequence<Indexes...>, Types...>
+    struct index<T, std::index_sequence<Indexes...>, Types...>
     {
         using type = std::disjunction<is_same_indexed<T, Types, Indexes>...>;
     };

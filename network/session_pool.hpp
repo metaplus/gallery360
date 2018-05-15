@@ -62,6 +62,8 @@ namespace net
 
             session_pool& operator=(session_pool&& that) noexcept = delete;
 
+            ~session_pool() = default;
+
             bool is_pool_valid() const noexcept
             {
                 return io_context_ptr_ != nullptr;
@@ -141,6 +143,8 @@ namespace net
             std::shared_ptr<boost::asio::io_context> io_context_ptr_ = nullptr;
             boost::asio::io_context::strand session_pool_strand_;
 
+            const std::optional<uint64_t> stable_capacity_;
+
         private:
             std::unordered_map<session_index, session_observer, typename session_index::hash> index_cache_;
 
@@ -183,6 +187,7 @@ namespace net
                 throw core::unreachable_execution_branch{};
             }
         };
+
         template class session_pool<>;
     }
     using default_session_pool = base::session_pool<>;

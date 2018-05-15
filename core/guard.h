@@ -56,7 +56,7 @@ namespace core
         operator()();
     }
 
-    inline namespace v2 
+    namespace v2 
     {
         template<typename Callable>
         scope_guard_generic<std::decay_t<Callable>> make_guard(Callable&& callable)
@@ -64,6 +64,8 @@ namespace core
             return scope_guard_generic<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
         }
     }
+
+    using v2::make_guard;
 
     template<typename Callable>
     scope_guard_generic(std::decay_t<Callable>&& callable) -> scope_guard_generic<std::decay_t<Callable>>;

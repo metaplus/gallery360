@@ -26,7 +26,8 @@ namespace
     const char* deduce_error_cstring(const char* cstr, const T* = nullptr)
     {
         static thread_local std::string local_type_name;
-        return std::strlen(cstr) != 0 ? cstr : (local_type_name = core::type_shortname<std::remove_cv_t<T>>()).c_str();
+        // return std::strlen(cstr) != 0 ? cstr : (local_type_name = core::type_shortname<std::remove_cv_t<T>>()).c_str();
+        return !std::string_view{ cstr }.empty() ? cstr : (local_type_name = core::type_shortname<std::remove_cv_t<T>>()).c_str();
     }
 }
 

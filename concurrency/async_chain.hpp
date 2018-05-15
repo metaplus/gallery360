@@ -54,7 +54,7 @@ namespace util
                 }));
                 temporary.push_back(pending_new);
             } while (!std::atomic_compare_exchange_strong_explicit(&pending_, &pending_old, pending_new,
-                std::memory_order_acq_rel, std::memory_order_relaxed));
+                std::memory_order_release, std::memory_order_relaxed));
             signal_promise.set_value(pending_old.get());
             temporary.clear();
         }

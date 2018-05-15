@@ -428,11 +428,11 @@ namespace net
         const std::string& generate_delim(std::atomic<uint64_t>& prefix_index) const
         {
             assert(&prefix_index == &recv_delim_index_ || &prefix_index == &send_delim_index_);
-            auto& picked_delim = &prefix_index == &recv_delim_index_ ? recv_delim_ : send_delim_;
+            auto& packed_delim = &prefix_index == &recv_delim_index_ ? recv_delim_ : send_delim_;
             const auto delim_index = prefix_index.fetch_add(1);
-            picked_delim.clear();
-            picked_delim.reserve(delim_prefix_.size() + sizeof delim_index + delim_suffix_.size());
-            return picked_delim
+            packed_delim.clear();
+            packed_delim.reserve(delim_prefix_.size() + sizeof delim_index + delim_suffix_.size());
+            return packed_delim
                 .append(delim_prefix_)          //  Cautious: processor-dependent endianness
                 .append(reinterpret_cast<const char*>(&delim_index), sizeof delim_index)
                 .append(delim_suffix_);
@@ -445,6 +445,7 @@ namespace net
         mutable std::atomic<uint64_t> send_delim_index_ = 0;
         mutable std::string recv_delim_;
         mutable std::string send_delim_;
+
         const std::string delim_prefix_ = "[PacketDelim]"s;
         const size_t hash_code_ = std::numeric_limits<size_t>::infinity();
 

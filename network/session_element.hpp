@@ -31,24 +31,24 @@ namespace net
         class session_index
         {
         public:
-            session_index() = default;
+            constexpr session_index() noexcept = default;
 
-            explicit session_index(size_t hash_code)
+            explicit session_index(size_t hash_code) noexcept
                 : hash_code_(hash_code)
             {}
 
             template<typename SessionIndex>
-            explicit session_index(const SessionIndex& index)
+            explicit session_index(const SessionIndex& index) noexcept
                 : hash_code_(index.hash_code_)
             {}
 
-            session_index(const session_index&) = default;
+            session_index(const session_index&) noexcept = default;
 
             session_index(session_index&& that) noexcept
                 : hash_code_(std::exchange(that.hash_code_, default_hash_code()))
             {}
 
-            session_index& operator=(const session_index&) = default;
+            session_index& operator=(const session_index&) noexcept = default;
 
             session_index& operator=(session_index&& that) noexcept
             {

@@ -29,7 +29,7 @@ extern "C" {
 #pragma comment(lib,"avformat")
 #pragma comment(lib,"avutil")
 #pragma comment(lib,"swscale")
-#endif //_WIN32
+#endif  // _WIN32
 
 #include "multimedia/ffmpeg.h"
 #include "multimedia/context.h"

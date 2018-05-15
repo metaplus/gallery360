@@ -15,13 +15,13 @@
 
 // #define _SILENCE_PARALLEL_ALGORITHMS_EXPERIMENTAL_WARNING   // <execution>
 
-#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS             // <tbb/tbb.h>          
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
 
-#undef min          //  abolish vicious macros from <windows.h>, otherwise causing naming collision against STL
-#undef max          //  another tolerable solution appears like #define max_RESUME max #undef max ... #define max max_RESUME
+// #undef min
+// #undef max
 
-#define STRING2(x) #x  
-#define STRING(x) STRING2(x)  
+#define STRING_IMPL(x) #x  
+#define STRING(x) STRING_IMPL(x)  
 
 #include <algorithm>
 #include <any>
@@ -56,15 +56,15 @@
 #include <variant>
 #include <vector>
 #include <filesystem>
+
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
+#include <boost/fiber/all.hpp>
 
 using namespace std::literals;
 
 #ifdef CORE_USE_COROUTINE
-
 #include <experimental/coroutine>
-
 #endif
 
 #include "meta/meta.hpp"
@@ -73,12 +73,17 @@ using namespace std::literals;
 #include "meta/function_trait.hpp"
 #include "meta/member_function_trait.hpp"
 #include "core/exception.h"
-#include "core/core.h"
+#include "core/core.hpp"
 #include "core/guard.h"
 #include "core/verify.hpp"
+
+#ifdef CORE_USE_GRAPH
 #include "core/graph.hpp"
+#endif  // CORE_USE_GRAPH
+
 #include "concurrency/synchronize.h"
-#include "concurrency/barrier.h"
+#include "concurrency/latch.hpp"
+#include "concurrency/barrier.hpp"
 #include "concurrency/async_chain.hpp"
 
 using namespace core::literals;
@@ -97,6 +102,6 @@ using namespace fmt::literals;
 #pragma comment(lib, "Debug/fmt")
 #else
 #pragma comment(lib, "Release/fmt")
-#endif // _DEBUG
+#endif  // _DEBUG
 
-#endif // CORE_USE_FMTLIB
+#endif  // CORE_USE_FMTLIB

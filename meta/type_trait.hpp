@@ -94,9 +94,7 @@ namespace meta
     struct is_hashable : std::false_type {};
 
     template<typename T>
-    struct is_hashable<T,
-        std::void_t<decltype(std::declval<const std::hash<std::decay_t<T>>&>()(std::declval<const std::decay_t<T>&>()))>
-    > : std::true_type {};
+    struct is_hashable<T, std::void_t<decltype(std::hash<std::decay_t<T>>{}(std::declval<std::decay_t<T>&>()))>> : std::true_type {};
 
     template<typename T>
     constexpr bool is_hashable_v = is_hashable<T>::value;

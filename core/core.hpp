@@ -11,6 +11,12 @@ namespace core
     }
 
     template<typename T>
+    std::string type_shortname(const T&)
+    {
+        return type_shortname<std::remove_cv_t<T>>();
+    }
+
+    template<typename T>
     std::string type_name(const T* = nullptr)
     {
         std::string type_name{ typeid(T).name() };
@@ -18,7 +24,21 @@ namespace core
         return type_name;
     }
 
-    std::string time_string(std::string_view tformat = "%c"sv, std::tm*(*tfunc)(const std::time_t*) = &std::localtime);
+    template<typename T>
+    std::string type_name(const T&)
+    {
+        return type_name<std::remove_cv_t<T>>();
+    }
+
+    inline std::string time_string(std::string_view tformat = "%c"sv, std::tm*(*tfunc)(const std::time_t*) = &std::localtime)
+    {
+        std::ostringstream ostream;
+        // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        const auto time_tmt = std::time(nullptr);
+        const auto time_tm = *tfunc(&time_tmt);
+        ostream << std::put_time(&time_tm, tformat.data());
+        return ostream.str();
+    }
 
     template<auto Source, auto Dest, auto Stride = 1>
     constexpr auto range()
@@ -27,10 +47,8 @@ namespace core
         //static_assert(std::numeric_limits<int>::max() >= std::max<IntType>(Source, Dest));
         static_assert(Source != Dest && Stride != 0 && ((Source < Dest) ^ (Stride < 0)));
         constexpr auto element_count = std::divides<void>{}(Dest - Source + Stride, Stride);
-        return meta::make_array(
-            meta::sequence_arithmetic<std::plus<void>, Source>(
-                meta::sequence_arithmetic<std::multiplies<void>, Stride>(
-                    std::make_integer_sequence<decltype(element_count), element_count>{})));
+        return meta::make_array(meta::sequence_plus<Source>(meta::sequence_multiply<Stride>(
+            std::make_integer_sequence<decltype(element_count), element_count>{})));
     }
 
     namespace literals
@@ -60,14 +78,33 @@ namespace core
     }
 
     template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
+    constexpr std::enable_if_t<std::is_enum_v<Enum>, Enum> enum_prev(Enum e, Offset offset)
+    {
+        return static_cast<Enum>(std::minus<void>{}(static_cast<std::underlying_type_t<Enum>>(e), offset));
+    }
+
+    template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
     constexpr std::enable_if_t<std::is_enum_v<Enum>> enum_advance(Enum& e, Offset offset)
     {
         e = core::enum_next(e, offset);
     }
 
-    size_t count_entry(const std::filesystem::path& directory);
+    inline size_t count_entry(const std::filesystem::path& directory)
+    {
+        //  non-recursive version, regardless of symbolic link
+        const std::filesystem::directory_iterator iterator{ directory };
+        return std::distance(begin(iterator), end(iterator));
+    }
 
-    size_t thread_hash_id(std::optional<std::thread::id> id = std::nullopt);
+    inline size_t thread_hash_id(const std::thread::id id)
+    {
+        return std::hash<std::thread::id>{}(id);
+    }
+
+    inline size_t thread_hash_id()
+    {
+        return thread_hash_id(std::this_thread::get_id());
+    }
 
     template<typename Callable, typename ...Types>
     Callable&& repeat(size_t count, Callable&& callable, Types&& ...args)
@@ -85,11 +122,10 @@ namespace core
     }
 
     template <typename T>
-    std::reference_wrapper<T> make_null_reference_wrapper()
+    std::reference_wrapper<T> make_null_reference_wrapper() noexcept
     {
-        static void* lval_nullptr = nullptr;
-        return std::reference_wrapper<T>{
-            *reinterpret_cast<std::add_pointer_t<std::decay_t<T>>&>(lval_nullptr) };
+        static void* null_pointer = nullptr;
+        return std::reference_wrapper<T>{ *reinterpret_cast<std::add_pointer_t<std::decay_t<T>>&>(null_pointer) };
     }
 
     // enable DefaultConstructible
@@ -100,15 +136,10 @@ namespace core
         using std::reference_wrapper<T>::reference_wrapper;
         using std::reference_wrapper<T>::operator=;
         using std::reference_wrapper<T>::operator();
-        reference()
+        reference() noexcept
             : std::reference_wrapper<T>(core::make_null_reference_wrapper<T>())
         {}
     };
-
-    using relative = std::int64_t;
-    using absolute = std::uint64_t;
-    using rel = relative;
-    using abs = absolute;
 
     inline namespace tag    //  tag dispatching usage, clarify semantics
     {
@@ -153,14 +184,19 @@ namespace core
         }
     }
 
-    template<typename ...Types>
-    size_t hash_value(Types&& ...args) noexcept
+    namespace v2
     {
-        static_assert(sizeof...(Types) > 0, "require at least 1 argument");
-        static_assert((... && meta::is_hashable<Types>::value), "require hashable");
-        std::array<size_t, sizeof...(Types)> carray{ std::hash<std::decay_t<Types>>{}(args)... };
-        return std::hash<std::string_view>{}({ reinterpret_cast<char*>(carray.data()), sizeof(carray) });
+        template<typename ...Types>
+        size_t hash_value(Types&& ...args) noexcept
+        {
+            static_assert(sizeof...(Types) > 0, "require at least 1 argument");
+            static_assert((... && meta::is_hashable<Types>::value), "require hashable");
+            std::array<size_t, sizeof...(Types)> carray{ std::hash<std::decay_t<Types>>{}(args)... };
+            return std::hash<std::string_view>{}({ reinterpret_cast<char*>(carray.data()), sizeof(carray) });
+        }
     }
+
+    using v2::hash_value;
 
     template<typename ...Types>
     struct hash
@@ -187,7 +223,7 @@ namespace core
 
     template<typename Handle>
     decltype(auto) get_pointer(Handle&& handle,
-        std::enable_if_t<std::is_pointer_v<std::decay_t<Handle>>>* = nullptr)
+        std::enable_if_t<std::is_pointer_v<std::decay_t<Handle>>>* = nullptr) noexcept
     {
         return std::forward<Handle>(handle);
     }
@@ -216,5 +252,21 @@ namespace core
     constexpr bool address_same(const T& a0, const U& a1) noexcept
     {
         return std::addressof(a0) == std::addressof(a1);
+    }
+
+    struct noncopyable
+    {
+    protected:
+        constexpr noncopyable() noexcept = default;
+        ~noncopyable() = default;
+        noncopyable(const noncopyable&) = delete;
+        noncopyable& operator=(const noncopyable&) = delete;
+    };
+
+    template<typename T>
+    constexpr bool is_default_constructed(const T& object)
+    {
+        static_assert(std::is_default_constructible_v<T>);
+        return object == T{};
     }
 }
