@@ -105,3 +105,15 @@ using namespace fmt::literals;
 #endif  // _DEBUG
 
 #endif  // CORE_USE_FMTLIB
+
+#ifdef CORE_USE_TBB
+
+#include <tbb/tbb.h>
+
+#ifdef _DEBUG
+#pragma comment(lib, "tbb_debug")
+#else
+#pragma comment(lib, "tbb")
+#endif  // _DEBUG
+
+#endif  // CORE_USE_TBB

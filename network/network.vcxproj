@@ -158,7 +158,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="client.hpp" />
+    <ClInclude Include="context_base.hpp" />
+    <ClInclude Include="net.hpp" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="recv_base.hpp" />
+    <ClInclude Include="send_base.hpp" />
     <ClInclude Include="server.hpp" />
     <ClInclude Include="session.hpp" />
     <ClInclude Include="session_element.hpp" />

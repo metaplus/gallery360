@@ -40,15 +40,19 @@ namespace core
         return ostream.str();
     }
 
-    template<auto Source, auto Dest, auto Stride = 1>
+    template<auto Begin, auto End, auto Span = 1>
+    constexpr auto range_sequence()
+    {
+        static_assert(std::is_same_v<decltype(Begin), decltype(End)>);
+        static_assert(Begin != End && Span != 0 && ((Begin < End) ^ (Span < 0)));
+        constexpr auto count = std::divides<void>{}(End - Begin + Span, Span);
+        return meta::sequence_plus<Begin>(meta::sequence_multiply<Span>(std::make_integer_sequence<decltype(count), count>{}));
+    }
+
+    template<auto Begin, auto End, auto Span = 1>
     constexpr auto range()
     {
-        //static_assert(std::numeric_limits<int>::min() <= std::min<IntType>(Source, Dest));
-        //static_assert(std::numeric_limits<int>::max() >= std::max<IntType>(Source, Dest));
-        static_assert(Source != Dest && Stride != 0 && ((Source < Dest) ^ (Stride < 0)));
-        constexpr auto element_count = std::divides<void>{}(Dest - Source + Stride, Stride);
-        return meta::make_array(meta::sequence_plus<Source>(meta::sequence_multiply<Stride>(
-            std::make_integer_sequence<decltype(element_count), element_count>{})));
+        return meta::make_array(range_sequence<Begin, End, Span>());
     }
 
     namespace literals
@@ -71,22 +75,22 @@ namespace core
         }
     }
 
-    template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
-    constexpr std::enable_if_t<std::is_enum_v<Enum>, Enum> enum_next(Enum e, Offset offset)
+    template<typename Enum>
+    constexpr Enum enum_next(Enum e, std::make_signed_t<std::underlying_type_t<Enum>> offset)
     {
         return static_cast<Enum>(std::plus<void>{}(static_cast<std::underlying_type_t<Enum>>(e), offset));
     }
 
-    template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
-    constexpr std::enable_if_t<std::is_enum_v<Enum>, Enum> enum_prev(Enum e, Offset offset)
+    template<typename Enum>
+    constexpr Enum enum_prev(Enum e, std::make_signed_t<std::underlying_type_t<Enum>> offset)
     {
         return static_cast<Enum>(std::minus<void>{}(static_cast<std::underlying_type_t<Enum>>(e), offset));
     }
 
-    template<typename Enum, typename Offset = std::make_signed_t<std::underlying_type_t<Enum>>>
-    constexpr std::enable_if_t<std::is_enum_v<Enum>> enum_advance(Enum& e, Offset offset)
+    template<typename Enum>
+    constexpr Enum& enum_advance(Enum& e, std::make_signed_t<std::underlying_type_t<Enum>> offset)
     {
-        e = core::enum_next(e, offset);
+        return static_cast<std::underlying_type_t<Enum&>>(e) += offset;
     }
 
     inline size_t count_entry(const std::filesystem::path& directory)
@@ -215,15 +219,13 @@ namespace core
     };
 
     template<typename Handle>
-    decltype(auto) get_pointer(Handle&& handle,
-        std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr)
+    decltype(auto) get_pointer(Handle&& handle, std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr)
     {
         return std::forward<Handle>(handle).operator->();
     }
 
     template<typename Handle>
-    decltype(auto) get_pointer(Handle&& handle,
-        std::enable_if_t<std::is_pointer_v<std::decay_t<Handle>>>* = nullptr) noexcept
+    decltype(auto) get_pointer(Handle&& handle, std::enable_if_t<std::is_pointer_v<std::decay_t<Handle>>>* = nullptr) noexcept
     {
         return std::forward<Handle>(handle);
     }
@@ -263,10 +265,10 @@ namespace core
         noncopyable& operator=(const noncopyable&) = delete;
     };
 
-    template<typename T>
-    constexpr bool is_default_constructed(const T& object)
+    template<typename T, typename Equal = std::equal_to<T>>
+    constexpr bool is_default_constructed(const T& object, Equal equal = {}) noexcept
     {
         static_assert(std::is_default_constructible_v<T>);
-        return object == T{};
+        return equal(object, T{});
     }
 }

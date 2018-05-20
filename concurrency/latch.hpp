@@ -9,6 +9,7 @@ namespace util
         public:
             explicit latch(const std::ptrdiff_t count)
                 : count_(count)
+                , signal_(completion_.get_future())
             {}
 
             void count_down_and_wait()
@@ -37,8 +38,8 @@ namespace util
 
         private:
             std::atomic<std::ptrdiff_t> count_ = 0;
-            std::promise<void> completion_;
-            const std::shared_future<void> signal_;
+            mutable std::promise<void> completion_;
+            mutable std::future<void> signal_;
         };
 
         static_assert(!std::is_copy_constructible_v<latch>);

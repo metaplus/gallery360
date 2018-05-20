@@ -11,6 +11,7 @@
 // #define BOOST_ASIO_DISABLE_BUFFER_DEBUGGING
 
 #include <boost/asio.hpp>
+#include <boost/beast.hpp>
 
 static_assert(std::conjunction<
     std::is_same<boost::asio::ip::tcp::socket, boost::asio::basic_stream_socket<boost::asio::ip::tcp>>,
@@ -20,6 +21,12 @@ static_assert(std::conjunction<
 
 #pragma warning(pop)
 
+#include <tbb/concurrent_queue.h>
+
+#include "network/net.hpp"
+#include "network/context_base.hpp"
+#include "network/send_base.hpp"
+#include "network/recv_base.hpp"
 #include "network/session_element.hpp"
 #include "network/session.hpp"
 #include "network/session_pool.hpp"

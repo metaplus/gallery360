@@ -61,7 +61,7 @@ av::packet::packet(std::basic_string_view<uint8_t> sv)
     uint8_t* required_avbuffer = nullptr;
     core::verify(required_avbuffer = static_cast<uint8_t*>(av_malloc(sv.size() + AV_INPUT_BUFFER_PADDING_SIZE)));
     std::copy_n(sv.data(), sv.size(), required_avbuffer);
-    av_packet_from_data(handle_.get(), required_avbuffer, static_cast<int>(sv.size()));
+    core::verify(0 == av_packet_from_data(handle_.get(), required_avbuffer, static_cast<int>(sv.size())));
 }
 
 av::packet::packet(std::string_view csv)
