@@ -144,8 +144,8 @@ namespace net
         class session;
 
         template<>
-        class session<http, boost::asio::ip::tcp::socket>
-            : public std::enable_shared_from_this<session<http, boost::asio::ip::tcp::socket>>
+        class session<protocal::http, boost::asio::ip::tcp::socket>
+            : public std::enable_shared_from_this<session<protocal::http, boost::asio::ip::tcp::socket>>
         {
             using tcp = boost::asio::ip::tcp;
             using request_type = boost::beast::http::request<boost::beast::http::string_body>;
@@ -160,24 +160,29 @@ namespace net
             mutable boost::asio::io_context::strand session_strand_;
             mutable boost::asio::io_context::strand process_strand_;
             mutable std::atomic<bool> active_{ false };
-            mutable std::atomic<int64_t> request_consume_{ 0 };
+            mutable std::atomic<size_t> request_consume_{ 0 };
 
         public:
-            explicit session(tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx, bool chunked = false)
+            session(tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx)
                 : execution_(std::move(ctx))
-                , chunked_(chunked)
                 , socket_(std::move(sock))
                 , session_strand_(*execution_)
                 , process_strand_(*execution_)
             {
                 assert(socket_.is_open());
-                assert(core::address_same (*execution_, socket_.get_executor().context()));
+                assert(core::address_same(*execution_, socket_.get_executor().context()));
                 assert(is_directory(root_path));
                 fmt::print(std::cout, "socket peer endpoint {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
                 fmt::print(std::cout, "file root path {}\n", root_path);
             }
 
-            session<http, tcp::socket>& run()
+            session(tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx, use_chunk_t)
+                : session(std::move(sock), std::move(ctx))
+            {
+                const_cast<bool&>(chunked_) = true;
+            }
+
+            session<protocal::http, tcp::socket>& run()
             {
                 if (!std::atomic_exchange(&active_, true)) execute_recv();
                 return *this;
@@ -187,70 +192,174 @@ namespace net
             void execute_recv()
             {
                 if (!session_strand_.running_in_this_thread())
-                    return boost::asio::dispatch(session_strand_, [this, self = shared_from_this()]() { execute_recv(); });
-                const auto[iterator, success] = requests_.emplace(std::chrono::steady_clock::now(), request_container::mapped_type{});
-                assert(success);
-                auto& request = iterator->second;
-                boost::beast::http::async_read(socket_, recvbuf_, request,
-                    boost::asio::bind_executor(session_strand_, [&request, this, self = shared_from_this()](boost::system::error_code errc, std::size_t transfer_size)
+                    return dispatch(session_strand_, [this, self = shared_from_this()]{ execute_recv(); });
+                erase_consumed_request();
+                auto& request = insert_empty_request()->second;
+                fmt::print("wait incoming request, recvbuf size {}\n", recvbuf_.size());
+                boost::beast::http::async_read(socket_, recvbuf_, request, bind_executor(session_strand_,
+                    [&request, this, self = shared_from_this()](boost::system::error_code errc, std::size_t transfer_size)
                 {
                     fmt::print(std::cout, "handle recv errc {}, transfer {}\n", errc, transfer_size);
-                    if (errc)
-                    {
-                        fmt::print("errmsg {}\n", errc.message());
-                        return socket_.shutdown(socket_.shutdown_send);
-                    }
-                    erase_consumed_request();
-                    boost::asio::post(process_strand_, [&request, this, self]()
+                    if (errc) close_socket(errc, boost::asio::socket_base::shutdown_both);
+                    post(process_strand_, [&request, this, self]()
                     {
                         fmt::print(std::cout, "request head {}\n", request.base());
                         fmt::print(std::cout, "request body {}\n", request.body());
                         // TODO: external process routine towards request
                         std::atomic_fetch_add(&request_consume_, 1);
                     });
-                    if (!chunked_) execute_send(request);
-                    else assert(false);
+                    if (chunked_) execute_send_head(request, use_chunk);
+                    else execute_send(request);
                 }));
             }
 
             void execute_send(request_type& request)
             {
+                namespace http = boost::beast::http;
                 if (!session_strand_.running_in_this_thread())
-                    return boost::asio::dispatch(session_strand_, [&request, this, self = shared_from_this()]() { execute_send(request); });
-                const auto target_path = std::filesystem::path{ root_path }.concat(request.target().begin(), request.target().end());
+                    return dispatch(session_strand_, [&request, this, self = shared_from_this()]{ execute_send(request); });
+                const auto target_path = concate_target_path(request.target());
                 fmt::print(std::cout, "target file path {}, exists {}\n", target_path, exists(target_path));
                 assert(exists(target_path));
-                boost::beast::error_code file_errc;
-                boost::beast::http::file_body::value_type response_body;
+                boost::system::error_code file_errc;
+                http::file_body::value_type response_body;
                 response_body.open(target_path.generic_string().c_str(), boost::beast::file_mode::scan, file_errc);
                 assert(!file_errc);
-                auto response = std::make_unique<boost::beast::http::response<boost::beast::http::file_body>>(
-                    boost::beast::http::status::ok, request.version(), std::move(response_body));
-                response->set(boost::beast::http::field::server, "METAPLUS");
-                // response->set(boost::beast::http::field::content_type, "video/mp4");
+                auto response = std::make_unique<http::response<http::file_body>>(http::status::ok, request.version(), std::move(response_body));
+                response->set(http::field::server, "METAPLUS");
+                // response->set(http::field::content_type, "video/mp4");
                 response->content_length(response_body.size());
                 response->keep_alive(request.keep_alive());
                 auto& response_ref = *response;
                 fmt::print(std::cout, "response head {}\n", response_ref.base());
-                boost::beast::http::async_write(socket_, response_ref,
-                    boost::asio::bind_executor(session_strand_,
-                        [response = std::move(response), this, self = shared_from_this()](boost::system::error_code errc, std::size_t transfer_size)
+                http::async_write(socket_, response_ref, bind_executor(session_strand_,
+                    [response = std::move(response), this, self = shared_from_this()](boost::system::error_code errc, size_t transfer_size)
                 {
                     fmt::print(std::cout, "handle send errc {}, last {}, transfer {}\n", errc, response->need_eof(), transfer_size);
-                    if (errc || response->need_eof())
-                    {
-                        if (errc) fmt::print("errmsg {}\n", errc.message());
-                        return socket_.shutdown(socket_.shutdown_send);
-                    }
+                    if (errc || response->need_eof()) return close_socket(errc, boost::asio::socket_base::shutdown_send);
                     execute_recv();
                 }));
             }
 
-            int64_t erase_consumed_request()
+            struct chunk_read_context : core::noncopyable
+            {
+                using chunk_data = std::vector<char>;
+                using chunk_type = std::shared_ptr<chunk_data>;
+
+                inline static constexpr size_t default_chunk_size{ 8192 * 16 };
+
+                std::filesystem::path file_path;
+                tbb::concurrent_bounded_queue<chunk_type> chunk_queue;
+                std::thread chunk_reader;
+
+                chunk_read_context() = delete;
+
+                explicit chunk_read_context(std::filesystem::path path)
+                    : file_path(std::move(path))
+                    , chunk_reader([this]
+                    {
+                        boost::beast::file file;
+                        boost::system::error_code errc;
+                        file.open(file_path.generic_string().c_str(), boost::beast::file_mode::scan, errc);
+                        chunk_queue.set_capacity(1024);
+                        assert(!errc && file.is_open());
+                        size_t read_size{ 0 };
+                        while (!errc)
+                        {
+                            const auto chunk = std::make_shared<chunk_data>(default_chunk_size);
+                            const auto chunk_size = file.read(chunk->data(), chunk->size(), errc);
+                            if (chunk_size < chunk->size()) chunk->resize(chunk_size);
+                            chunk_queue.push(std::move(chunk));
+                            // if (read_size < default_chunk_size)
+                            //     fmt::print(std::cerr, "detect small chunk size {}, errc {}, errmsg {}\n", chunk_size, errc, errc.message());
+                            read_size += chunk_size;
+                        }
+                        chunk_queue.emplace();
+                    })
+                {}
+
+                explicit chunk_read_context(std::string_view path)
+                    : chunk_read_context(std::filesystem::path{ path })
+                {}
+
+                std::shared_ptr<std::vector<char>> get_chunk()
+                {
+                    std::shared_ptr<std::vector<char>> chunk;
+                    chunk_queue.pop(chunk);
+                    return chunk;
+                }
+
+                ~chunk_read_context() { if (chunk_reader.joinable()) chunk_reader.join(); }
+            };
+
+            void execute_send_head(request_type& request, use_chunk_t)
+            {
+                namespace http = boost::beast::http;
+                if (!session_strand_.running_in_this_thread())
+                    return dispatch(session_strand_, [&request, this, self = shared_from_this()]{ execute_send_head(request,use_chunk); });
+                auto response = std::make_shared<http::response<http::empty_body>>(http::status::ok, request.version());
+                auto serializer = std::make_shared<http::response_serializer<http::empty_body>>(*response);
+                auto& serializer_ref = *serializer;
+                response->set(http::field::server, "METAPLUS");
+                response->chunked(true);
+                const auto read_context = std::make_shared<chunk_read_context>(concate_target_path(request.target()));
+                http::async_write_header(socket_, serializer_ref, bind_executor(session_strand_,
+                    [response, serializer, read_context, this, self = shared_from_this()](boost::system::error_code errc, size_t transfer_size)
+                {
+                    fmt::print("handle send header errc {}, transfer {}\n", errc, transfer_size);
+                    if (errc) return close_socket(errc, boost::asio::socket_base::shutdown_send);
+                    execute_send_chunk(read_context);
+                }));
+            }
+
+            void execute_send_chunk(std::shared_ptr<chunk_read_context> read_context)
+            {
+                namespace http = boost::beast::http;
+                if (!session_strand_.running_in_this_thread())
+                    return dispatch(session_strand_, [read_context, this, self = shared_from_this()]{ execute_send_chunk(read_context); });
+                const auto chunk = read_context->get_chunk();
+                if (!chunk || chunk->empty())
+                {
+                    [[maybe_unused]] const auto write_size = boost::asio::write(socket_, http::make_chunk_last());
+                    fmt::print("last chunk written, transfer size {}, ptr {}, empty {}\n", write_size, chunk != nullptr, chunk != nullptr && chunk->empty());
+                    read_context = nullptr;
+                    std::atomic_store(&active_, false);
+                    return socket_.shutdown(boost::asio::socket_base::shutdown_both);
+                    // return execute_recv();
+                }
+                auto& chunk_ref = *chunk;
+                boost::asio::async_write(socket_, http::make_chunk(boost::asio::buffer(chunk_ref)), bind_executor(session_strand_,
+                    [chunk, read_context, this, self = shared_from_this()](boost::system::error_code errc, size_t transfer_size)
+                {
+                    fmt::print(std::cout, "handle send errc {}, transfer {}\n", errc, transfer_size);
+                    if (errc) return close_socket(errc, boost::asio::socket_base::shutdown_send);
+                    execute_send_chunk(read_context);
+                }));
+            }
+
+            static std::filesystem::path concate_target_path(boost::beast::string_view request_target)
+            {
+                return std::filesystem::path{ root_path }.concat(request_target.begin(), request_target.end());
+            }
+
+            request_container::iterator insert_empty_request()
+            {
+                const auto[iterator, success] = requests_.emplace(std::chrono::steady_clock::now(), request_container::mapped_type{});
+                assert(success);
+                return iterator;
+            }
+
+            size_t erase_consumed_request()
             {
                 const auto consume_size = std::atomic_exchange(&request_consume_, 0);
                 if (consume_size > 0) requests_.erase(requests_.begin(), std::next(requests_.begin(), consume_size));
                 return consume_size;
+            }
+
+            void close_socket(boost::system::error_code errc, boost::asio::socket_base::shutdown_type operation)
+            {
+                fmt::print(std::cerr, "session errc {}, errmsg {}\n", errc, errc.message());
+                socket_.shutdown(operation);
             }
         };
 
@@ -302,24 +411,23 @@ namespace net
         private:
             void execute_accept()
             {
-                boost::asio::dispatch(acceptor_strand_, [this, self = shared_from_this()]() mutable
+                if (!acceptor_strand_.running_in_this_thread())
+                    return dispatch(acceptor_strand_, [this, self = shared_from_this()]{ execute_accept(); });
+                acceptor_.async_accept([this, self = shared_from_this()](boost::system::error_code errc, tcp::socket socket)
                 {
-                    acceptor_.async_accept([this, self = std::move(self)](boost::system::error_code errc, tcp::socket socket)
-                    {
-                        if (errc) return fmt::print(std::cerr, "handle accept error: {}\n", errc);
-                        boost::asio::post(*execution_,
-                            [socket = std::make_shared<tcp::socket>(std::move(socket)), this, self]() mutable { sockets_.push(std::move(socket)); });
-                        execute_accept();
-                    });
+                    if (errc) return close_acceptor(errc);
+                    post(*execution_, [socket = std::make_shared<tcp::socket>(std::move(socket)), this, self]() mutable { sockets_.push(std::move(socket)); });
+                    execute_accept();
                 });
+            }
+
+            void close_acceptor(boost::system::error_code errc)
+            {
+                fmt::print(std::cerr, "accept errc {}, errmsg {}\n", errc, errc.message());
+                acceptor_.close();
             }
         };
 
         template class acceptor<boost::asio::ip::tcp>;
-
-        namespace test
-        {
-            using test_session_type = decltype(std::declval<acceptor<boost::asio::ip::tcp>&>().listen_session<http>());
-        }
     }
 }
