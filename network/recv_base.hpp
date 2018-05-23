@@ -190,7 +190,6 @@ namespace net
                     external_->request.reset();
                 }
             }
-
         };
     }
 }

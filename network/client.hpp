@@ -112,4 +112,110 @@ namespace net
             mutable bool connect_disposing_ = false;
         };
     }
+
+    namespace v2
+    {
+        namespace client
+        {
+            template<typename Protocal, typename Socket = boost::asio::ip::tcp::socket>
+            class session;
+
+            template<>
+            class session<protocal::http, boost::asio::ip::tcp::socket>
+                : public std::enable_shared_from_this<session<protocal::http, boost::asio::ip::tcp::socket>>
+            {
+                const std::shared_ptr<boost::asio::io_context> execution_;
+                boost::asio::ip::tcp::socket socket_;
+                boost::beast::flat_buffer recvbuf_;
+                mutable boost::asio::io_context::strand strand_;
+                mutable std::atomic<bool> active_{ false };
+
+                session(boost::asio::ip::tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx)
+                    : execution_(std::move(ctx))
+                    , socket_(std::move(sock))
+                    , strand_(*execution_)
+                {
+                    assert(socket_.is_open());
+                    assert(core::address_same(*execution_, socket_.get_executor().context()));
+                    fmt::print(std::cout, "socket peer endpoint {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
+                }
+
+            };
+
+            template<typename Protocal>
+            class connector;
+
+            template<>
+            class connector<boost::asio::ip::tcp>
+                : public std::enable_shared_from_this<connector<boost::asio::ip::tcp>>
+            {
+                const std::shared_ptr<boost::asio::io_context> execution_;
+                boost::asio::ip::tcp::resolver resolver_;
+                std::unordered_map<std::pair<std::string_view, std::string_view>, boost::asio::ip::tcp::resolver::results_type, core::hash<void>> endpoint_cache_;
+                std::promise<std::shared_ptr<boost::asio::ip::tcp::socket>> socket_promise_;
+                mutable boost::asio::io_context::strand connector_strand_;
+                mutable std::atomic<bool> active_{ false };
+
+            public:
+                explicit connector(std::shared_ptr<boost::asio::io_context> ctx)
+                    : execution_(std::move(ctx))
+                    , resolver_(*execution_)
+                    , connector_strand_(*execution_)
+                {}
+
+                template<typename ApplicationProtocal, typename ...Types>
+                std::shared_ptr<session<ApplicationProtocal, boost::asio::ip::tcp::socket>> establish_session(std::string_view host, std::string_view service, Types&& ...args)
+                {
+                    // run();
+                    assert(!std::atomic_exchange(&active_, true));
+                    auto socket_future = (socket_promise_ = {}).get_future();
+                    execute_resolve(host, service);
+                    return std::make_shared<session<ApplicationProtocal, boost::asio::ip::tcp::socket>>(socket_future.get(), execution_, std::forward<Types>(args)...);
+                }
+
+            private:
+                void execute_resolve(std::string_view host, std::string_view service)
+                {
+                    if (!connector_strand_.running_in_this_thread())
+                        return dispatch(connector_strand_, [host, service, this, self = shared_from_this()]{ execute_resolve(host,service); });
+                    const auto endpoint_iter = endpoint_cache_.find(std::make_pair(host, service));
+                    if (endpoint_iter != endpoint_cache_.end()) return execute_connect(endpoint_iter->second);
+                    resolver_.async_resolve(host, service, bind_executor(connector_strand_,
+                        [host, service, this, self = shared_from_this()](boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints)
+                    {
+                        if (errc)
+                        {
+                            socket_promise_.set_exception(std::make_exception_ptr(std::runtime_error{ errc.message() }));
+                            return fmt::print(std::cerr, "resolve errc {}, errmsg {}\n", errc, errc.message());
+                        }
+                        const auto[iterator, success] = endpoint_cache_.emplace(std::make_pair(host, service), std::move(endpoints));
+                        assert(success);
+                        execute_connect(iterator->second);
+                    }));
+
+                }
+
+                void execute_connect(const boost::asio::ip::tcp::resolver::results_type& endpoints)
+                {
+                    if (!connector_strand_.running_in_this_thread())
+                        return dispatch(connector_strand_, [&endpoints, this, self = shared_from_this()]{ execute_connect(endpoints); });
+                    const auto socket = std::make_shared<boost::asio::ip::tcp::socket>(*execution_);
+                    async_connect(*socket, endpoints, bind_executor(connector_strand_,
+                        [socket, this, self = shared_from_this()](boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint)
+                    {
+                        assert(std::atomic_exchange(&active_, false));
+                        if (errc)
+                        {
+                            socket_promise_.set_exception(std::make_exception_ptr(std::runtime_error{ errc.message() }));
+                            return fmt::print(std::cerr, "accept errc {}, errmsg {}\n", errc, errc.message());
+                        }
+                        socket_promise_.set_value(socket);
+                        socket_promise_ = {};
+                    }));
+                }
+            };
+        }
+    }
+
+    namespace client = v2::client;
 }

@@ -13,7 +13,7 @@ namespace net
 
     inline namespace tag
     {
-        inline namespace encode
+        inline namespace encoding
         {
             struct use_chunk_t {};
             inline constexpr use_chunk_t use_chunk;

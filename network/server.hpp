@@ -147,14 +147,14 @@ namespace net
         class session<protocal::http, boost::asio::ip::tcp::socket>
             : public std::enable_shared_from_this<session<protocal::http, boost::asio::ip::tcp::socket>>
         {
-            using tcp = boost::asio::ip::tcp;
             using request_type = boost::beast::http::request<boost::beast::http::string_body>;
             using request_container = std::map<std::chrono::steady_clock::time_point, request_type>;
 
             const std::shared_ptr<boost::asio::io_context> execution_;
             const bool chunked_{ false };
-            inline static const std::filesystem::path root_path{ "C:/Media" };
-            tcp::socket socket_;
+            const std::filesystem::path root_path_;
+            inline static const std::filesystem::path default_root_path{ "C:/Media" };
+            boost::asio::ip::tcp::socket socket_;
             request_container requests_;
             boost::beast::flat_buffer recvbuf_;
             mutable boost::asio::io_context::strand session_strand_;
@@ -163,26 +163,37 @@ namespace net
             mutable std::atomic<size_t> request_consume_{ 0 };
 
         public:
-            session(tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx)
+            session(boost::asio::ip::tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx, std::filesystem::path root)
                 : execution_(std::move(ctx))
+                , root_path_(std::move(root))
                 , socket_(std::move(sock))
                 , session_strand_(*execution_)
                 , process_strand_(*execution_)
             {
                 assert(socket_.is_open());
                 assert(core::address_same(*execution_, socket_.get_executor().context()));
-                assert(is_directory(root_path));
+                assert(is_directory(default_root_path));
                 fmt::print(std::cout, "socket peer endpoint {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
-                fmt::print(std::cout, "file root path {}\n", root_path);
+                fmt::print(std::cout, "file root path {}\n", default_root_path);
             }
 
-            session(tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx, use_chunk_t)
+            session(boost::asio::ip::tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx)
+                : session(std::move(sock), std::move(ctx), default_root_path)
+            {}
+
+            session(boost::asio::ip::tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx, std::filesystem::path root, use_chunk_t)
+                : session(std::move(sock), std::move(ctx), std::move(root))
+            {
+                const_cast<bool&>(chunked_) = true;
+            }
+
+            session(boost::asio::ip::tcp::socket sock, std::shared_ptr<boost::asio::io_context> ctx, use_chunk_t)
                 : session(std::move(sock), std::move(ctx))
             {
                 const_cast<bool&>(chunked_) = true;
             }
 
-            session<protocal::http, tcp::socket>& run()
+            session<protocal::http, boost::asio::ip::tcp::socket>& run()
             {
                 if (!std::atomic_exchange(&active_, true)) execute_recv();
                 return *this;
@@ -208,7 +219,7 @@ namespace net
                         // TODO: external process routine towards request
                         std::atomic_fetch_add(&request_consume_, 1);
                     });
-                    if (chunked_) execute_send_head(request, use_chunk);
+                    if (chunked_) execute_send_header(request, use_chunk);
                     else execute_send(request);
                 }));
             }
@@ -218,7 +229,7 @@ namespace net
                 namespace http = boost::beast::http;
                 if (!session_strand_.running_in_this_thread())
                     return dispatch(session_strand_, [&request, this, self = shared_from_this()]{ execute_send(request); });
-                const auto target_path = concate_target_path(request.target());
+                const auto target_path = concat_target_path(request.target());
                 fmt::print(std::cout, "target file path {}, exists {}\n", target_path, exists(target_path));
                 assert(exists(target_path));
                 boost::system::error_code file_errc;
@@ -292,17 +303,17 @@ namespace net
                 ~chunk_read_context() { if (chunk_reader.joinable()) chunk_reader.join(); }
             };
 
-            void execute_send_head(request_type& request, use_chunk_t)
+            void execute_send_header(request_type& request, use_chunk_t)
             {
                 namespace http = boost::beast::http;
                 if (!session_strand_.running_in_this_thread())
-                    return dispatch(session_strand_, [&request, this, self = shared_from_this()]{ execute_send_head(request,use_chunk); });
+                    return dispatch(session_strand_, [&request, this, self = shared_from_this()]{ execute_send_header(request,use_chunk); });
                 auto response = std::make_shared<http::response<http::empty_body>>(http::status::ok, request.version());
                 auto serializer = std::make_shared<http::response_serializer<http::empty_body>>(*response);
                 auto& serializer_ref = *serializer;
                 response->set(http::field::server, "METAPLUS");
                 response->chunked(true);
-                const auto read_context = std::make_shared<chunk_read_context>(concate_target_path(request.target()));
+                const auto read_context = std::make_shared<chunk_read_context>(concat_target_path(request.target()));
                 http::async_write_header(socket_, serializer_ref, bind_executor(session_strand_,
                     [response, serializer, read_context, this, self = shared_from_this()](boost::system::error_code errc, size_t transfer_size)
                 {
@@ -337,9 +348,9 @@ namespace net
                 }));
             }
 
-            static std::filesystem::path concate_target_path(boost::beast::string_view request_target)
+            std::filesystem::path concat_target_path(boost::beast::string_view request_target) const
             {
-                return std::filesystem::path{ root_path }.concat(request_target.begin(), request_target.end());
+                return std::filesystem::path{ root_path_ }.concat(request_target.begin(), request_target.end());
             }
 
             request_container::iterator insert_empty_request()
@@ -360,6 +371,7 @@ namespace net
             {
                 fmt::print(std::cerr, "session errc {}, errmsg {}\n", errc, errc.message());
                 socket_.shutdown(operation);
+                erase_consumed_request();
             }
         };
 
@@ -370,16 +382,14 @@ namespace net
         class acceptor<boost::asio::ip::tcp>
             : public std::enable_shared_from_this<acceptor<boost::asio::ip::tcp>>
         {
-            using tcp = boost::asio::ip::tcp;
-
             const std::shared_ptr<boost::asio::io_context> execution_;
-            tcp::acceptor acceptor_;
-            tbb::concurrent_bounded_queue<std::shared_ptr<tcp::socket>> sockets_;
+            boost::asio::ip::tcp::acceptor acceptor_;
+            tbb::concurrent_bounded_queue<std::shared_ptr<boost::asio::ip::tcp::socket>> sockets_;
             mutable boost::asio::io_context::strand acceptor_strand_;
             mutable std::atomic<bool> active_{ false };
 
         public:
-            acceptor(tcp::endpoint endpoint, std::shared_ptr<boost::asio::io_context> ctx, bool reuse_addr = false)
+            acceptor(boost::asio::ip::tcp::endpoint endpoint, std::shared_ptr<boost::asio::io_context> ctx, bool reuse_addr = false)
                 : execution_(std::move(ctx))
                 , acceptor_(*execution_, endpoint, reuse_addr)
                 , acceptor_strand_(*execution_)
@@ -400,12 +410,12 @@ namespace net
             }
 
             template<typename ApplicationProtocal, typename ...Types>
-            std::shared_ptr<session<ApplicationProtocal, tcp::socket>> listen_session(Types&& ...args)
+            std::shared_ptr<session<ApplicationProtocal, boost::asio::ip::tcp::socket>> listen_session(Types&& ...args)
             {
                 run();
-                std::shared_ptr<tcp::socket> socket;
+                std::shared_ptr<boost::asio::ip::tcp::socket> socket;
                 sockets_.pop(socket);
-                return std::make_shared<session<ApplicationProtocal, tcp::socket>>(std::move(*socket), execution_, std::forward<Types>(args)...);
+                return std::make_shared<session<ApplicationProtocal, boost::asio::ip::tcp::socket>>(std::move(*socket), execution_, std::forward<Types>(args)...);
             }
 
         private:
@@ -413,10 +423,10 @@ namespace net
             {
                 if (!acceptor_strand_.running_in_this_thread())
                     return dispatch(acceptor_strand_, [this, self = shared_from_this()]{ execute_accept(); });
-                acceptor_.async_accept([this, self = shared_from_this()](boost::system::error_code errc, tcp::socket socket)
+                acceptor_.async_accept([this, self = shared_from_this()](boost::system::error_code errc, boost::asio::ip::tcp::socket socket)
                 {
                     if (errc) return close_acceptor(errc);
-                    post(*execution_, [socket = std::make_shared<tcp::socket>(std::move(socket)), this, self]() mutable { sockets_.push(std::move(socket)); });
+                    post(*execution_, [socket = std::make_shared<boost::asio::ip::tcp::socket>(std::move(socket)), this, self]() mutable { sockets_.push(std::move(socket)); });
                     execute_accept();
                 });
             }

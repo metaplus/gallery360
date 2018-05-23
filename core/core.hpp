@@ -198,18 +198,79 @@ namespace core
             std::array<size_t, sizeof...(Types)> carray{ std::hash<std::decay_t<Types>>{}(args)... };
             return std::hash<std::string_view>{}({ reinterpret_cast<char*>(carray.data()), sizeof(carray) });
         }
+        
+        template<typename ...Types>
+        struct hash
+        {
+            size_t operator()(const std::decay_t<Types>& ...args) const noexcept
+            {
+                return hash_value(args...);
+            }
+        };
     }
 
-    using v2::hash_value;
-
-    template<typename ...Types>
-    struct hash
+    namespace v3
     {
-        size_t operator()(const std::decay_t<Types>& ...args) const noexcept
+        namespace detail
         {
-            return hash_value(args...);
+            template<typename T, typename ...Types>
+            auto hash_value_tuple(const T& head, const Types& ...tails) noexcept;
+
+            template<typename T>
+            std::tuple<size_t> hash_value_tuple(const T& head) noexcept
+            {
+                return std::make_tuple(std::hash<T>{}(head));
+            }
+
+            template<typename T, typename U>
+            std::tuple<size_t, size_t> hash_value_tuple(const std::pair<T, U>& head) noexcept
+            {
+                return hash_value_tuple(head.first, head.second);
+            }
+
+            template<typename ...TupleTypes>
+            auto hash_value_tuple(const std::tuple<TupleTypes...>& head) noexcept
+            {
+                return hash_value_tuple(std::get<TupleTypes>(head)...);
+            }
+
+            template<typename T, typename ...Types>
+            auto hash_value_tuple(const T& head, const Types& ...tails) noexcept
+            {
+                return std::tuple_cat(hash_value_tuple(head), hash_value_tuple(tails...));
+            }
         }
-    };
+
+        template<typename ...Types>
+        size_t hash_value_from(const Types& ...args) noexcept
+        {
+            static_assert(sizeof...(Types) > 0);
+            const auto tuple = detail::hash_value_tuple(args...);
+            return std::hash<std::string_view>{}(std::string_view{ reinterpret_cast<const char*>(&tuple), sizeof tuple });
+        }
+
+        template<typename ...Types>
+        struct hash
+        {
+            size_t operator()(const Types& ...args) noexcept
+            {
+                return hash_value_from(args);
+            }
+        };
+
+        template<>
+        struct hash<void>
+        {
+            template<typename ...Types>
+            size_t operator()(const Types& ...args) const noexcept
+            {
+                return hash_value_from(args...);
+            }
+        };
+    }
+
+    using v3::hash_value_from;
+    using v3::hash;
 
     template<typename Hash>
     struct dereference_hash
@@ -251,9 +312,9 @@ namespace core
     };
 
     template<typename T, typename U>
-    constexpr bool address_same(const T& a0, const U& a1) noexcept
+    constexpr bool address_same(const T& x, const U& y) noexcept
     {
-        return std::addressof(a0) == std::addressof(a1);
+        return std::addressof(x) == std::addressof(y);
     }
 
     struct noncopyable
@@ -266,9 +327,9 @@ namespace core
     };
 
     template<typename T, typename Equal = std::equal_to<T>>
-    constexpr bool is_default_constructed(const T& object, Equal equal = {}) noexcept
+    constexpr bool is_default_constructed(const T& object) noexcept
     {
         static_assert(std::is_default_constructible_v<T>);
-        return equal(object, T{});
+        return Equal{}(object, T{});
     }
 }
