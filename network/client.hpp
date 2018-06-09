@@ -2,7 +2,8 @@
 
 namespace net
 {
-    namespace v1
+#ifdef NET_USE_LEGACY
+     namespace v1
     {
         class client    // non-generic initial version
             : protected base::session_pool<boost::asio::ip::tcp, boost::asio::basic_stream_socket, std::unordered_map>
@@ -112,6 +113,7 @@ namespace net
             mutable bool connect_disposing_ = false;
         };
     }
+#endif
 
     namespace v2
     {

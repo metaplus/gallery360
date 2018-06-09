@@ -2,6 +2,7 @@
 
 namespace net
 {
+#ifdef NET_USE_LEGACY
     namespace v1
     {
         template<typename Protocal>
@@ -137,6 +138,7 @@ namespace net
             mutable bool accept_disposing_ = false;
         };
     }
+#endif 
 
     namespace server
     {

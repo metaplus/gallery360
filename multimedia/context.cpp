@@ -112,7 +112,8 @@ av::format_context::format_context(io_context io, source::format iformat)
     format_handle_.reset(format_ptr, [](pointer p) { avformat_close_input(&p); });
     core::verify(avformat_find_stream_info(format_ptr, nullptr));
 #ifdef _DEBUG
-    av_dump_format(format_ptr, 0, format_ptr->filename, 0);
+    // av_dump_format(format_ptr, 0, format_ptr->filename, 0);
+    av_dump_format(format_ptr, 0, format_ptr->url, 0);
 #endif
 }
 
@@ -131,7 +132,8 @@ av::format_context::format_context(source::path ipath)
     format_handle_.reset(ptr, [](pointer p) { avformat_close_input(&p); });
     core::verify(avformat_find_stream_info(ptr, nullptr));   // 60ms+
 #ifdef _DEBUG
-    av_dump_format(ptr, 0, ptr->filename, 0);
+    // av_dump_format(ptr, 0, ptr->filename, 0);
+    av_dump_format(ptr, 0, ptr->url, 0);
 #endif
 }
 

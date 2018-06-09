@@ -13,12 +13,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _SCL_SECURE_NO_WARNINGS
 
-// #define _SILENCE_PARALLEL_ALGORITHMS_EXPERIMENTAL_WARNING   // <execution>
-
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
-
-// #undef min
-// #undef max
 
 #define STRING_IMPL(x) #x  
 #define STRING(x) STRING_IMPL(x)  
@@ -59,7 +54,21 @@
 
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
-#include <boost/fiber/all.hpp>
+// #include <boost/fiber/all.hpp>
+#include <boost/container_hash/hash.hpp>
+#include <boost/fusion/support.hpp>
+#include <boost/fusion/iterator.hpp>
+#include <boost/fusion/sequence.hpp>
+#include <boost/fusion/container.hpp>
+#include <boost/fusion/view.hpp>
+#include <boost/fusion/adapted.hpp>
+#include <boost/fusion/algorithm.hpp>
+#include <boost/fusion/tuple.hpp>
+#include <boost/fusion/functional.hpp>
+// #include <boost/fusion/include/hash.hpp>
+#include <boost/type_index.hpp>
+#include <boost/numeric/conversion/cast.hpp>
+#include <boost/numeric/conversion/converter.hpp>
 
 using namespace std::literals;
 
@@ -91,15 +100,13 @@ using namespace core::literals;
 #ifdef CORE_USE_FMTLIB
 
 #include <fmt/format.h>
-#include <fmt/container.h>
 #include <fmt/ostream.h>
-#include <fmt/string.h>
 #include <fmt/time.h>
 
 using namespace fmt::literals;
 
 #ifdef _DEBUG
-#pragma comment(lib, "Debug/fmt")
+#pragma comment(lib, "Debug/fmtd")
 #else
 #pragma comment(lib, "Release/fmt")
 #endif  // _DEBUG

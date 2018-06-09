@@ -1,7 +1,10 @@
 #include "stdafx.h"
 #include "ffmpeg.h"
+
+#ifdef MULTIMEDIA_USE_MSGPACK
 #include <msgpack.hpp>
 #include <msgpack/adaptor/define_decl.hpp>
+#endif // MULTIMEDIA_USE_MSGPACK
 
 av::frame::frame()
     : handle_(av_frame_alloc(), [](pointer p) { av_frame_free(&p); })
@@ -12,8 +15,8 @@ av::frame::frame(std::nullptr_t)
 
 void av::register_all()
 {
-    static std::once_flag once;
-    std::call_once(once, [] { av_register_all(); });
+    // static std::once_flag once;
+    // std::call_once(once, [] { av_register_all(); });
 }
 
 bool av::frame::empty() const
@@ -31,6 +34,7 @@ void av::frame::unref() const
     av_frame_unref(handle_.get());
 }
 
+#ifdef MULTIMEDIA_USE_MSGPACK
 struct av::packet::chunk
 {
     explicit chunk(const packet& packet)
@@ -51,6 +55,7 @@ struct av::packet::chunk
 
     MSGPACK_DEFINE(stream_index, is_key_frame, duration, position, buffer_view)
 };
+#endif // MULTIMEDIA_USE_MSGPACK
 
 av::packet::packet(std::nullptr_t)
 {}
@@ -87,12 +92,14 @@ std::string_view av::packet::bufview() const
     return { reinterpret_cast<char*>(handle_->data),static_cast<size_t>(handle_->size) };
 }
 
+#ifdef MULTIMEDIA_USE_MSGPACK
 std::string av::packet::serialize() const
 {
     msgpack::sbuffer sbuf(handle_->size + sizeof(chunk));
     msgpack::pack(sbuf, chunk{ *this });
     return std::string{ sbuf.data(),sbuf.size() };
 }
+#endif // MULTIMEDIA_USE_MSGPACK
 
 av::packet::pointer av::packet::operator->() const
 {
