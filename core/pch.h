@@ -69,6 +69,7 @@
 #include <boost/type_index.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/numeric/conversion/converter.hpp>
+#include <boost/thread.hpp>
 
 using namespace std::literals;
 
@@ -97,11 +98,12 @@ using namespace std::literals;
 
 using namespace core::literals;
 
-#ifdef CORE_USE_FMTLIB
+#ifndef CORE_NOUSE_FMTLIB
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <fmt/time.h>
+// #include <fmt/ranges.h>
 
 using namespace fmt::literals;
 
@@ -111,7 +113,7 @@ using namespace fmt::literals;
 #pragma comment(lib, "Release/fmt")
 #endif  // _DEBUG
 
-#endif  // CORE_USE_FMTLIB
+#endif  // ndef CORE_NOUSE_FMTLIB
 
 #ifdef CORE_USE_TBB
 

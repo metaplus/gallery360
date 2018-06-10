@@ -43,4 +43,8 @@ namespace net
         using std::runtime_error::runtime_error;
         using std::runtime_error::operator=;
     };
+
+    inline constexpr size_t  default_max_chunk_size{ 128_kbyte };
+    inline constexpr size_t  default_max_chunk_quantity{ 1024 };
+    inline const std::filesystem::path default_root_path{ "C:/Media" };
 }

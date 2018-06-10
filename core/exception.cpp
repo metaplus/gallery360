@@ -1,20 +1,21 @@
 #include "stdafx.h"
 #include "exception.h"
 
-int core::inspect_exception(const std::exception & e)
+int core::inspect_exception(std::exception const& ex, bool print_thread)
 {
-    std::cerr << e.what() << ' ';
+    fmt::print(std::cerr, "{}what: {} ",
+        print_thread ? fmt::format("thread@{} ", boost::this_thread::get_id()) : "", ex.what());
     try
     {
-        std::rethrow_if_nested(e);
+        std::rethrow_if_nested(ex);
     }
-    catch (const std::exception& another)
+    catch (const std::exception& ex2)
     {
-        return inspect_exception(another);
+        return inspect_exception(ex2, false);
     }
     catch (...)
     {
-        std::cerr << "nonstandard exception";
+        fmt::print(std::cerr, "caught: nonstandard exception");
     }
     std::cerr << std::endl;
     return EXIT_FAILURE;
@@ -23,7 +24,7 @@ int core::inspect_exception(const std::exception & e)
 namespace
 {
     template<typename T>
-    const char* deduce_error_cstring(const char* cstr, const T* = nullptr)
+    char const* deduce_error_cstring(char const* cstr, T const* = nullptr)
     {
         static thread_local std::string local_type_name;
         // return std::strlen(cstr) != 0 ? cstr : (local_type_name = core::type_shortname<std::remove_cv_t<T>>()).c_str();
@@ -31,11 +32,11 @@ namespace
     }
 }
 
-core::aborted_error::aborted_error(const std::string_view desc)
+core::aborted_error::aborted_error(std::string_view const desc)
     : runtime_error(desc.data())
 {}
 
-const char* core::aborted_error::what() const
+char const* core::aborted_error::what() const
 {
     return deduce_error_cstring(what(), this);
 }
@@ -44,7 +45,7 @@ core::null_pointer_error::null_pointer_error(std::string_view desc)
     : runtime_error(desc.data())
 {}
 
-const char* core::null_pointer_error::what() const
+char const* core::null_pointer_error::what() const
 {
     return deduce_error_cstring(what(), this);
 }
@@ -53,7 +54,7 @@ core::dangling_pointer_error::dangling_pointer_error(std::string_view desc)
     : runtime_error(desc.data())
 {}
 
-const char* core::dangling_pointer_error::what() const
+char const* core::dangling_pointer_error::what() const
 {
     return deduce_error_cstring(what(), this);
 }
@@ -62,7 +63,7 @@ core::not_implemented_error::not_implemented_error(std::string_view desc)
     : logic_error(desc.data())
 {}
 
-const char* core::not_implemented_error::what() const
+char const* core::not_implemented_error::what() const
 {
     return deduce_error_cstring(what(), this);
 }
@@ -71,7 +72,7 @@ core::already_exist_error::already_exist_error(std::string_view desc)
     : logic_error(desc.data())
 {}
 
-const char* core::already_exist_error::what() const
+char const* core::already_exist_error::what() const
 {
     return deduce_error_cstring(what(), this);
 }
@@ -80,7 +81,7 @@ core::unreachable_execution_branch::unreachable_execution_branch(std::string_vie
     : logic_error(desc.data())
 {}
 
-const char* core::unreachable_execution_branch::what() const
+char const* core::unreachable_execution_branch::what() const
 {
     return deduce_error_cstring(what(), this);
 }
