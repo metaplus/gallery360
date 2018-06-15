@@ -77,6 +77,14 @@ using namespace std::literals;
 #include <experimental/coroutine>
 #endif
 
+#ifndef CORE_NOUSE_FMTLIB
+#include <fmt/format.h>
+#include <fmt/ostream.h>
+#include <fmt/time.h>
+// #include <fmt/ranges.h>
+using namespace fmt::literals;
+#endif  // ndef CORE_NOUSE_FMTLIB
+
 #include "meta/meta.hpp"
 #include "meta/detail.hpp"
 #include "meta/type_trait.hpp"
@@ -98,22 +106,11 @@ using namespace std::literals;
 
 using namespace core::literals;
 
-#ifndef CORE_NOUSE_FMTLIB
-
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-#include <fmt/time.h>
-// #include <fmt/ranges.h>
-
-using namespace fmt::literals;
-
 #ifdef _DEBUG
 #pragma comment(lib, "Debug/fmtd")
 #else
 #pragma comment(lib, "Release/fmt")
 #endif  // _DEBUG
-
-#endif  // ndef CORE_NOUSE_FMTLIB
 
 #ifdef CORE_USE_TBB
 

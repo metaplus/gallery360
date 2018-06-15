@@ -3,17 +3,18 @@
 namespace core
 {
     template<typename Scalar>
-    constexpr BOOST_FORCEINLINE std::enable_if_t<std::is_scalar_v<Scalar>> verify_one(Scalar pred)
+    constexpr BOOST_FORCEINLINE std::enable_if_t<std::is_scalar_v<Scalar>> verify_one(Scalar const& pred)
     {
         if constexpr(std::is_integral_v<Scalar>)
         {
             if constexpr(std::is_same_v<Scalar, bool>)
             {
-                if (!pred)
-                    throw std::logic_error{ "condition false" };
+                if (!pred) throw std::logic_error{ "condition false" };
             }
-            else if (pred < 0)
-                throw std::out_of_range{ "negative value" };
+            else if constexpr(std::is_signed_v<Scalar>) 
+            {
+                if (pred < 0)  throw std::out_of_range{ "negative value" };
+            }            
         }
         else if constexpr(std::is_null_pointer_v<Scalar>)
             throw null_pointer_error{ "null pointer" };
@@ -26,42 +27,9 @@ namespace core
     }
 
     template<typename ...Types>
-    constexpr BOOST_FORCEINLINE void verify(Types ...preds)
+    constexpr BOOST_FORCEINLINE void verify(Types const& ...preds)
     {
-        /* TODO: reserved legacy
-        class exception_proxy
-        {
-        public:
-            explicit exception_proxy(const std::exception_ptr& e) :describe_{}, error_{ e } { }
-            void message(std::string&& msg) noexcept { describe_ = std::move(msg); }
-            void operator[](std::string&& msg) noexcept { message(std::move(msg)); }
-            ~exception_proxy() noexcept(false)
-            {
-                if (error_)
-                {
-                    auto&& thread_hash_id{ boost::lexical_cast<std::string>(std::this_thread::get_id()) };
-                    try { std::rethrow_exception(error_); }
-                    catch (...) { std::throw_with_nested(std::runtime_error{ "error@" + std::move(thread_hash_id) + " message@" + describe_ }); }
-                }
-            }
-        private:
-            std::string describe_;
-            std::exception_ptr error_;s
-        };
-        std::exception_ptr exception_handler{ nullptr };
-        */
-        try
-        {   // TODO: sfinae for boolean convertible case
-            (..., core::verify_one<Types>(preds));
-        }
-        catch (...)
-        {
-            //std::throw_with_nested(fmt::format("thread@{} ",
-            //    boost::lexical_cast<std::string>(std::this_thread::get_id())));
-            //exception_handler = std::current_exception();
-            std::cerr << "thread@" << std::this_thread::get_id() << ' ';
-            throw;
-        }
-        //return exception_proxy{ exception_handler };
+        // TODO: sfinae for boolean convertible case
+        (..., core::verify_one<Types>(preds));
     };
 }
