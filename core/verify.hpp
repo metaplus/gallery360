@@ -3,7 +3,7 @@
 namespace core
 {
     template<typename Scalar>
-    constexpr std::enable_if_t<std::is_scalar_v<Scalar>> verify_one(Scalar pred)
+    constexpr BOOST_FORCEINLINE std::enable_if_t<std::is_scalar_v<Scalar>> verify_one(Scalar pred)
     {
         if constexpr(std::is_integral_v<Scalar>)
         {
@@ -26,7 +26,7 @@ namespace core
     }
 
     template<typename ...Types>
-    constexpr void verify(Types ...preds)
+    constexpr BOOST_FORCEINLINE void verify(Types ...preds)
     {
         /* TODO: reserved legacy
         class exception_proxy
