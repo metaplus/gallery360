@@ -45,9 +45,6 @@
     <ClInclude Include="..\meta\meta.hpp">
       <Filter>Header Files\meta</Filter>
     </ClInclude>
-    <ClInclude Include="..\concurrency\synchronize.h">
-      <Filter>Header Files\concurrency</Filter>
-    </ClInclude>
     <ClInclude Include="graph.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -72,6 +69,9 @@
     <ClInclude Include="..\concurrency\barrier.hpp">
       <Filter>Header Files\concurrency</Filter>
     </ClInclude>
+    <ClInclude Include="..\concurrency\synchronize.hpp">
+      <Filter>Header Files\concurrency</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -81,12 +81,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="exception.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\concurrency\barrier.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\concurrency\synchronize.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

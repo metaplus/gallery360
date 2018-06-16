@@ -6,8 +6,12 @@ namespace util
     {
         class latch : core::noncopyable
         {
+            std::atomic<std::ptrdiff_t> count_ = 0;
+            boost::promise<void> mutable completion_;
+            boost::future<void> mutable signal_;
+
         public:
-            explicit latch(const std::ptrdiff_t count)
+            explicit latch(std::ptrdiff_t const count)
                 : count_(count)
                 , signal_(completion_.get_future())
             {}
@@ -35,14 +39,6 @@ namespace util
             {
                 signal_.wait();
             }
-
-        private:
-            std::atomic<std::ptrdiff_t> count_ = 0;
-            mutable std::promise<void> completion_;
-            mutable std::future<void> signal_;
         };
-
-        static_assert(!std::is_copy_constructible_v<latch>);
-        static_assert(!std::is_copy_assignable_v<latch>);
     }
 }

@@ -165,7 +165,7 @@
     <ClInclude Include="..\concurrency\async_chain.hpp" />
     <ClInclude Include="..\concurrency\barrier.hpp" />
     <ClInclude Include="..\concurrency\latch.hpp" />
-    <ClInclude Include="..\concurrency\synchronize.h" />
+    <ClInclude Include="..\concurrency\synchronize.hpp" />
     <ClInclude Include="..\meta\detail.hpp" />
     <ClInclude Include="..\meta\function_trait.hpp" />
     <ClInclude Include="..\meta\member_function_trait.hpp" />
@@ -181,8 +181,6 @@
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\concurrency\barrier.cpp" />
-    <ClCompile Include="..\concurrency\synchronize.cpp" />
     <ClCompile Include="exception.cpp" />
     <ClCompile Include="guard.cpp" />
     <ClCompile Include="stdafx.cpp">

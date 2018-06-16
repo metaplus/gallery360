@@ -7,23 +7,25 @@ namespace core
     {
         if constexpr(std::is_integral_v<Scalar>)
         {
-            if constexpr(std::is_same_v<Scalar, bool>)
+            if constexpr (std::is_same_v<Scalar, bool>)
             {
                 if (!pred) throw std::logic_error{ "condition false" };
             }
-            else if constexpr(std::is_signed_v<Scalar>) 
+            else if constexpr(std::is_signed_v<Scalar>)
             {
-                if (pred < 0)  throw std::out_of_range{ "negative value" };
-            }            
+                if (pred < 0)
+                    throw std::out_of_range{ "negative value" };
+            }
         }
-        else if constexpr(std::is_null_pointer_v<Scalar>)
+        else if constexpr(std::is_null_pointer_v<Scalar>) {
             throw null_pointer_error{ "null pointer" };
+        }
         else if constexpr(std::is_pointer_v<Scalar>)
         {
             if (pred == nullptr)
                 throw dangling_pointer_error{ "dangling pointer, pointer type: " + core::type_shortname<Scalar>() };
         }
-        else throw std::invalid_argument{ "illegal parameter, type: "+ core::type_shortname<Scalar>() };
+        else throw std::invalid_argument{ "illegal parameter, type: " + core::type_shortname<Scalar>() };
     }
 
     template<typename ...Types>

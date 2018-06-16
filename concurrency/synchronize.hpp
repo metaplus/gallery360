@@ -26,12 +26,25 @@ namespace util
 
         class [[deprecated]] spin_mutex
         {
-        public:
-            spin_mutex();
-            void lock();
-            void unlock();
-        private:
             std::atomic_flag flag_;
+
+        public:
+        #pragma warning(push)
+        #pragma warning(disable:4996)
+            spin_mutex()
+                : flag_{ ATOMIC_FLAG_INIT }
+            {}
+
+            void lock()
+            {
+                while (flag_.test_and_set(std::memory_order_acquire));
+            }
+
+            void unlock()
+            {
+                flag_.clear(std::memory_order_release);
+            }
+        #pragma warning(pop)
         };
     }
 }

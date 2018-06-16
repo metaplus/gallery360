@@ -8,7 +8,6 @@
 #define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE
 #define BOOST_THREAD_VERSION 4
 #define BOOST_FILESYSTEM_NO_DEPRECATED 
-#define BOOST_USE_WINDOWS_H   
 
 #define _CRT_SECURE_NO_WARNINGS
 #define _SCL_SECURE_NO_WARNINGS
@@ -99,7 +98,7 @@ using namespace fmt::literals;
 #include "core/graph.hpp"
 #endif  // CORE_USE_GRAPH
 
-#include "concurrency/synchronize.h"
+#include "concurrency/synchronize.hpp"
 #include "concurrency/latch.hpp"
 #include "concurrency/barrier.hpp"
 #include "concurrency/async_chain.hpp"
