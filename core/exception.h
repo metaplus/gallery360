@@ -2,7 +2,9 @@
 
 namespace core
 {
-    int inspect_exception(std::exception const& ex, bool print_thread = true);
+    int inspect_exception(std::exception const& exception, bool print_thread = true);
+
+	int inspect_exception(boost::exception const& exception, bool print_thread = true);
 
     class aborted_error : protected std::runtime_error
     {

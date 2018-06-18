@@ -20,31 +20,26 @@ namespace net
         }
     }
 
-    struct send_finish : std::logic_error
-    {
-        using std::logic_error::logic_error;
-        using std::logic_error::operator=;
-    };
+    inline constexpr size_t default_max_chunk_size{ 128_kbyte };
+    inline constexpr size_t default_max_chunk_quantity{ 1024 };
 
-    struct send_error : std::runtime_error
+    inline void run_io_context(boost::asio::io_context& io_context)
     {
-        using std::runtime_error::runtime_error;
-        using std::runtime_error::operator=;
-    };
+        try
+        {
+            io_context.run();
+        } catch (std::exception const& e)
+        {
+            core::inspect_exception(e);
+        } catch (boost::exception const& e)
+        {
+            core::inspect_exception(e);
+        }
+    }
 
-    struct recv_finish : std::logic_error
-    {
-        using std::logic_error::logic_error;
-        using std::logic_error::operator=;
-    };
+    std::string config_path(core::as_view_t) noexcept;
 
-    struct recv_error : std::runtime_error
-    {
-        using std::runtime_error::runtime_error;
-        using std::runtime_error::operator=;
-    };
+    std::filesystem::path config_path() noexcept;
 
-    inline constexpr size_t  default_max_chunk_size{ 128_kbyte };
-    inline constexpr size_t  default_max_chunk_quantity{ 1024 };
-    inline const std::filesystem::path default_root_path{ "C:/Media" };
+    boost::property_tree::ptree const& config();
 }

@@ -55,6 +55,8 @@
 #include <boost/cstdlib.hpp>
 // #include <boost/fiber/all.hpp>
 #include <boost/container_hash/hash.hpp>
+
+#ifdef CORE_USE_FUSION
 #include <boost/fusion/support.hpp>
 #include <boost/fusion/iterator.hpp>
 #include <boost/fusion/sequence.hpp>
@@ -65,10 +67,14 @@
 #include <boost/fusion/tuple.hpp>
 #include <boost/fusion/functional.hpp>
 // #include <boost/fusion/include/hash.hpp>
+#endif
+
 #include <boost/type_index.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/numeric/conversion/converter.hpp>
 #include <boost/thread.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
 
 using namespace std::literals;
 
@@ -112,13 +118,10 @@ using namespace core::literals;
 #endif  // _DEBUG
 
 #ifdef CORE_USE_TBB
-
 #include <tbb/tbb.h>
-
 #ifdef _DEBUG
 #pragma comment(lib, "tbb_debug")
 #else
 #pragma comment(lib, "tbb")
 #endif  // _DEBUG
-
 #endif  // CORE_USE_TBB

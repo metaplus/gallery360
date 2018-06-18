@@ -100,14 +100,14 @@ namespace core
         return std::distance(begin(iterator), end(iterator));
     }
 
-    inline size_t thread_hash_id(const std::thread::id id)
+    inline size_t thread_hash_id(const boost::thread::id id)
     {
-        return std::hash<std::thread::id>{}(id);
+        return boost::hash<boost::thread::id>{}(id);
     }
 
     inline size_t thread_hash_id()
     {
-        return thread_hash_id(std::this_thread::get_id());
+        return thread_hash_id(boost::this_thread::get_id());
     }
 
     template<typename Callable, typename ...Types>
@@ -150,7 +150,7 @@ namespace core
         struct use_future_t {};
         inline constexpr use_future_t use_future{};
 
-        struct use_recursion_t{};
+        struct use_recursion_t {};
         inline constexpr use_recursion_t use_recursion;
 
         struct as_default_t {};
@@ -158,6 +158,9 @@ namespace core
 
         struct as_element_t {};
         inline constexpr as_element_t as_element;
+
+        struct as_view_t {};
+        inline constexpr as_view_t as_view;
 
         struct as_observer_t {};
         inline constexpr as_observer_t as_observer;
@@ -181,9 +184,7 @@ namespace core
             std::ostringstream ss{ std::ios::out | std::ios::binary };
             ss << std::hex;
             ((ss << std::setw(sizeof(size_t) * 2) << std::setfill('\0')
-                << std::hash<meta::remove_cv_ref_t<T>>{}(std::forward<T>(a)))
-                << ...
-                << std::hash<meta::remove_cv_ref_t<Types>>{}(std::forward<Types>(args)));
+              << std::hash<meta::remove_cv_ref_t<T>>{}(std::forward<T>(a))) << ... << std::hash<meta::remove_cv_ref_t<Types>>{}(std::forward<Types>(args)));
             return std::hash<std::string>{}(ss.str());
         }
     }
@@ -198,7 +199,7 @@ namespace core
             std::array<size_t, sizeof...(Types)> carray{ std::hash<std::decay_t<Types>>{}(args)... };
             return std::hash<std::string_view>{}({ reinterpret_cast<char*>(carray.data()), sizeof(carray) });
         }
-        
+
         template<typename ...Types>
         struct hash
         {

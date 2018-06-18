@@ -5,11 +5,11 @@ namespace meta
     template<typename Return, typename... Args>
     struct function_trait
     {
-        template<typename R, typename... As>
-        explicit constexpr function_trait(R(*)(As...)) { }
+        template<typename Return, typename... Args>
+        explicit constexpr function_trait(Return(*)(Args...)) { }
 
-        template<typename R, typename... As>
-        explicit constexpr function_trait(R(&)(As...)) { }
+        template<typename Return, typename... As>
+        explicit constexpr function_trait(Return(&)(Args...)) { }
 
         using return_type = Return;
         using args_tuple = std::tuple<Args...>;
@@ -17,11 +17,11 @@ namespace meta
         static constexpr bool has_args = sizeof...(Args) > 0;
     };
 
-    template<typename R, typename... As>
-    function_trait(R(*)(As...)) -> function_trait<R, As...>;
+    template<typename Return, typename... Args>
+    function_trait(Return(*)(Args...)) -> function_trait<Return, Args...>;
 
-    template<typename R, typename... As>
-    function_trait(R(&)(As...)) -> function_trait<R, As...>;
+    template<typename Return, typename... Args>
+    function_trait(Return(&)(Args...)) -> function_trait<Return, Args...>;
 
     template<auto FreeFuncPtr>
     struct function

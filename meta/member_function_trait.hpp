@@ -5,11 +5,11 @@ namespace meta
     template<typename Return, typename Object, bool HasConst, typename... Args>
     struct member_function_trait
     {
-        template<typename R, typename U, typename... As>
-        explicit constexpr member_function_trait(R(U::*)(As...)const) { }
+        template<typename Return, typename Object, typename... Args>
+        explicit constexpr member_function_trait(Return(Object::*)(Args...)const) { }
 
-        template<typename R, typename U, typename... As>
-        explicit constexpr member_function_trait(R(U::*)(As...)) { }
+        template<typename Return, typename Object, typename... Args>
+        explicit constexpr member_function_trait(Return(Object::*)(Args...)) { }
 
         using return_type = Return;
         using object_type = Object;
@@ -19,11 +19,11 @@ namespace meta
         static constexpr bool has_const = HasConst;
     };
 
-    template<typename R, typename U, typename... As>
-    member_function_trait(R(U::*)(As...)const) -> member_function_trait<R, U, true, As...>;
+    template<typename Return, typename Object, typename... Args>
+    member_function_trait(Return(Object::*)(Args...)const) -> member_function_trait<Return, Object, true, Args...>;
 
-    template<typename R, typename U, typename... As>
-    member_function_trait(R(U::*)(As...)) -> member_function_trait<R, U, false, As...>;
+    template<typename Return, typename Object, typename... Args>
+    member_function_trait(Return(Object::*)(Args...)) -> member_function_trait<Return, Object, false, Args...>;
 
     template<auto MemFuncPtr>
     struct member_function

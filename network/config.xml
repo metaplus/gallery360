@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<net>
+  <server>
+    <port>8900</port>
+    <directories>
+      <root>D:/Media</root>
+    </directories>
+  </server>
+</net>
