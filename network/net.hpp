@@ -6,7 +6,7 @@ namespace net
     {
         struct http
         {
-            using lower_protocal = boost::asio::ip::tcp;
+            using under_layer_protocal = boost::asio::ip::tcp;
             using socket = boost::asio::ip::tcp::socket;
         };
     }
@@ -23,23 +23,30 @@ namespace net
     inline constexpr size_t default_max_chunk_size{ 128_kbyte };
     inline constexpr size_t default_max_chunk_quantity{ 1024 };
 
-    inline void run_io_context(boost::asio::io_context& io_context)
-    {
-        try
-        {
-            io_context.run();
-        } catch (std::exception const& e)
-        {
-            core::inspect_exception(e);
-        } catch (boost::exception const& e)
-        {
-            core::inspect_exception(e);
-        }
-    }
-
     std::string config_path(core::as_view_t) noexcept;
 
     std::filesystem::path config_path() noexcept;
 
     boost::property_tree::ptree const& config();
 }
+
+template<typename Protocal>
+struct std::less<boost::asio::basic_socket<Protocal>>
+{
+    bool operator()(boost::asio::basic_socket<Protocal> const& sock1, boost::asio::basic_socket<Protocal> const& sock2) const
+    {
+        return sock1.remote_endpoint() < sock2.remote_endpoint()
+            || !(sock2.remote_endpoint() < sock1.remote_endpoint())
+            && sock1.local_endpoint() < sock2.local_endpoint();
+    }
+};
+
+template<typename Protocal>
+struct std::equal_to<boost::asio::basic_socket<Protocal>>
+{
+    bool operator()(boost::asio::basic_socket<Protocal> const& sock1, boost::asio::basic_socket<Protocal> const& sock2) const
+    {
+        return sock1.remote_endpoint() == sock2.remote_endpoint()
+            && sock1.local_endpoint() == sock2.local_endpoint();
+    }
+};

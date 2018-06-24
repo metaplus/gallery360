@@ -8,7 +8,7 @@ namespace meta
         template<typename ...Types>
         constexpr static std::decay_t<std::invoke_result_t<Callable, Types...>> by(Types ...args)
         {
-            static_assert((std::is_trivially_copyable_v<Types> && ...));
+            static_assert(std::conjunction<std::is_trivially_copyable<Types>...>::value);
             //static_assert(std::is_standard_layout_v<std::common_type_t<Types...>>);
             return Callable{}(args...);
         }
@@ -21,7 +21,8 @@ namespace meta
     };
 
     template<typename BinaryCallable, auto Factor, auto... Values>
-    constexpr auto sequence_arithmetic(std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> = {})
+    constexpr auto sequence_arithmetic(
+        std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...>)
     {
         using factor_type = decltype(Factor);
         using value_type = std::common_type_t<decltype(Values)...>;
@@ -30,25 +31,29 @@ namespace meta
     }
 
     template<auto Factor, auto... Values>
-    constexpr auto sequence_plus(std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> sequence = {})
+    constexpr auto sequence_plus(
+        std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> sequence)
     {
         return sequence_arithmetic<std::plus<void>>(sequence);
     }
 
     template<auto Factor, auto... Values>
-    constexpr auto sequence_minus(std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> sequence = {})
+    constexpr auto sequence_minus(
+        std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> sequence)
     {
         return sequence_arithmetic<std::minus<void>>(sequence);
     }
 
     template<auto Factor, auto... Values>
-    constexpr auto sequence_multiply(std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> sequence = {})
+    constexpr auto sequence_multiply(
+        std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> sequence)
     {
         return sequence_arithmetic<std::multiplies<void>>(sequence);
     }
 
     template<auto Factor, auto... Values>
-    constexpr auto sequence_divide(std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> sequence = {})
+    constexpr auto sequence_divide(
+        std::integer_sequence<std::common_type_t<decltype(Values)...>, Values...> sequence)
     {
         return sequence_arithmetic<std::divides<void>>(sequence);
     }
@@ -56,7 +61,8 @@ namespace meta
     template<typename T, typename ...Types>
     struct reverse_tuple
     {
-        using type = decltype(std::tuple_cat(std::declval<typename reverse_tuple<Types...>::type&>(), std::declval<std::tuple<T>&>()));
+        using type = decltype(std::tuple_cat(std::declval<typename reverse_tuple<Types...>::type&>(),
+                                             std::declval<std::tuple<T>&>()));
         constexpr static size_t size = 1 + sizeof...(Types);
     };
 
@@ -79,36 +85,22 @@ namespace meta
 
     template<typename ...Types, size_t ...Indexes>
     std::tuple<std::tuple_element_t<Indexes, std::tuple<Types...>>...>
-        make_indexed_tuple(const std::tuple<Types...>& tuple, std::index_sequence<Indexes...> = std::index_sequence_for<Types...>{})
+        make_indexed_tuple(const std::tuple<Types...>& tuple,
+                           std::index_sequence<Indexes...> = std::index_sequence_for<Types...>{})
     {
         return std::make_tuple(std::get<Indexes>(tuple)...);
     }
 
-    template<typename BinaryCallable, typename, typename>
-    struct bool_arithmetic;
-
-    template<typename BinaryCallable, bool L, bool R>
-    struct bool_arithmetic<BinaryCallable, std::bool_constant<L>, std::bool_constant<R>>
-        : std::bool_constant<invoke<BinaryCallable>::by(L, R)>
-    {};
-
-    template<typename Bl, typename Br>    // for std::bool_constant AND operation
-    struct bool_and : bool_arithmetic<std::logical_and<bool>, Bl, Br> {};
-
-    template<typename Bl, typename Br>    // for std::bool_constant OR operation
-    struct bool_or : bool_arithmetic<std::logical_or<bool>, Bl, Br> {};
-
-    template<typename Bl, typename Br>    // for std::bool_constant XOR operation
-    struct bool_xor : bool_arithmetic<std::bit_xor<bool>, Bl, Br> {};
-
     template<typename T, T ...Values>
-    constexpr std::array<T, sizeof...(Values)> make_array(std::integer_sequence<T, Values...> = {})
+    constexpr std::array<T, sizeof...(Values)>
+        make_array(std::integer_sequence<T, Values...> = {})
     {
         return { Values... };
     }
 
     template<typename ...Types>
-    constexpr std::array<std::common_type_t<Types...>, sizeof...(Types)> make_array_any(Types... args)
+    constexpr std::array<std::common_type_t<Types...>, sizeof...(Types)>
+        make_array_any(Types const& ...args)
     {
         return { static_cast<std::common_type_t<Types...>>(args)... };
     }

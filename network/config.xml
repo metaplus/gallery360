@@ -1,9 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <net>
+  <protocal>http</protocal>
   <server>
+    <address>0.0.0.0</address>
     <port>8900</port>
     <directories>
       <root>D:/Media</root>
     </directories>
   </server>
+  <client>
+    <address>127.0.0.1</address>
+    <port>8900</port>
+    <directories>
+      <root>D:/Media/Recv</root>
+    </directories>
+    <file>
+      <name>recv</name>
+      <format>.h264</format>
+    </file>
+  </client>
 </net>

@@ -2,6 +2,7 @@
 
 namespace meta::detail
 {
+#ifdef META_USE_LEGACY
     namespace v1
     {
         template<typename T, typename U, typename ...Types>
@@ -10,14 +11,15 @@ namespace meta::detail
         template<typename T, typename U>
         struct is_within<T, U> : std::is_same<T, U>::type {};
     }
+#endif // DEBUG
 
     namespace v2
     {
         template<typename T, typename ...Types>
-        struct is_within : std::disjunction<std::is_same<T, Types>...> {};
+        struct is_within_impl : std::disjunction<std::is_same<T, Types>...> {};
     }
 
-    using v2::is_within;
+    using v2::is_within_impl;
 
     template<typename T>
     struct value_trait;
@@ -40,10 +42,10 @@ namespace meta::detail
     };
 
     template<typename...>
-    struct index;
+    struct index_impl;
 
     template<typename T, size_t ...Indexes, typename ...Types>
-    struct index<T, std::index_sequence<Indexes...>, Types...>
+    struct index_impl<T, std::index_sequence<Indexes...>, Types...>
     {
         using type = std::disjunction<is_same_indexed<T, Types, Indexes>...>;
     };

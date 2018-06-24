@@ -36,9 +36,6 @@
     <ClInclude Include="guard.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="exception.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="verify.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -69,15 +66,15 @@
     <ClInclude Include="..\concurrency\synchronize.hpp">
       <Filter>Header Files\concurrency</Filter>
     </ClInclude>
+    <ClInclude Include="exception.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="guard.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="exception.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -157,7 +157,10 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="acceptor.hpp" />
     <ClInclude Include="client.hpp" />
+    <ClInclude Include="connector.hpp" />
+    <ClInclude Include="executor_guard.hpp" />
     <ClInclude Include="net.hpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="server.hpp" />

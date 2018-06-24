@@ -172,7 +172,7 @@
     <ClInclude Include="..\meta\meta.hpp" />
     <ClInclude Include="..\meta\type_trait.hpp" />
     <ClInclude Include="core.hpp" />
-    <ClInclude Include="exception.h" />
+    <ClInclude Include="exception.hpp" />
     <ClInclude Include="guard.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stdafx.h" />
@@ -180,7 +180,6 @@
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="exception.cpp" />
     <ClCompile Include="guard.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

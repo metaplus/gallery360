@@ -34,29 +34,6 @@ void av::frame::unref() const
     av_frame_unref(handle_.get());
 }
 
-#ifdef MULTIMEDIA_USE_MSGPACK
-struct av::packet::chunk
-{
-    explicit chunk(const packet& packet)
-        : stream_index(packet->stream_index)
-        , is_key_frame(packet->flags == AV_PKT_FLAG_KEY)
-        , duration(packet->duration)
-        , position(packet->pos)
-        , buffer_view(reinterpret_cast<const char*>(packet->data), packet->size)
-    {
-    }
-
-    int stream_index = 0;
-    bool is_key_frame = false;
-    int64_t duration = 0;
-    int64_t position = 0;
-    //std::string_view buffer_view = ""sv;
-    msgpack::type::raw_ref buffer_view = {};
-
-    MSGPACK_DEFINE(stream_index, is_key_frame, duration, position, buffer_view)
-};
-#endif // MULTIMEDIA_USE_MSGPACK
-
 av::packet::packet(std::nullptr_t)
 {}
 

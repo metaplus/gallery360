@@ -2,34 +2,6 @@
 
 namespace core
 {
-    template<typename T>
-    std::string type_shortname(const T* = nullptr)
-    {
-        std::string type_name{ typeid(T).name() };
-        type_name.erase(0, type_name.find_last_of(": ") + 1);
-        return type_name;
-    }
-
-    template<typename T>
-    std::string type_shortname(const T&)
-    {
-        return type_shortname<std::remove_cv_t<T>>();
-    }
-
-    template<typename T>
-    std::string type_name(const T* = nullptr)
-    {
-        std::string type_name{ typeid(T).name() };
-        type_name.erase(0, type_name.rfind(' ') + 1);
-        return type_name;
-    }
-
-    template<typename T>
-    std::string type_name(const T&)
-    {
-        return type_name<std::remove_cv_t<T>>();
-    }
-
     inline std::string time_string(std::string_view tformat = "%c"sv, std::tm*(*tfunc)(const std::time_t*) = &std::localtime)
     {
         std::ostringstream ostream;
@@ -147,67 +119,25 @@ namespace core
 
     inline namespace tag    //  tag dispatching usage, clarify semantics
     {
-        struct use_future_t {};
-        inline constexpr use_future_t use_future{};
+        inline constexpr struct use_future_t {} use_future;
 
-        struct use_recursion_t {};
-        inline constexpr use_recursion_t use_recursion;
+        inline constexpr struct use_recursion_t {} use_recursion;
 
-        struct as_default_t {};
-        inline constexpr as_default_t as_default;
+        inline constexpr  struct as_default_t {} as_default;
 
-        struct as_element_t {};
-        inline constexpr as_element_t as_element;
+        inline constexpr  struct as_stacktrace_t {} as_stacktrace;
 
-        struct as_view_t {};
-        inline constexpr as_view_t as_view;
+        inline constexpr struct as_element_t {} as_element;
 
-        struct as_observer_t {};
-        inline constexpr as_observer_t as_observer;
+        inline constexpr struct as_view_t {} as_view;
 
-        struct defer_construct_t {};
-        inline constexpr defer_construct_t defer_construct;
+        inline constexpr struct as_observer_t {} as_observer;
 
-        struct defer_execute_t {};
-        inline constexpr defer_execute_t defer_execute;
+        inline constexpr struct defer_construct_t {} defer_construct;
 
-        struct defer_destruct_t {};
-        inline constexpr defer_destruct_t defer_destruct;
-    }
+        inline constexpr struct defer_execute_t {} defer_execute;
 
-    namespace v1
-    {
-        template<typename T, typename ...Types>
-        size_t hash_value(T&& a, Types&& ...args)
-        {
-            static_assert((meta::is_hashable<T>::value && ... && meta::is_hashable<Types>::value));
-            std::ostringstream ss{ std::ios::out | std::ios::binary };
-            ss << std::hex;
-            ((ss << std::setw(sizeof(size_t) * 2) << std::setfill('\0')
-              << std::hash<meta::remove_cv_ref_t<T>>{}(std::forward<T>(a))) << ... << std::hash<meta::remove_cv_ref_t<Types>>{}(std::forward<Types>(args)));
-            return std::hash<std::string>{}(ss.str());
-        }
-    }
-
-    namespace v2
-    {
-        template<typename ...Types>
-        size_t hash_value(Types&& ...args) noexcept
-        {
-            static_assert(sizeof...(Types) > 0, "require at least 1 argument");
-            static_assert((... && meta::is_hashable<Types>::value), "require hashable");
-            std::array<size_t, sizeof...(Types)> carray{ std::hash<std::decay_t<Types>>{}(args)... };
-            return std::hash<std::string_view>{}({ reinterpret_cast<char*>(carray.data()), sizeof(carray) });
-        }
-
-        template<typename ...Types>
-        struct hash
-        {
-            size_t operator()(const std::decay_t<Types>& ...args) const noexcept
-            {
-                return hash_value(args...);
-            }
-        };
+        inline constexpr struct defer_destruct_t {} defer_destruct;
     }
 
     namespace v3
