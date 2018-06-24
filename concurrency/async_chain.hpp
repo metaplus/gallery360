@@ -36,7 +36,7 @@ namespace util
                                 pcallable->operator()();
                             } catch (...)
                             {
-                                if constexpr(meta::is_packaged_task_v<std::decay_t<decltype(*pcallable)>>)
+                                if constexpr(meta::is_packaged_task<std::decay_t<decltype(*pcallable)>>::value)
                                     const auto abolished_task = std::move(*pcallable);
                                 std::rethrow_exception(std::current_exception());
                             }

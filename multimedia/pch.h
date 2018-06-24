@@ -4,7 +4,6 @@
 
 #pragma warning(push)
 #pragma warning(disable:4819)
-
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavcodec/dxva2.h>
@@ -21,7 +20,6 @@ extern "C" {
 #include <libavutil/timestamp.h>
 #include <libswscale/swscale.h>
 }
-
 #pragma warning(pop)
 
 #ifdef _WIN32

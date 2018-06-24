@@ -2,36 +2,40 @@
 
 namespace core
 {
-    template<typename Scalar>
-    constexpr BOOST_FORCEINLINE std::enable_if_t<std::is_scalar_v<Scalar>> verify_one(Scalar const& pred)
+    namespace detail
     {
-        if constexpr(std::is_integral_v<Scalar>)
+        _FORCEINLINE void verify_one(std::nullptr_t const&)
         {
-            if constexpr (std::is_same_v<Scalar, bool>)
-            {
-                if (!pred) throw std::logic_error{ "condition false" };
-            }
-            else if constexpr(std::is_signed_v<Scalar>)
-            {
-                if (pred < 0)
-                    throw std::out_of_range{ "negative value" };
-            }
+            throw_with_stacktrace(null_pointer_error{ "null pointer" });
         }
-        else if constexpr(std::is_null_pointer_v<Scalar>) {
-            throw null_pointer_error{ "null pointer" };
-        }
-        else if constexpr(std::is_pointer_v<Scalar>)
+
+        template<typename Pointee>
+        _FORCEINLINE void verify_one(Pointee* const& ptr)
         {
-            if (pred == nullptr)
-                throw dangling_pointer_error{ "dangling pointer, pointer type: " + core::type_shortname<Scalar>() };
+            if (ptr != nullptr) return;
+            throw_with_stacktrace(dangling_pointer_error{
+                    "dangling pointer, pointer type: " + boost::typeindex::type_id<Pointee>().pretty_name() });
         }
-        else throw std::invalid_argument{ "illegal parameter, type: " + core::type_shortname<Scalar>() };
+
+        template<typename Arithmetic>
+        _FORCEINLINE void verify_one(Arithmetic const& number, 
+                                     typename std::enable_if<std::is_arithmetic<Arithmetic>::value>::type* = nullptr)
+        {
+            if (std::is_unsigned<Arithmetic>::value || number >= 0) return;
+            throw_with_stacktrace(std::out_of_range{ "negative value" });
+        }
+
+        _FORCEINLINE void verify_one(bool const& condition)
+        {
+            if (condition) return;
+            throw_with_stacktrace(std::logic_error{ "condition false" });
+        }
     }
 
     template<typename ...Types>
-    constexpr BOOST_FORCEINLINE void verify(Types const& ...preds)
+    _FORCEINLINE void verify(Types const& ...predicates)
     {
         // TODO: sfinae for boolean convertible case
-        (..., core::verify_one<Types>(preds));
+        (..., detail::verify_one(predicates));
     };
 }

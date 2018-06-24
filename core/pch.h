@@ -22,15 +22,17 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <future>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <memory>
@@ -39,44 +41,48 @@
 #include <numeric>
 #include <optional>
 #include <regex>
+#include <set>
 #include <shared_mutex>
+#include <sstream>
 #include <string>
 #include <string_view>
-#include <sstream>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <variant>
 #include <vector>
-#include <filesystem>
-
-#include <boost/core/null_deleter.hpp>
-#include <boost/cstdlib.hpp>
 // #include <boost/fiber/all.hpp>
-#include <boost/container_hash/hash.hpp>
+
+using namespace std::literals;
 
 #ifdef CORE_USE_FUSION
-#include <boost/fusion/support.hpp>
-#include <boost/fusion/iterator.hpp>
-#include <boost/fusion/sequence.hpp>
-#include <boost/fusion/container.hpp>
-#include <boost/fusion/view.hpp>
 #include <boost/fusion/adapted.hpp>
 #include <boost/fusion/algorithm.hpp>
-#include <boost/fusion/tuple.hpp>
+#include <boost/fusion/container.hpp>
 #include <boost/fusion/functional.hpp>
+#include <boost/fusion/iterator.hpp>
+#include <boost/fusion/sequence.hpp>
+#include <boost/fusion/support.hpp>
+#include <boost/fusion/tuple.hpp>
+#include <boost/fusion/view.hpp>
 // #include <boost/fusion/include/hash.hpp>
 #endif
 
-#include <boost/type_index.hpp>
+#include <boost/container_hash/hash.hpp>
+#include <boost/core/ignore_unused.hpp>
+#include <boost/core/null_deleter.hpp>
+#include <boost/cstdlib.hpp>
+#include <boost/exception/all.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/numeric/conversion/converter.hpp>
-#include <boost/thread.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <boost/stacktrace.hpp>
+#include <boost/thread.hpp>
+#include <boost/type_index.hpp>
 
-using namespace std::literals;
+#define _FORCEINLINE BOOST_FORCEINLINE
 
 #ifdef CORE_USE_COROUTINE
 #include <experimental/coroutine>
@@ -95,19 +101,16 @@ using namespace fmt::literals;
 #include "meta/type_trait.hpp"
 #include "meta/function_trait.hpp"
 #include "meta/member_function_trait.hpp"
-#include "core/exception.h"
 #include "core/core.hpp"
+#include "core/exception.hpp"
 #include "core/guard.h"
 #include "core/verify.hpp"
 
-#ifdef CORE_USE_GRAPH
-#include "core/graph.hpp"
-#endif  // CORE_USE_GRAPH
-
-#include "concurrency/synchronize.hpp"
-#include "concurrency/latch.hpp"
-#include "concurrency/barrier.hpp"
 #include "concurrency/async_chain.hpp"
+#include "concurrency/barrier.hpp"
+#include "concurrency/latch.hpp"
+#include "concurrency/synchronize.hpp"
+
 
 using namespace core::literals;
 

@@ -1,14 +1,14 @@
 #include "stdafx.h"
 #include "context.h"
 
-av::io_context::io_context(func_tuple&& io_functions, const uint32_t buf_size, const bool buf_writable)
+av::io_context::io_context(io_functors&& io_functions, const uint32_t buf_size, const bool buf_writable)
     : io_interface_(make_io_interface(std::move(io_functions)))
     , io_handle_(avio_alloc_context(static_cast<uint8_t*>(av_malloc(buf_size)),
-        buf_size, buf_writable, io_interface_.get(),
-        io_interface_->readable() ? read_func_delegate : nullptr,
-        io_interface_->writable() ? write_func_delegate : nullptr,
-        io_interface_->seekable() ? seek_func_delegate : nullptr),
-        [](pointer ptr) { av_freep(&ptr->buffer);  av_freep(&ptr); })
+                                    buf_size, buf_writable, io_interface_.get(),
+                                    io_interface_->readable() ? on_read_buffer : nullptr,
+                                    io_interface_->writable() ? on_write_buffer : nullptr,
+                                    io_interface_->seekable() ? on_seek_stream : nullptr),
+                 [](pointer ptr) { av_freep(&ptr->buffer);  av_freep(&ptr); })
 {
     std::cerr << "constructor\n";
 }
@@ -23,7 +23,7 @@ av::io_context::operator bool() const
     return io_handle_ != nullptr && io_interface_ != nullptr;
 }
 
-std::shared_ptr<av::io_context::io_interface> av::io_context::make_io_interface(func_tuple&& io_functions)
+std::shared_ptr<av::io_context::io_interface> av::io_context::make_io_interface(io_functors&& io_functions)
 {
     struct io_interface_impl : io_interface
     {
@@ -59,17 +59,17 @@ std::shared_ptr<av::io_context::io_interface> av::io_context::make_io_interface(
         std::move(std::get<0>(io_functions)), std::move(std::get<1>(io_functions)), std::move(std::get<2>(io_functions)));
 }
 
-int av::io_context::read_func_delegate(void* opaque, uint8_t* buffer, int size)
+int av::io_context::on_read_buffer(void* opaque, uint8_t* buffer, int size)
 {
     return static_cast<io_interface*>(opaque)->read(buffer, size);
 }
 
-int av::io_context::write_func_delegate(void* opaque, uint8_t* buffer, int size)
+int av::io_context::on_write_buffer(void* opaque, uint8_t* buffer, int size)
 {
     return static_cast<io_interface*>(opaque)->write(buffer, size);
 }
 
-int64_t av::io_context::seek_func_delegate(void* opaque, int64_t offset, int whence)
+int64_t av::io_context::on_seek_stream(void* opaque, int64_t offset, int whence)
 {
     return static_cast<io_interface*>(opaque)->seek(offset, whence);
 }
@@ -88,11 +88,10 @@ av::format_context::format_context(std::variant<source, sink> io)
             core::verify(avformat_open_input(&ptr, arg.url.c_str(), nullptr, nullptr));
             format_handle_.reset(ptr, [](pointer p) { avformat_close_input(&p); });
             core::verify(avformat_find_stream_info(ptr, nullptr));   // 60ms+
-#ifdef _DEBUG
+        #ifdef _DEBUG
             av_dump_format(ptr, 0, ptr->filename, 0);
-#endif // define _DEBUG
-        }
-        else
+        #endif // define _DEBUG
+        } else
         {
             // TODO: SINK BRANCH
             throw core::not_implemented_error{};
@@ -112,14 +111,13 @@ av::format_context::format_context(io_context io, source::format iformat)
     format_handle_.reset(format_ptr, [](pointer p) { avformat_close_input(&p); });
     core::verify(avformat_find_stream_info(format_ptr, nullptr));
 #ifdef _DEBUG
-    // av_dump_format(format_ptr, 0, format_ptr->filename, 0);
     av_dump_format(format_ptr, 0, format_ptr->url, 0);
 #endif
 }
 
-av::format_context::format_context(io_context io, sink::format iformat)
+av::format_context::format_context(io_context io, sink::format oformat)
 {
-    throw core::not_implemented_error{};
+    throw core::not_implemented_error{ "not_implemented_error" };
 }
 
 av::format_context::format_context(source::path ipath)
@@ -132,14 +130,13 @@ av::format_context::format_context(source::path ipath)
     format_handle_.reset(ptr, [](pointer p) { avformat_close_input(&p); });
     core::verify(avformat_find_stream_info(ptr, nullptr));   // 60ms+
 #ifdef _DEBUG
-    // av_dump_format(ptr, 0, ptr->filename, 0);
     av_dump_format(ptr, 0, ptr->url, 0);
 #endif
 }
 
 av::format_context::format_context(sink::path opath)
 {
-    throw core::not_implemented_error{};
+    throw core::not_implemented_error{ "not_implemented_error" };
 }
 
 av::format_context::pointer av::format_context::operator->() const
@@ -169,8 +166,8 @@ av::packet av::format_context::read(const std::optional<media::type> media_type)
 {
     packet pkt;
     while (av_read_frame(format_handle_.get(), core::get_pointer(pkt)) == 0
-        && media_type.has_value()
-        && format_handle_->streams[pkt->stream_index]->codecpar->codec_type != media_type)
+           && media_type.has_value()
+           && format_handle_->streams[pkt->stream_index]->codecpar->codec_type != media_type)
     {
         pkt.unref();
     }
