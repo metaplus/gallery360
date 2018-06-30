@@ -5,7 +5,7 @@ namespace core
     using errinfo_stacktrace = boost::error_info<as_stacktrace_t, boost::stacktrace::stacktrace>;
 
     template <typename Exception>
-    void throw_with_stacktrace(Exception const& exp)
+    [[noreturn]] void throw_with_stacktrace(Exception const& exp)
     {
         static_assert(meta::is_exception<Exception>::value);
         throw boost::enable_error_info(exp)

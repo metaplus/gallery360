@@ -54,8 +54,6 @@
 #include <vector>
 // #include <boost/fiber/all.hpp>
 
-using namespace std::literals;
-
 #ifdef CORE_USE_FUSION
 #include <boost/fusion/adapted.hpp>
 #include <boost/fusion/algorithm.hpp>
@@ -81,6 +79,7 @@ using namespace std::literals;
 #include <boost/stacktrace.hpp>
 #include <boost/thread.hpp>
 #include <boost/type_index.hpp>
+#include <boost/hana.hpp>
 
 #define _FORCEINLINE BOOST_FORCEINLINE
 
@@ -95,6 +94,9 @@ using namespace std::literals;
 // #include <fmt/ranges.h>
 using namespace fmt::literals;
 #endif  // ndef CORE_NOUSE_FMTLIB
+
+using namespace std::literals;
+using namespace boost::hana::literals;
 
 #include "meta/meta.hpp"
 #include "meta/detail.hpp"
@@ -111,13 +113,12 @@ using namespace fmt::literals;
 #include "concurrency/latch.hpp"
 #include "concurrency/synchronize.hpp"
 
-
 using namespace core::literals;
 
 #ifdef _DEBUG
-#pragma comment(lib, "Debug/fmtd")
+#pragma comment(lib, "fmtd")
 #else
-#pragma comment(lib, "Release/fmt")
+#pragma comment(lib, "fmt")
 #endif  // _DEBUG
 
 #ifdef CORE_USE_TBB

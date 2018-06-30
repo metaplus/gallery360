@@ -4,7 +4,7 @@ namespace core
 {
     namespace detail
     {
-        _FORCEINLINE void verify_one(std::nullptr_t const&)
+        [[noreturn]] _FORCEINLINE void verify_one(std::nullptr_t const&)
         {
             throw_with_stacktrace(null_pointer_error{ "null pointer" });
         }

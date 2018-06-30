@@ -4,7 +4,7 @@ namespace util
 {
     inline namespace concurrency
     {
-        class latch : core::noncopyable
+        class latch : boost::noncopyable
         {
             std::atomic<std::ptrdiff_t> count_ = 0;
             boost::promise<void> mutable completion_;

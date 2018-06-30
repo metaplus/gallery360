@@ -115,7 +115,7 @@ namespace net::server
             }));
         }
 
-        class read_chunk_context : core::noncopyable
+        class read_chunk_context : boost::noncopyable
         {
             std::filesystem::path const file_path_;
             std::list<std::vector<char>> chunk_buflist_;
