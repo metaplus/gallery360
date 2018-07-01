@@ -6,6 +6,7 @@
     <port>8900</port>
     <directories>
       <root>D:/Media</root>
+      <log></log>
     </directories>
   </server>
   <client>
@@ -13,6 +14,7 @@
     <port>8900</port>
     <directories>
       <root>D:/Media/Recv</root>
+      <log></log>
     </directories>
     <file>
       <name>recv</name>

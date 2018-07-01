@@ -4,7 +4,7 @@ namespace core
 {
     using errinfo_stacktrace = boost::error_info<as_stacktrace_t, boost::stacktrace::stacktrace>;
 
-    template <typename Exception>
+    template<typename Exception>
     [[noreturn]] void throw_with_stacktrace(Exception const& exp)
     {
         static_assert(meta::is_exception<Exception>::value);
@@ -12,7 +12,7 @@ namespace core
             << errinfo_stacktrace(boost::stacktrace::stacktrace());
     }
 
-    template <typename Exception>
+    template<typename Exception>
     void diagnose_stacktrace(Exception const& exp)
     {
         static_assert(meta::is_exception<Exception>::value);
@@ -34,11 +34,17 @@ namespace core
         try
         {
             std::rethrow_if_nested(exp);
-        } catch (std::exception const& exp2) {
+        }
+        catch (std::exception const& exp2)
+        {
             return inspect_exception(exp2);
-        } catch (boost::exception const& exp2) {
+        }
+        catch (boost::exception const& exp2)
+        {
             return inspect_exception(exp2);
-        } catch (...) {
+        }
+        catch (...)
+        {
             fmt::print(std::cerr, "exception-caught: nonstandard exception\n\n");
         }
         return EXIT_FAILURE;
@@ -51,8 +57,9 @@ namespace core
         {
             static_assert(meta::is_exception<Exception>::value);
             static thread_local std::unordered_set<std::string> local_type_name;
-            if (!std::string_view{ cstr }.empty()) return cstr;
-            auto const[iterator, success] = local_type_name.emplace(boost::typeindex::type_id<Exception>().pretty_name());
+            if (!std::string_view{ cstr }.empty())
+                return cstr;
+            auto const [iterator, success] = local_type_name.emplace(boost::typeindex::type_id<Exception>().pretty_name());
             boost::ignore_unused(success);
             return iterator->c_str();
         }
@@ -63,7 +70,11 @@ namespace core
     public:
         using runtime_error::runtime_error;
         using runtime_error::operator=;
-        char const* what() const override { return detail::message_otherwise_typename(what(), this); }
+
+        char const* what() const override
+        {
+            return detail::message_otherwise_typename(what(), this);
+        }
     };
 
     class null_pointer_error : protected std::runtime_error
@@ -71,7 +82,11 @@ namespace core
     public:
         using runtime_error::runtime_error;
         using runtime_error::operator=;
-        char const* what() const override { return detail::message_otherwise_typename(what(), this); }
+
+        char const* what() const override
+        {
+            return detail::message_otherwise_typename(what(), this);
+        }
     };
 
     class dangling_pointer_error : protected std::runtime_error
@@ -79,7 +94,11 @@ namespace core
     public:
         using runtime_error::runtime_error;
         using runtime_error::operator=;
-        char const* what() const override { return detail::message_otherwise_typename(what(), this); }
+
+        char const* what() const override
+        {
+            return detail::message_otherwise_typename(what(), this);
+        }
     };
 
     class not_implemented_error : protected std::logic_error
@@ -87,7 +106,11 @@ namespace core
     public:
         using logic_error::logic_error;
         using logic_error::operator=;
-        char const* what() const override { return detail::message_otherwise_typename(what(), this); }
+
+        char const* what() const override
+        {
+            return detail::message_otherwise_typename(what(), this);
+        }
     };
 
     class already_exist_error : protected std::logic_error
@@ -95,7 +118,11 @@ namespace core
     public:
         using logic_error::logic_error;
         using logic_error::operator=;
-        char const* what() const override { return detail::message_otherwise_typename(what(), this); }
+
+        char const* what() const override
+        {
+            return detail::message_otherwise_typename(what(), this);
+        }
     };
 
     class unreachable_execution_branch : protected std::logic_error
@@ -103,6 +130,10 @@ namespace core
     public:
         using logic_error::logic_error;
         using logic_error::operator=;
-        char const* what() const override { return detail::message_otherwise_typename(what(), this); }
+
+        char const* what() const override
+        {
+            return detail::message_otherwise_typename(what(), this);
+        }
     };
 }

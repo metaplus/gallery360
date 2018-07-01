@@ -24,7 +24,7 @@ namespace util
             return std::shared_lock<Mutex>{ *pmutex };
         }
 
-        class [[deprecated]] spin_mutex
+        class[[deprecated]] spin_mutex
         {
             std::atomic_flag flag_;
 
@@ -37,12 +37,12 @@ namespace util
 
             void lock()
             {
-                while (flag_.test_and_set(std::memory_order_acquire));
+                while (std::atomic_flag_test_and_set_explicit(&flag_, std::memory_order_acquire));
             }
 
             void unlock()
             {
-                flag_.clear(std::memory_order_release);
+                std::atomic_flag_clear_explicit(&flag_, std::memory_order_release);
             }
         #pragma warning(pop)
         };
