@@ -93,7 +93,7 @@ namespace util
             class barrier;
 
             template<>
-            class barrier<void> : core::noncopyable
+            class barrier<void> : boost::noncopyable
             {
                 std::atomic<std::ptrdiff_t> dropped_ = 0;
                 std::atomic<std::ptrdiff_t> count_ = 0;

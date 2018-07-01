@@ -2,20 +2,19 @@
 
 namespace core
 {
-    inline std::string time_string(std::string_view tformat = "%c"sv, std::tm*(*tfunc)(const std::time_t*) = &std::localtime)
+    inline std::string time_string(std::string_view tformat = "%c"sv,
+                                   std::tm*(*tfunc)(std::time_t const*) = &std::localtime)
     {
-        std::ostringstream ostream;
-        // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        const auto time_tmt = std::time(nullptr);
-        const auto time_tm = *tfunc(&time_tmt);
-        ostream << std::put_time(&time_tm, tformat.data());
-        return ostream.str();
+        // auto const time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        auto const time_tmt = std::time(nullptr);
+        auto const time_tm = tfunc(&time_tmt);
+        return fmt::format("{}", std::put_time(time_tm, tformat.data()));
     }
 
     template<auto Begin, auto End, auto Span = 1>
     constexpr auto range_sequence()
     {
-        static_assert(std::is_same_v<decltype(Begin), decltype(End)>);
+        static_assert(std::is_same<decltype(Begin), decltype(End)>::value);
         static_assert(Begin != End && Span != 0 && ((Begin < End) ^ (Span < 0)));
         constexpr auto count = std::divides<void>{}(End - Begin + Span, Span);
         return meta::sequence_plus<Begin>(meta::sequence_multiply<Span>(std::make_integer_sequence<decltype(count), count>{}));
@@ -29,79 +28,54 @@ namespace core
 
     namespace literals
     {
-        constexpr size_t operator""_kbyte(const size_t n) { return n * 1024; }
-        constexpr size_t operator""_mbyte(const size_t n) { return n * 1024 * 1024; }
-        constexpr size_t operator""_gbyte(const size_t n) { return n * 1024 * 1024 * 1024; }
+        constexpr size_t operator""_kbyte(const size_t n)
+        {
+            return n * 1024;
+        }
+
+        constexpr size_t operator""_mbyte(const size_t n)
+        {
+            return n * 1024 * 1024;
+        }
+
+        constexpr size_t operator""_gbyte(const size_t n)
+        {
+            return n * 1024 * 1024 * 1024;
+        }
 
         template<typename Represent, typename Period>
-        std::ostream& operator<<(std::ostream& os, const std::chrono::duration<Represent, Period>& dura)
+        std::ostream& operator<<(std::ostream& os, std::chrono::duration<Represent, Period> const& dura)
         {
             using namespace std::chrono;
             return
-                dura < 1us ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns" :
-                dura < 1ms ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us" :
-                dura < 1s ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms" :
-                dura < 1min ? os << duration_cast<duration<double>>(dura).count() << "s" :
-                dura < 1h ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min" :
-                os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
+                dura < 1us
+                    ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns"
+                    : dura < 1ms
+                          ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us"
+                          : dura < 1s
+                                ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms"
+                                : dura < 1min
+                                      ? os << duration_cast<duration<double>>(dura).count() << "s"
+                                      : dura < 1h
+                                            ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min"
+                                            : os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
         }
     }
 
-    template<typename Enum>
-    constexpr Enum enum_next(Enum e, std::make_signed_t<std::underlying_type_t<Enum>> offset)
+    inline size_t count_entry(std::filesystem::path const& directory)
     {
-        return static_cast<Enum>(std::plus<void>{}(static_cast<std::underlying_type_t<Enum>>(e), offset));
-    }
-
-    template<typename Enum>
-    constexpr Enum enum_prev(Enum e, std::make_signed_t<std::underlying_type_t<Enum>> offset)
-    {
-        return static_cast<Enum>(std::minus<void>{}(static_cast<std::underlying_type_t<Enum>>(e), offset));
-    }
-
-    template<typename Enum>
-    constexpr Enum& enum_advance(Enum& e, std::make_signed_t<std::underlying_type_t<Enum>> offset)
-    {
-        return static_cast<std::underlying_type_t<Enum&>>(e) += offset;
-    }
-
-    inline size_t count_entry(const std::filesystem::path& directory)
-    {
-        //  non-recursive version, regardless of symbolic link
+        // non-recursive version, regardless of symbolic link
         const std::filesystem::directory_iterator iterator{ directory };
         return std::distance(begin(iterator), end(iterator));
     }
 
-    inline size_t thread_hash_id(const boost::thread::id id)
-    {
-        return boost::hash<boost::thread::id>{}(id);
-    }
-
-    inline size_t thread_hash_id()
-    {
-        return thread_hash_id(boost::this_thread::get_id());
-    }
-
-    template<typename Callable, typename ...Types>
-    Callable&& repeat(size_t count, Callable&& callable, Types&& ...args)
-    {
-        std::invoke(callable, args...);
-        return --count == 0 ? std::forward<Callable>(callable) :
-            core::repeat<Callable, Types...>(count, std::forward<Callable>(callable), std::forward<Types>(args)...);
-    }
-
-    template<typename Callable, typename ...Types>
-    Callable&& repeat_each(Callable&& callable, Types&& ...args)
-    {
-        (..., std::invoke(callable, std::forward<Types>(args)));
-        return std::forward<Callable>(callable);
-    }
-
-    template <typename T>
+    template<typename T>
     std::reference_wrapper<T> make_null_reference_wrapper() noexcept
     {
         static void* null_pointer = nullptr;
-        return std::reference_wrapper<T>{ *reinterpret_cast<std::add_pointer_t<std::decay_t<T>>&>(null_pointer) };
+        return std::reference_wrapper<T>{
+            *reinterpret_cast<std::add_pointer_t<std::decay_t<T>>&>(null_pointer)
+        };
     }
 
     // enable DefaultConstructible
@@ -112,20 +86,20 @@ namespace core
         using std::reference_wrapper<T>::reference_wrapper;
         using std::reference_wrapper<T>::operator=;
         using std::reference_wrapper<T>::operator();
+
         reference() noexcept
-            : std::reference_wrapper<T>(core::make_null_reference_wrapper<T>())
-        {}
+            : std::reference_wrapper<T>(core::make_null_reference_wrapper<T>()) {}
     };
 
-    inline namespace tag    //  tag dispatching usage, clarify semantics
+    inline namespace tag //  tag dispatching usage, clarify semantics
     {
         inline constexpr struct use_future_t {} use_future;
 
         inline constexpr struct use_recursion_t {} use_recursion;
 
-        inline constexpr  struct as_default_t {} as_default;
+        inline constexpr struct as_default_t {} as_default;
 
-        inline constexpr  struct as_stacktrace_t {} as_stacktrace;
+        inline constexpr struct as_stacktrace_t {} as_stacktrace;
 
         inline constexpr struct as_element_t {} as_element;
 
@@ -145,35 +119,35 @@ namespace core
         namespace detail
         {
             template<typename T, typename ...Types>
-            auto hash_value_tuple(const T& head, const Types& ...tails) noexcept;
+            auto hash_value_tuple(T const& head, Types const& ...tails) noexcept;
 
             template<typename T>
-            std::tuple<size_t> hash_value_tuple(const T& head) noexcept
+            std::tuple<size_t> hash_value_tuple(T const& head) noexcept
             {
                 return std::make_tuple(std::hash<T>{}(head));
             }
 
             template<typename T, typename U>
-            std::tuple<size_t, size_t> hash_value_tuple(const std::pair<T, U>& head) noexcept
+            std::tuple<size_t, size_t> hash_value_tuple(std::pair<T, U> const& head) noexcept
             {
                 return hash_value_tuple(head.first, head.second);
             }
 
             template<typename ...TupleTypes>
-            auto hash_value_tuple(const std::tuple<TupleTypes...>& head) noexcept
+            auto hash_value_tuple(std::tuple<TupleTypes...> const& head) noexcept
             {
                 return hash_value_tuple(std::get<TupleTypes>(head)...);
             }
 
             template<typename T, typename ...Types>
-            auto hash_value_tuple(const T& head, const Types& ...tails) noexcept
+            auto hash_value_tuple(T const& head, Types const& ...tails) noexcept
             {
                 return std::tuple_cat(hash_value_tuple(head), hash_value_tuple(tails...));
             }
         }
 
         template<typename ...Types>
-        size_t hash_value_from(const Types& ...args) noexcept
+        size_t hash_value_from(Types const& ...args) noexcept
         {
             static_assert(sizeof...(Types) > 0);
             const auto tuple = detail::hash_value_tuple(args...);
@@ -181,33 +155,36 @@ namespace core
         }
 
         template<typename ...Types>
-        struct hash
+        struct byte_hash
         {
-            size_t operator()(const Types& ...args) noexcept
+            size_t operator()(Types const& ...args) noexcept
             {
                 return hash_value_from(args);
             }
         };
 
         template<>
-        struct hash<void>
+        struct byte_hash<void>
         {
             template<typename ...Types>
-            size_t operator()(const Types& ...args) const noexcept
+            size_t operator()(Types const& ...args) const noexcept
             {
                 return hash_value_from(args...);
             }
         };
     }
 
-    using v3::hash_value_from;
-    using v3::hash;
+    using v3::byte_hash;
 
     template<typename Hash>
-    struct dereference_hash
-    {   // smart pointer or iterator
+    struct deref_hash
+    {
+        // smart pointer or iterator
         template<typename Handle>
-        size_t operator()(const Handle& handle) const { return Hash{}(*handle); }
+        size_t operator()(Handle const& handle) const
+        {
+            return Hash{}(*handle);
+        }
     };
 
     template<typename Handle>
@@ -216,10 +193,10 @@ namespace core
         return std::forward<Handle>(handle).operator->();
     }
 
-    template<typename Handle>
-    decltype(auto) get_pointer(Handle&& handle, std::enable_if_t<std::is_pointer_v<std::decay_t<Handle>>>* = nullptr) noexcept
+    template<typename Pointee>
+    Pointee* const& get_pointer(Pointee* const& handle) noexcept
     {
-        return std::forward<Handle>(handle);
+        return handle;
     }
 
     template<typename T>
@@ -231,36 +208,9 @@ namespace core
     template<typename T>
     void as_mutable(const T&&) = delete;
 
-    template<typename Mandator>
-    struct dereference_delegate
-    {
-        template<typename ...Handles>
-        decltype(auto) operator()(Handles&& ...args) const
-            //    ->  std::invoke_result_t<std::decay_t<Callable>, decltype(*std::forward<Handles>(args))...>
-        {
-            return std::decay_t<Mandator>{}((*std::forward<Handles>(args))...);
-        }
-    };
-
     template<typename T, typename U>
     constexpr bool address_same(const T& x, const U& y) noexcept
     {
         return std::addressof(x) == std::addressof(y);
-    }
-
-    struct noncopyable
-    {
-    protected:
-        constexpr noncopyable() noexcept = default;
-        ~noncopyable() = default;
-        noncopyable(const noncopyable&) = delete;
-        noncopyable& operator=(const noncopyable&) = delete;
-    };
-
-    template<typename T, typename Equal = std::equal_to<T>>
-    constexpr bool is_default_constructed(const T& object) noexcept
-    {
-        static_assert(std::is_default_constructible_v<T>);
-        return Equal{}(object, T{});
     }
 }
