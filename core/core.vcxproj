@@ -109,7 +109,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(Include);../; $(ProjectDir);</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(Include); $(ProjectDir);../;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -148,7 +148,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(Include);../;$(ProjectDir);</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(Include);$(ProjectDir);../;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -162,18 +162,18 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\concurrency\async_chain.hpp" />
-    <ClInclude Include="..\concurrency\barrier.hpp" />
-    <ClInclude Include="..\concurrency\latch.hpp" />
-    <ClInclude Include="..\concurrency\synchronize.hpp" />
-    <ClInclude Include="..\meta\detail.hpp" />
-    <ClInclude Include="..\meta\function_trait.hpp" />
-    <ClInclude Include="..\meta\member_function_trait.hpp" />
-    <ClInclude Include="..\meta\meta.hpp" />
-    <ClInclude Include="..\meta\type_trait.hpp" />
+    <ClInclude Include="concurrency\async_chain.hpp" />
+    <ClInclude Include="concurrency\barrier.hpp" />
+    <ClInclude Include="concurrency\latch.hpp" />
+    <ClInclude Include="concurrency\synchronize.hpp" />
     <ClInclude Include="core.hpp" />
     <ClInclude Include="exception.hpp" />
     <ClInclude Include="guard.h" />
+    <ClInclude Include="meta\detail.hpp" />
+    <ClInclude Include="meta\function_trait.hpp" />
+    <ClInclude Include="meta\member_function_trait.hpp" />
+    <ClInclude Include="meta\meta.hpp" />
+    <ClInclude Include="meta\type_trait.hpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />

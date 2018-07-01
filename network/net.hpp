@@ -15,8 +15,7 @@ namespace net
     {
         inline namespace encoding
         {
-            struct use_chunk_t {};
-            inline constexpr use_chunk_t use_chunk;
+            inline struct use_chunk_t {} use_chunk;
         }
     }
 
@@ -28,6 +27,12 @@ namespace net
     std::filesystem::path config_path() noexcept;
 
     boost::property_tree::ptree const& config();
+
+    template<typename Entry>
+    Entry config_entry(std::string_view entry_name)
+    {
+        return config().get<Entry>(entry_name.data());
+    }
 }
 
 template<typename Protocal>

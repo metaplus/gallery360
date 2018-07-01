@@ -5,10 +5,8 @@ namespace meta
     template<typename Return, typename... Args>
     struct function_trait
     {
-        template<typename Return, typename... Args>
         explicit constexpr function_trait(Return(*)(Args...)) { }
 
-        template<typename Return, typename... As>
         explicit constexpr function_trait(Return(&)(Args...)) { }
 
         using return_type = Return;
