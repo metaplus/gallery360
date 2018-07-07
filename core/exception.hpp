@@ -20,6 +20,27 @@ namespace core
             fmt::print(std::cerr, "stacktrace:\n{}\n", *stacktrace);
     }
 
+    template<typename Exception, typename U>
+    void fail_promise(boost::promise<U>& promise, std::string const& message)
+    {
+        static_assert(meta::is_exception<Exception>::value);
+        promise.set_exception(boost::make_exceptional(Exception{ message }));
+    }
+
+    template<typename Exception, typename U>
+    void fail_promise_deferred(boost::promise<U>& promise, std::string const& message)
+    {
+        static_assert(meta::is_exception<Exception>::value);
+        promise.set_exception_deferred(boost::make_exceptional(Exception{ message }));
+    }
+
+    template<typename Exception, typename U>
+    void fail_promise_at_thread_exit(boost::promise<U>& promise, std::string const& message)
+    {
+        static_assert(meta::is_exception<Exception>::value);
+        promise.set_exception_at_thread_exit(boost::make_exceptional(Exception{ message }));
+    }
+
     inline int inspect_exception(boost::exception const& exp)
     {
         fmt::print(std::cerr, "boost-exception-what:\n{}\n\n", boost::diagnostic_information(exp));
