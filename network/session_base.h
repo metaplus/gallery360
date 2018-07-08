@@ -20,7 +20,13 @@ namespace net::detail
         session_base(boost::asio::basic_stream_socket<Protocal>&& socket,
                      boost::asio::io_context& context)
             : context_(context)
-            , socket_(std::move(socket)) {}
+            , socket_(std::move(socket))
+        {}
+
+        void reserve_recvbuf_capacity(size_t size = boost::asio::detail::default_max_transfer_size)
+        {
+            recvbuf_.prepare(size);
+        }
 
         void close_socket(boost::asio::socket_base::shutdown_type operation)
         {
@@ -35,10 +41,10 @@ namespace net::detail
         }
 
         template<typename U>
-        void fail_promise_then_close(boost::promise<U>& promise, boost::system::error_code errc,
-                                     boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both)
+        void fail_promise_then_close_socket(boost::promise<U>& promise, boost::system::error_code errc,
+                                            boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both)
         {
-            core::fail_promise<std::runtime_error>(promise, errc.message());
+            promise.set_exception(std::runtime_error{ errc.message() });
             close_socket(errc, operation);
         }
 
