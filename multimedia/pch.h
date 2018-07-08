@@ -22,12 +22,12 @@ extern "C" {
 }
 #pragma warning(pop)
 
-#ifdef _WIN32
+#ifdef _WIN64
 #pragma comment(lib,"avcodec")
 #pragma comment(lib,"avformat")
 #pragma comment(lib,"avutil")
 #pragma comment(lib,"swscale")
-#endif  // _WIN32
+#endif  // _WIN64
 
 #include "multimedia/ffmpeg.h"
 #include "multimedia/context.h"

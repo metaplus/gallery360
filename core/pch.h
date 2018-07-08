@@ -56,6 +56,9 @@
 #include <vector>
 using namespace std::literals;
 
+#include <boost/asio/buffer.hpp>
+#include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/core/multi_buffer.hpp>
 #include <boost/container_hash/hash.hpp>
 #include <boost/core/ignore_unused.hpp>
 #include <boost/core/null_deleter.hpp>
@@ -70,6 +73,7 @@ using namespace std::literals;
 #include <boost/stacktrace.hpp>
 #include <boost/thread.hpp>
 #include <boost/type_index.hpp>
+
 //#include <boost/fiber/all.hpp>
 using namespace boost::hana::literals;
 

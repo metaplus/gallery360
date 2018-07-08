@@ -6,38 +6,38 @@
 #include <msgpack/adaptor/define_decl.hpp>
 #endif // MULTIMEDIA_USE_MSGPACK
 
-av::frame::frame()
+media::frame::frame()
     : handle_(av_frame_alloc(), [](pointer p) { av_frame_free(&p); })
 {}
 
-av::frame::frame(std::nullptr_t)
+media::frame::frame(std::nullptr_t)
 {}
 
-void av::register_all()
+void media::register_all()
 {
     // static std::once_flag once;
     // std::call_once(once, [] { av_register_all(); });
 }
 
-bool av::frame::empty() const
+bool media::frame::empty() const
 {
     return handle_ == nullptr || handle_->data == nullptr || handle_->data[0] == nullptr;
 }
 
-av::frame::pointer av::frame::operator->() const
+media::frame::pointer media::frame::operator->() const
 {
     return handle_.get();
 }
 
-void av::frame::unref() const
+void media::frame::unref() const
 {
     av_frame_unref(handle_.get());
 }
 
-av::packet::packet(std::nullptr_t)
+media::packet::packet(std::nullptr_t)
 {}
 
-av::packet::packet(std::basic_string_view<uint8_t> sv)
+media::packet::packet(std::basic_string_view<uint8_t> sv)
     : packet()
 {
     uint8_t* required_avbuffer = nullptr;
@@ -46,31 +46,31 @@ av::packet::packet(std::basic_string_view<uint8_t> sv)
     core::verify(0 == av_packet_from_data(handle_.get(), required_avbuffer, static_cast<int>(sv.size())));
 }
 
-av::packet::packet(std::string_view csv)
-    : packet(std::basic_string_view<uint8_t>{reinterpret_cast<const uint8_t*>(csv.data()), csv.size()})
+media::packet::packet(std::string_view csv)
+    : packet(std::basic_string_view<uint8_t>{reinterpret_cast<uint8_t const*>(csv.data()), csv.size()})
 {}
 
-av::packet::packet()
+media::packet::packet()
     : handle_(av_packet_alloc(), [](pointer p) { av_packet_free(&p); })
 {}
 
-bool av::packet::empty() const
+bool media::packet::empty() const
 {
     return handle_ == nullptr || handle_->data == nullptr || handle_->size <= 0;
 }
 
-std::basic_string_view<uint8_t> av::packet::ubufview() const
+size_t media::packet::size() const
 {
-    return { handle_->data,static_cast<size_t>(handle_->size) };
+    return handle_ ? handle_->size : 0;
 }
 
-std::string_view av::packet::bufview() const
+std::basic_string_view<uint8_t> media::packet::bufview() const
 {
-    return { reinterpret_cast<char*>(handle_->data),static_cast<size_t>(handle_->size) };
+    return { handle_->data, boost::numeric_cast<size_t>(handle_->size) };
 }
 
 #ifdef MULTIMEDIA_USE_MSGPACK
-std::string av::packet::serialize() const
+std::string media::packet::serialize() const
 {
     msgpack::sbuffer sbuf(handle_->size + sizeof(chunk));
     msgpack::pack(sbuf, chunk{ *this });
@@ -78,71 +78,71 @@ std::string av::packet::serialize() const
 }
 #endif // MULTIMEDIA_USE_MSGPACK
 
-av::packet::pointer av::packet::operator->() const
+media::packet::pointer media::packet::operator->() const
 {
     return handle_.get();
 }
 
-av::packet::operator bool() const
+media::packet::operator bool() const
 {
     return !empty();
 }
 
-void av::packet::unref() const
+void media::packet::unref() const
 {
     av_packet_unref(handle_.get());
 }
 
-av::stream::stream(reference ref)
+media::stream::stream(reference ref)
     : reference_wrapper(ref)
 {}
 
-av::stream::stream(const pointer ptr)
+media::stream::stream(const pointer ptr)
     : reference_wrapper(*ptr)
 {}
 
-av::codec::codec(reference ref)
+media::codec::codec(reference ref)
     : reference_wrapper(ref)
 {}
 
-av::codec::codec(const pointer ptr)
+media::codec::codec(const pointer ptr)
     : reference_wrapper(*ptr)
 {}
 
-av::codec::pointer av::codec::operator->() const
+media::codec::pointer media::codec::operator->() const
 {
     return std::addressof(get());
 }
 
-av::codec::codec()
+media::codec::codec()
     : reference_wrapper(core::make_null_reference_wrapper<type>())
 {}
 
-av::codec::parameter av::stream::params() const
+media::codec::parameter media::stream::params() const
 {
     return std::cref(*get().codecpar);
 }
 
-av::media::type av::stream::media() const
+media::media::type media::stream::media() const
 {
     return get().codecpar->codec_type;
 }
 
-std::pair<int, int> av::stream::scale() const
+std::pair<int, int> media::stream::scale() const
 {
     return std::make_pair(get().codecpar->width, get().codecpar->height);
 }
 
-av::stream::pointer av::stream::operator->() const
+media::stream::pointer media::stream::operator->() const
 {
     return std::addressof(get());
 }
 
-av::stream::stream()
+media::stream::stream()
     : reference_wrapper(core::make_null_reference_wrapper<type>())
 {}
 
-int av::stream::index() const
+int media::stream::index() const
 {
     return get().index;
 }

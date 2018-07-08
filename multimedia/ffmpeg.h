@@ -1,6 +1,6 @@
 #pragma once
 
-namespace av
+namespace media
 {
     struct pixel
     {
@@ -53,9 +53,8 @@ namespace av
         pointer operator->() const;
         explicit operator bool() const;
         bool empty() const;
-        std::basic_string_view<uint8_t> ubufview() const;
-        std::string_view bufview() const;
-        std::string serialize() const;
+        size_t size() const;
+        std::basic_string_view<uint8_t> bufview() const;
         void unref() const;
     private:
         std::shared_ptr<AVPacket> handle_;
@@ -86,13 +85,6 @@ namespace av
         media::type media() const;
         std::pair<int, int> scale() const;
     };
-
-    // template<typename T>
-    // decltype(auto) get_pointer(T&& handle)
-    // {
-    //     //return static_cast<typename std::decay_t<T>::pointer>(handle);
-    //     return std::forward<T>(handle).operator->();
-    // }
 
     struct source
     {

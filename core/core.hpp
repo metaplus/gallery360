@@ -48,17 +48,12 @@ namespace core
         {
             using namespace std::chrono;
             return
-                dura < 1us
-                    ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns"
-                    : dura < 1ms
-                          ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us"
-                          : dura < 1s
-                                ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms"
-                                : dura < 1min
-                                      ? os << duration_cast<duration<double>>(dura).count() << "s"
-                                      : dura < 1h
-                                            ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min"
-                                            : os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
+                dura < 1us ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns" :
+                dura < 1ms ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us" :
+                dura < 1s ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms" :
+                dura < 1min ? os << duration_cast<duration<double>>(dura).count() << "s" :
+                dura < 1h ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min" :
+                os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
         }
     }
 
