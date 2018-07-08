@@ -7,17 +7,22 @@ namespace av
     public:
         using value_type = AVIOContext;
         using pointer = AVIOContext * ;
-        using read_func = std::function<int(uint8_t*, int)>;
-        using write_func = std::function<int(uint8_t*, int)>;
-        using seek_func = std::function<int64_t(int64_t, int)>;
-        using io_functors = std::tuple<read_func, write_func, seek_func>;
+        using read_functor = folly::Function<int(uint8_t*, int)>;
+        using write_functor = folly::Function<int(uint8_t*, int)>;
+        using seek_functor = folly::Function<int64_t(int64_t, int)>;
+        using io_functors = std::tuple<read_functor, write_functor, seek_functor>;
+
+        static constexpr inline size_t default_cache_page_size = 4096;
+        static constexpr inline bool default_buffer_writable = false;
 
         io_context() = default;
-        explicit io_context(io_functors&& io_functions, uint32_t buf_size = 4096, bool buf_writable = false);
+        io_context(io_functors&& io_functions, uint32_t buf_size, bool buf_writable);
+        io_context(read_functor&& read, write_functor&& write, seek_functor&& seek);
 
         pointer operator->() const;
         explicit operator bool() const;
 
+    private:
         struct io_interface
         {
             virtual ~io_interface() = default;
@@ -29,11 +34,11 @@ namespace av
             virtual bool seekable() = 0;
         };
 
-        static std::shared_ptr<io_interface> make_io_interface(io_functors&& io_functions = { nullptr,nullptr,nullptr });
-
-    private:
         std::shared_ptr<io_interface> io_interface_;
         std::shared_ptr<AVIOContext> io_handle_;
+
+        static std::shared_ptr<io_interface> make_io_interface(io_functors&& io_functions);
+        static std::shared_ptr<io_interface> make_io_interface(read_functor&& read, write_functor&& write, seek_functor&& seek);
 
         static int on_read_buffer(void* opaque, uint8_t* buffer, int size);
         static int on_write_buffer(void* opaque, uint8_t* buffer, int size);
@@ -57,14 +62,16 @@ namespace av
 
         stream demux(media::type media_type) const;
         std::pair<codec, stream> demux_with_codec(media::type media_type) const;
-        packet read(std::optional<media::type> media_type) const;
-        std::vector<packet> read(size_t count, std::optional<media::type> media_type) const;
+        packet read(media::type media_type) const;
+        std::vector<packet> read(size_t count, media::type media_type) const;
 
     private:
         //void prepare() const;
         std::shared_ptr<AVFormatContext> format_handle_;
         io_context io_handle_;
     };
+
+    using io_functors = io_context::io_functors;
 
     class codec_context
     {
@@ -74,7 +81,8 @@ namespace av
         using resolution = std::pair<decltype(AVCodecContext::width), decltype(AVCodecContext::height)>;
 
         codec_context() = default;
-        codec_context(codec codec, stream stream, unsigned threads = std::thread::hardware_concurrency());
+        codec_context(codec codec, stream stream, unsigned threads = boost::thread::hardware_concurrency());
+        codec_context(format_context& format, media::type media_type, unsigned threads = boost::thread::hardware_concurrency());
 
         pointer operator->() const;
         explicit operator bool() const;
@@ -88,10 +96,10 @@ namespace av
         std::shared_ptr<AVCodecContext> codec_handle_;
         stream stream_;
 
-        mutable struct status
+        struct status
         {
             int64_t count;
             bool flushed;
-        } status_;
+        } mutable status_;
     };
 }

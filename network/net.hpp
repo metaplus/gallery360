@@ -8,6 +8,8 @@ namespace net
         {
             using under_layer_protocal = boost::asio::ip::tcp;
             using socket = boost::asio::ip::tcp::socket;
+            static constexpr auto default_version = 11;
+            static constexpr auto default_method = boost::beast::http::verb::get;
         };
     }
 
@@ -32,6 +34,26 @@ namespace net
     Entry config_entry(std::string_view entry_name)
     {
         return config().get<Entry>(entry_name.data());
+    }
+
+    namespace detail
+    {
+        class state_base
+        {
+            enum state_index { active, state_size };
+
+            folly::AtomicBitSet<state_size> state_;
+        protected:
+            bool is_active() const
+            {
+                return state_.test(active, std::memory_order_acquire);
+            }
+
+            bool is_active(bool active)
+            {
+                return state_.set(state_index::active, active, std::memory_order_release);
+            }
+        };
     }
 }
 

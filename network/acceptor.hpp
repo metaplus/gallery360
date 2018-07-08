@@ -38,8 +38,8 @@ namespace net::server
         //     return *this;
         // }
 
-        template<typename ApplicationProtocal, typename ...SessionArgs>
-        std::unique_ptr<session<ApplicationProtocal, boost::asio::ip::tcp::socket>>
+        template<typename Protocal, typename ...SessionArgs>
+        std::unique_ptr<session<Protocal, boost::asio::ip::tcp::socket>>
         listen_session(SessionArgs&& ...args)
         {
             // async_run();
@@ -57,7 +57,7 @@ namespace net::server
                 });
             });
             auto socket = socket_future.get();
-            return std::make_unique<session<ApplicationProtocal, boost::asio::ip::tcp::socket>>(
+            return std::make_unique<session<Protocal, boost::asio::ip::tcp::socket>>(
                 std::move(socket), context_, std::forward<SessionArgs>(args)...);
         }
 

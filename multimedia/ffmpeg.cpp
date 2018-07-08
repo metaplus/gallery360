@@ -47,7 +47,7 @@ av::packet::packet(std::basic_string_view<uint8_t> sv)
 }
 
 av::packet::packet(std::string_view csv)
-    : packet(std::basic_string_view<uint8_t>{reinterpret_cast<const uint8_t*>(csv.data()), csv.size()})
+    : packet(std::basic_string_view<uint8_t>{reinterpret_cast<uint8_t const*>(csv.data()), csv.size()})
 {}
 
 av::packet::packet()
@@ -59,14 +59,14 @@ bool av::packet::empty() const
     return handle_ == nullptr || handle_->data == nullptr || handle_->size <= 0;
 }
 
-std::basic_string_view<uint8_t> av::packet::ubufview() const
+size_t av::packet::size() const
 {
-    return { handle_->data,static_cast<size_t>(handle_->size) };
+    return handle_ ? handle_->size : 0;
 }
 
-std::string_view av::packet::bufview() const
+std::basic_string_view<uint8_t> av::packet::bufview() const
 {
-    return { reinterpret_cast<char*>(handle_->data),static_cast<size_t>(handle_->size) };
+    return { handle_->data, boost::numeric_cast<size_t>(handle_->size) };
 }
 
 #ifdef MULTIMEDIA_USE_MSGPACK

@@ -15,12 +15,12 @@ namespace core
             if (!ptr)
                 throw_with_stacktrace(dangling_pointer_error{
                     "dangling pointer, pointer type: " + boost::typeindex::type_id<Pointee>().pretty_name()
-                });
+                                      });
         }
 
         template<typename Arithmetic,
-                 typename = boost::hana::when<std::is_arithmetic<Arithmetic>::value>>
-        void verify_one(Arithmetic const& number)
+            typename = boost::hana::when<std::is_arithmetic<Arithmetic>::value>>
+            void verify_one(Arithmetic const& number)
         {
             if (std::is_signed<Arithmetic>::value && number < 0)
                 throw_with_stacktrace(std::out_of_range{ "negative value" });
@@ -36,10 +36,6 @@ namespace core
     template<typename ...Predicates>
     void verify(Predicates const& ...preds)
     {
-        boost::hana::for_each(
-            boost::hana::make_tuple(preds...), [](auto const& pred)
-            {
-                detail::verify_one(pred);
-            });
+        (..., detail::verify_one(preds));
     }
 }
