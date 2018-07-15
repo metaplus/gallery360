@@ -56,7 +56,11 @@
 #include <vector>
 using namespace std::literals;
 
+#ifdef CORE_USE_ASIO
+#include <boost/asio.hpp>
+#else
 #include <boost/asio/buffer.hpp>
+#endif // CORE_USE_ASIO
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
 #include <boost/container_hash/hash.hpp>
@@ -79,19 +83,28 @@ using namespace boost::hana::literals;
 
 #define _FORCEINLINE BOOST_FORCEINLINE
 
-#ifdef CORE_USE_COROUTINE
-#include <experimental/coroutine>
-#endif
-
+#pragma warning(push)
+#pragma warning(disable:4267 4250)
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <folly/AtomicBitSet.h>
 #include <folly/AtomicHashMap.h>
 #include <folly/AtomicLinkedList.h>
 #include <folly/AtomicUnorderedMap.h>
 #include <folly/dynamic.h>
-#include <folly/Function.h>
 //#include <folly/io/IOBuf.h>
 //#include <folly/io/IOBufQueue.h>
+#ifdef CORE_USE_FOLLY_EXECUTOR
+#include <folly/executors/CPUThreadPoolExecutor.h>
+#include <folly/executors/FiberIOExecutor.h>
+#include <folly/executors/IOThreadPoolExecutor.h>
+#include <folly/executors/ScheduledExecutor.h>
+#include <folly/executors/SerialExecutor.h>
+#include <folly/executors/thread_factory/NamedThreadFactory.h>
+#include <folly/executors/ThreadedExecutor.h>
+#endif
+#include <folly/fibers/Fiber.h>
+#include <folly/Function.h>
+#include <folly/futures/Future.h>
 #include <folly/Lazy.h>
 #include <folly/PackedSyncPtr.h>
 #include <folly/small_vector.h>
@@ -99,6 +112,7 @@ using namespace boost::hana::literals;
 #include <folly/Synchronized.h>
 #include <folly/SynchronizedPtr.h>
 using namespace folly::literals;
+#pragma warning(pop)
 
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/ostr.h>
@@ -124,11 +138,13 @@ using namespace fmt::literals;
 #include "concurrency/synchronize.hpp"
 using namespace core::literals;
 
+#ifdef CORE_USE_FMT
 #ifdef _DEBUG
 #pragma comment(lib, "fmtd")
 #else
 #pragma comment(lib, "fmt")
 #endif  // _DEBUG
+#endif
 
 #ifdef CORE_USE_TBB
 #include <tbb/tbb.h>

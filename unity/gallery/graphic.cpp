@@ -1,29 +1,29 @@
 #include "stdafx.h"
 #include "graphic.h"
-#include "Gallery/interface.h"
+#include "Gallery/export.h"
 
 void graphic::process_event(const UnityGfxDeviceEventType event_type, IUnityInterfaces* interfaces)
 {
     switch (event_type)
     {
-    case kUnityGfxDeviceEventInitialize:
-    {
-        IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
-        clear();
-        //device_.reset(d3d->GetDevice(), deleter{});
+        case kUnityGfxDeviceEventInitialize:
         {
-            std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
-            const_cast<ID3D11Device*&>(device_) = d3d->GetDevice();
+            IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
+            clear();
+            //device_.reset(d3d->GetDevice(), deleter{});
+            {
+                std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
+                const_cast<ID3D11Device*&>(device_) = d3d->GetDevice();
+            }
+            break;
         }
-        break;
-    }
-    case kUnityGfxDeviceEventShutdown:
-    {
-        //deleter{}(device_);           //conflict against intangible vector destructor in Unity*.dll, thus irreponsible 
-        clear();
-        break;
-    }
-    default:;
+        case kUnityGfxDeviceEventShutdown:
+        {
+            //deleter{}(device_);           //conflict against intangible vector destructor in Unity*.dll, thus irreponsible 
+            clear();
+            break;
+        }
+        default:;
     }
 }
 
@@ -39,12 +39,12 @@ void graphic::store_textures(HANDLE texY, HANDLE texU, HANDLE texV)
     alphas_[2] = static_cast<ID3D11Texture2D*>(texV);
 }
 
-void graphic::update_textures(av::frame& frame) const
+void graphic::update_textures(media::frame& frame) const
 {
     std::lock_guard<std::recursive_mutex> exlock{ rmutex_ };
     auto context = this->context();
     core::verify(context != nullptr);
-    for (auto index : core::range<0, 2>())
+    for (auto index : std::array<int, 3>{0, 1, 2})
     {
         D3D11_TEXTURE2D_DESC desc;
         auto texture = alphas_[index];
@@ -52,14 +52,14 @@ void graphic::update_textures(av::frame& frame) const
         texture->GetDesc(&desc);
         context->UpdateSubresource(texture, 0, nullptr, data, desc.Width, 0);
     }
-//    if (static std::optional<ipc::message> first_update; !first_update.has_value())
-//    {
-//        first_update.emplace(ipc::message{}.emplace(ipc::first_frame_updated{}));
-//        dll::interprocess_async_send(first_update.value());
-//        cleanup_.emplace_back(
-//            []() { if (first_update.has_value()) first_update = std::nullopt; });
-//    }
-//    dll::interprocess_async_send(ipc::message{}.emplace(ipc::update_index{ update_index_++ }));
+    //    if (static std::optional<ipc::message> first_update; !first_update.has_value())
+    //    {
+    //        first_update.emplace(ipc::message{}.emplace(ipc::first_frame_updated{}));
+    //        dll::interprocess_async_send(first_update.value());
+    //        cleanup_.emplace_back(
+    //            []() { if (first_update.has_value()) first_update = std::nullopt; });
+    //    }
+    //    dll::interprocess_async_send(ipc::message{}.emplace(ipc::update_index{ update_index_++ }));
 }
 
 void graphic::clean_up() const

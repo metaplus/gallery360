@@ -1,107 +1,113 @@
 #include "stdafx.h"
-#include "interface.h"
+#include "export.h"
 
 namespace
 {
-    std::vector<std::shared_ptr<dll::media_context>> media_contexts;
-    std::shared_mutex media_smutex;
-    std::optional<std::pair<decltype(media_contexts)::iterator, std::shared_lock<std::shared_mutex>>>
-        find_context_by_hashid(const size_t hashid)
+    using context_ptr = std::shared_ptr<dll::media_context>;
+    using context_container = std::vector<context_ptr>;
+
+    folly::Synchronized<context_container> media_contexts;
+
+    context_container::iterator find_context_by_hashid(uint64_t hashid, context_container& contexts)
     {
-        std::shared_lock<std::shared_mutex> slock{ media_smutex };
-        if (!media_contexts.empty())
-        {
-            auto iter = std::find_if(media_contexts.begin(), media_contexts.end(),
-                [hashid](decltype(media_contexts)::const_reference pss) { return pss->hash_code() == hashid; });
-            if (iter != media_contexts.end())
-                return std::make_optional(std::make_pair(iter, std::move(slock)));
-        }
-        return std::nullopt;
+        return std::find_if(contexts.begin(), contexts.end(),
+                            [hashid](context_ptr const& pss) { return pss->hash_code() == hashid; });
     }
 }
 
 void unity::_nativeMediaCreate()
 {
-    av::register_all();
-    media_contexts.clear();
+    media_contexts.wlock()->clear();
 }
 
 void unity::_nativeMediaRelease()
 {
-    std::lock_guard<std::shared_mutex> exlock{ media_smutex };
-    for (const auto& context : media_contexts)
-        context->stop();
-    media_contexts.clear();
+    auto const wlock_context = media_contexts.wlock();
+    for (auto const& context_ptr : *wlock_context)
+        context_ptr->stop();
+    wlock_context->clear();
 }
 
 UINT64 unity::_nativeMediaSessionCreate(LPCSTR url)
 {
-    const auto session = std::make_shared<dll::media_context>(std::string{ url });
-    {
-        std::lock_guard<std::shared_mutex> exlock{ media_smutex };
-        media_contexts.push_back(session);
-    }
-    return session->hash_code();
+    return media_contexts.wlock()
+        ->emplace_back(std::make_shared<dll::media_context>(std::string{ url }))
+        ->hash_code();
 }
 
 void unity::_nativeMediaSessionPause(UINT64 hashID)
 {
-    const auto result = find_context_by_hashid(hashID);
-    if (!result.has_value()) return;
-    (*result->first)->stop();
+    auto wlock_context = media_contexts.wlock();
+    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    {
+        (*context_iter)->stop();
+    }
 }
 
 void unity::_nativeMediaSessionRelease(UINT64 hashID)
 {
-    auto result = find_context_by_hashid(hashID);
-    if (!result.has_value()) return;
-    auto exlock = util::lock_upgrade(result->second);
-    *(result->first) = nullptr;
-    //std::cerr << "vec size " << media_contexts.size() << "\n";
-    media_contexts.erase(result->first);
-    //std::cerr << "vec size " << media_contexts.size() << "\n";
+    auto wlock_context = media_contexts.wlock();
+    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    {
+        context_iter->reset();
+        wlock_context->erase(context_iter);
+    }
 }
 
 void unity::_nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height)
 {
-    const auto result = find_context_by_hashid(hashID);
-    if (!result.has_value()) return;
-    std::tie(width, height) = (*result->first)->resolution();
+    auto wlock_context = media_contexts.wlock();
+    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    {
+        std::tie(width, height) = (*context_iter)->resolution();
+    }
 }
 
 BOOL unity::_nativeMediaSessionHasNextFrame(UINT64 hashID)
 {
-    const auto result = find_context_by_hashid(hashID);
-    if (!result.has_value()) return false;
-    return !(*result->first)->empty();
+    auto wlock_context = media_contexts.wlock();
+    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    {
+        return !(*context_iter)->empty();
+    }
+    return false;
 }
 
 UINT64 unity::debug::_nativeMediaSessionGetFrameCount(UINT64 hashID)
 {
-    const auto result = find_context_by_hashid(hashID);
-    if (!result.has_value()) return 0;
-    return  (*result->first)->count_frame();
+    auto wlock_context = media_contexts.wlock();
+    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    {
+        return (*context_iter)->count_frame();
+    }
+    return 0;
 }
 
 BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, UINT64 count)
 {
-    if (count == 0) return false;
-    const auto result = find_context_by_hashid(hashID);
-    uint64_t drop_count = 0;
-    if (!result.has_value()) return false;
-    do
+    if (count != 0)
     {
-        auto frame = (*result->first)->pop_frame();
-        drop_count += frame.has_value();
-    } while (--count != 0);
-    return drop_count > 0;
+        uint64_t drop_count = 0;
+        auto wlock_context = media_contexts.wlock();
+        if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+        {
+            do
+            {
+                auto frame = (*context_iter)->pop_frame();
+                drop_count += frame.has_value();
+            } while (--count != 0);
+            return drop_count > 0;
+        }
+    }
+    return false;
 }
 
-std::optional<av::frame> dll::media_module::getter::decoded_frame()
+std::optional<media::frame> dll::media_module::decoded_frame()
 {
-    std::lock_guard<std::shared_mutex> exlock{ media_smutex };
-    if (media_contexts.empty()) return std::nullopt;
-    return media_contexts.back()->pop_frame();
+    auto wlock_context = media_contexts.wlock();
+    if (wlock_context->size())
+        return wlock_context->back()->pop_frame();
+    return std::nullopt;
 }
 
 #ifdef GALLERY_USE_LEGACY 
@@ -145,8 +151,11 @@ namespace
         if (fvec.empty()) return;
         std::unique_lock<std::mutex> exlock{ frames->mutex };
         if (frames->container.size() > max_fps + 20)
-            frames->condition.wait(exlock, [] { return
-                frames->container.size() < max_fps || !status::running.load(std::memory_order_relaxed); });
+            frames->condition.wait(exlock, []
+                                   {
+                                       return
+                                           frames->container.size() < max_fps || !status::running.load(std::memory_order_relaxed);
+                                   });
         if (!status::running.load(std::memory_order_relaxed))
             throw core::aborted_error{};
         std::move(fvec.begin(), fvec.end(), std::back_inserter(frames->container));
@@ -160,8 +169,11 @@ namespace
         routine::parse.wait();
         std::unique_lock<std::mutex> exlock{ frames->mutex };
         if (frames->container.empty())
-            frames->condition.wait(exlock, [] { return
-                !frames->container.empty() || !status::running.load(std::memory_order_relaxed); });
+            frames->condition.wait(exlock, []
+                                   {
+                                       return
+                                           !frames->container.empty() || !status::running.load(std::memory_order_relaxed);
+                                   });
         if (!status::running.load(std::memory_order_relaxed))
             throw core::aborted_error{};
         const auto frame = std::move(frames->container.front());
@@ -184,7 +196,7 @@ BOOL unity::store_media_url(LPCSTR url)
         std::promise<av::format_context> parse;
         routine::parse = parse.get_future().share();
         routine::decode = std::async(std::launch::async,
-            [parse = std::move(parse), path = path.generic_string()]() mutable
+                                     [parse = std::move(parse), path = path.generic_string()]() mutable
         {
             uint64_t decode_count = 0;
             routine::registry.wait();
@@ -266,10 +278,10 @@ void dll::media_release()
     status::running.store(false, std::memory_order_seq_cst);
     frames->condition.notify_all();
     core::repeat_each([](auto& future)
-    {
-        future.wait();
-        future = {};
-    }, routine::registry, routine::parse, routine::decode);
+                      {
+                          future.wait();
+                          future = {};
+                      }, routine::registry, routine::parse, routine::decode);
     if (!routine::cleanup.empty())
     {
         for (const auto& func : routine::cleanup)

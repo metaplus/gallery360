@@ -5,10 +5,6 @@
 
 #pragma warning(push)
 #pragma warning(disable: 4834)
-#define BOOST_ASIO_NO_DEPRECATED
-#define BOOST_ASIO_USE_FUTURE_HPP
-// #define BOOST_ASIO_DISABLE_BUFFER_DEBUGGING
-#include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #pragma warning(pop)
 
@@ -20,6 +16,7 @@ static_assert(std::conjunction<
 
 #include "network/net.hpp"
 #include "network/executor_guard.hpp"
+#include "network/session_base.h"
 // #include "network/context_base.hpp"
 // #include "network/send_base.hpp"
 // #include "network/recv_base.hpp"
@@ -28,11 +25,11 @@ static_assert(std::conjunction<
 // #include "network/session_pool.hpp"
 
 // #ifdef _NET_SERVER_PROJECT
-// #include "network/server.hpp"
-// #include "network/acceptor.hpp"
+#include "network/server.hpp"
+#include "network/acceptor.hpp"
 // #endif
 
 // #ifdef _NET_CLIENT_PROJECT
-// #include "network/client.hpp" 
-// #include "network/connector.hpp"
+#include "network/client.hpp" 
+#include "network/connector.hpp"
 // #endif

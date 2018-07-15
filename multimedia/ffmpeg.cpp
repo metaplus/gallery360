@@ -123,7 +123,7 @@ media::codec::parameter media::stream::params() const
     return std::cref(*get().codecpar);
 }
 
-media::media::type media::stream::media() const
+media::category::type media::stream::media() const
 {
     return get().codecpar->codec_type;
 }

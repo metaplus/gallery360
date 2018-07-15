@@ -170,6 +170,7 @@ namespace core
     }
 
     using v3::byte_hash;
+    using v3::hash_value_from;
 
     template<typename Hash>
     struct deref_hash

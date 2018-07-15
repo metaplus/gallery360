@@ -16,7 +16,7 @@ namespace media
         struct yvyu : std::integral_constant<type, AV_PIX_FMT_YVYU422> {};
     };
 
-    struct media
+    struct category
     {
         using type = AVMediaType;
         struct audio : std::integral_constant<type, AVMEDIA_TYPE_AUDIO> {};
@@ -29,6 +29,7 @@ namespace media
 
     class frame
     {
+        std::shared_ptr<AVFrame> handle_;
     public:
         using pointer = AVFrame * ;
         using reference = AVFrame & ;
@@ -37,12 +38,12 @@ namespace media
         pointer operator->() const;
         bool empty() const;
         void unref() const;
-    private:
-        std::shared_ptr<AVFrame> handle_;
     };
 
     class packet
     {
+        std::shared_ptr<AVPacket> handle_;
+        struct chunk;
     public:
         using pointer = AVPacket * ;
         using reference = AVPacket & ;
@@ -56,9 +57,6 @@ namespace media
         size_t size() const;
         std::basic_string_view<uint8_t> bufview() const;
         void unref() const;
-    private:
-        std::shared_ptr<AVPacket> handle_;
-        struct chunk;
     };
 
     struct codec : std::reference_wrapper<AVCodec>
@@ -82,7 +80,7 @@ namespace media
         pointer operator->() const;
         int index() const;
         codec::parameter params() const;
-        media::type media() const;
+        category::type media() const;
         std::pair<int, int> scale() const;
     };
 
