@@ -5,7 +5,7 @@ namespace
 {
     using ordinal = std::pair<int, int>;
 
-    std::map<ordinal, dll::media_context_optimal> contexts;
+    std::map<ordinal, dll::media_context> contexts;
 }
 
 void unity::_nativeMediaCreate()
@@ -16,10 +16,8 @@ void unity::_nativeMediaCreate()
 
 void unity::_nativeMediaRelease()
 {
-    for (auto& context_pair : contexts)
-        context_pair.second.wait_decode_complete();
-    contexts.clear();
     dll::deregister_module();
+    contexts.clear();
 }
 
 UINT64 unity::_nativeMediaSessionCreate(LPCSTR url)
@@ -29,25 +27,20 @@ UINT64 unity::_nativeMediaSessionCreate(LPCSTR url)
     return 666;
 }
 
-void unity::_nativeMediaSessionPause(UINT64 hashID)
-{
-    return;
-    // auto wlock_context = media_contexts.wlock();
-    // if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
-    // {
-    //     (*context_iter)->stop();
-    // }
-}
-
 void unity::_nativeMediaSessionRelease(UINT64 hashID)
 {
-    //contexts.erase(contexts.begin());
+    for (auto& pair : contexts)
+    {
+        auto& media_context = pair.second;
+        auto const [read_count, decode_count] = media_context.stop_and_wait();
+        boost::ignore_unused(read_count, decode_count);
+    }
 }
 
 void unity::_nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height)
 {
     auto const& context = contexts.at(std::make_pair(0, 0));
-    context.wait_parser_complete();
+    context.wait_parse_complete();
     std::tie(width, height) = context.resolution();
 }
 

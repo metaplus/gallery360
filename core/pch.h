@@ -68,7 +68,7 @@ using namespace std::literals;
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
 #include <boost/exception/all.hpp>
-#include <boost/hana.hpp>
+//#include <boost/hana.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/numeric/conversion/converter.hpp>
@@ -79,7 +79,7 @@ using namespace std::literals;
 #include <boost/type_index.hpp>
 
 //#include <boost/fiber/all.hpp>
-using namespace boost::hana::literals;
+//using namespace boost::hana::literals;
 
 #define _FORCEINLINE BOOST_FORCEINLINE
 
@@ -87,36 +87,32 @@ using namespace boost::hana::literals;
 #pragma warning(disable:4267 4250)
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #include <folly/AtomicBitSet.h>
-#include <folly/AtomicHashMap.h>
-#include <folly/AtomicLinkedList.h>
-#include <folly/AtomicUnorderedMap.h>
+//#include <folly/AtomicHashMap.h>
+//#include <folly/AtomicLinkedList.h>
+//#include <folly/AtomicUnorderedMap.h>
 #include <folly/concurrency/ConcurrentHashMap.h>
 #include <folly/concurrency/DynamicBoundedQueue.h>
 #include <folly/concurrency/UnboundedQueue.h>
-#include <folly/container/BitIterator.h>
 #include <folly/dynamic.h>
 //#include <folly/io/IOBuf.h>
 //#include <folly/io/IOBufQueue.h>
 #ifdef CORE_USE_FOLLY_EXECUTOR
-#include <folly/executors/Async.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
-#include <folly/executors/FiberIOExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
-#include <folly/executors/ScheduledExecutor.h>
 #include <folly/executors/SerialExecutor.h>
 #include <folly/executors/thread_factory/NamedThreadFactory.h>
 #include <folly/executors/ThreadedExecutor.h>
 #endif
-#include <folly/fibers/Fiber.h>
+//#include <folly/fibers/Fiber.h>
 #include <folly/Function.h>
+#include <folly/futures/Barrier.h>
 #include <folly/futures/Future.h>
-#include <folly/Lazy.h>
-#include <folly/PackedSyncPtr.h>
+//#include <folly/PackedSyncPtr.h>
 #include <folly/ProducerConsumerQueue.h>
 #include <folly/small_vector.h>
-#include <folly/stop_watch.h>
+//#include <folly/stop_watch.h>
 #include <folly/Synchronized.h>
-#include <folly/SynchronizedPtr.h>
+//#include <folly/SynchronizedPtr.h>
 using namespace folly::literals;
 #pragma warning(pop)
 

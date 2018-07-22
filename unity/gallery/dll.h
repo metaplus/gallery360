@@ -1,10 +1,12 @@
 #pragma once
+#include "dll.h"
 
 namespace dll
 {
     folly::CPUThreadPoolExecutor& cpu_executor();
-    folly::ThreadedExecutor& thread_executor();
     boost::asio::io_context::executor_type asio_executor();
+
+    std::shared_ptr<folly::NamedThreadFactory> create_thread_factory(std::string_view name_prefix);
 
     int16_t register_module();
     int16_t deregister_module();
@@ -14,40 +16,40 @@ namespace dll
         static std::optional<media::frame> decoded_frame();
     };
 
-    class media_context_optimal
+    class media_context : public boost::noncopyable
     {
         static constexpr auto frame_capacity = 90 + 20;
-
         using frame_container = folly::small_vector<media::frame, 1, uint16_t>;
 
+        std::string url_;
         std::pair<int16_t, int16_t> ordinal_;
         media::format_context media_format_;
         media::codec_context video_codec_;
         folly::Baton<> mutable parse_complete_;
         folly::Baton<> mutable decode_complete_;
         folly::Baton<> mutable read_complete_;
-        folly::Promise<std::string> url_;
+        folly::Baton<> mutable read_token_;
+        std::atomic<bool> mutable stop_request_ = false;
         folly::ProducerConsumerQueue<folly::Future<frame_container>> frames_{ frame_capacity };
-        folly::Executor::KeepAlive<folly::SerialExecutor> read_executor_;
         folly::Executor::KeepAlive<folly::SerialExecutor> decode_executor_;
         int64_t mutable read_step_count_ = 0;
         int64_t mutable decode_step_count_ = 0;
 
     public:
-        explicit media_context_optimal(std::string url);
-        bool operator<(media_context_optimal const& that) const;
+        explicit media_context(std::string url);
+        bool operator<(media_context const& that) const;
         std::optional<media::frame> pop_decode_frame();
-        void wait_parser_complete() const;
+        void wait_parse_complete() const;
+        std::pair<int64_t, int64_t> stop_and_wait();
         void wait_decode_complete() const;
         bool is_decode_complete() const;
         std::pair<int, int> resolution() const;
-
+        
     private:
-        folly::Function<void(std::string_view)> on_parse_format();
-        folly::Function<media::packet()> on_read_packet();
-        folly::Function<frame_container(media::packet)> on_decode_frame();
-        folly::Future<frame_container> chain_media_process_stage();
+        folly::Function<void(std::string_view)> on_parse_read_loop();
+        folly::Function<frame_container()> on_decode_frame_container(media::packet&& packet);
         void pop_frame_and_resume_read();
+        folly::Future<frame_container> wait_queue_vacancy(media::packet&& packet);
     };
 
     #ifdef GALLERY_USE_LEGACY

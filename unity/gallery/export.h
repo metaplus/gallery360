@@ -5,7 +5,6 @@ namespace unity
     EXTERN_C void DLLAPI _nativeMediaCreate();
     EXTERN_C void DLLAPI _nativeMediaRelease();
     EXTERN_C UINT64 DLLAPI _nativeMediaSessionCreate(LPCSTR url);
-    EXTERN_C void DLLAPI _nativeMediaSessionPause(UINT64 hashID);
     EXTERN_C void DLLAPI _nativeMediaSessionRelease(UINT64 hashID);
     EXTERN_C void DLLAPI _nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height);
     EXTERN_C BOOL DLLAPI _nativeMediaSessionHasNextFrame(UINT64 hashID);

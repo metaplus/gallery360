@@ -1,71 +1,92 @@
 #include "stdafx.h"
 
+
+namespace impl
+{
+    folly::ThreadedExecutor& io_executor()
+    {
+        static std::optional<folly::ThreadedExecutor> executor;
+        static std::once_flag flag;
+        std::call_once(flag, []
+        {
+            executor.emplace(dll::create_thread_factory("MediaContext"));
+        });
+        return executor.value();
+    }
+}
+
 namespace dll
 {
-    media_context_optimal::media_context_optimal(std::string url)
-        : read_executor_(folly::SerialExecutor::create(folly::getKeepAliveToken(dll::cpu_executor())))
+    media_context::media_context(std::string url)
+        : url_(url)
         , decode_executor_(folly::SerialExecutor::create(folly::getKeepAliveToken(dll::cpu_executor())))
     {
-        frames_.write(url_.getSemiFuture()
-                          .via(&dll::cpu_executor()).then(on_parse_format())
-                          .via(read_executor_.get()).then(on_read_packet())
-                          .via(decode_executor_.get()).then(on_decode_frame()));
-        url_.setValue(url);
+        impl::io_executor().add([this]
+        {
+            std::invoke(on_parse_read_loop(), std::string_view{ url_ });
+        });
     }
 
-    folly::Function<void(std::string_view)> media_context_optimal::on_parse_format()
+    folly::Function<void(std::string_view)> media_context::on_parse_read_loop()
     {
         return [this](std::string_view url)
         {
             media_format_ = media::format_context{ media::source::path{ url.data() } };
             video_codec_ = media::codec_context{ media_format_, media::category::video{} };
             parse_complete_.post();
+            media::packet packet = media_format_.read(media::category::video{});
+            try
+            {
+                while (!packet.empty())
+                {
+                    if (stop_request_.load())
+                    {
+                        throw std::runtime_error{ __PRETTY_FUNCTION__ };
+                    }
+                    frames_.write(wait_queue_vacancy(std::move(packet)));
+                    ++read_step_count_;
+                    packet = media_format_.read(media::category::video{});
+                }
+                frames_.write(wait_queue_vacancy(std::move(packet)));
+            }
+            catch (std::runtime_error&)
+            {
+                fmt::print("media_context stopped\n");
+                pop_decode_frame();
+                frames_.write(wait_queue_vacancy(media::packet{}));;
+            }
+            read_complete_.post();
         };
     }
 
-    folly::Function<media::packet()> media_context_optimal::on_read_packet()
+    folly::Function<media_context::frame_container()> media_context::on_decode_frame_container(media::packet&& packet)
     {
-        return [this]
+        return [this, packet = std::move(packet)]
         {
-            fmt::print("reading {}\n", read_step_count_);
-            auto packet = media_format_.read(media::category::video{});
-            ++read_step_count_;
-            if (packet.empty())
-                read_complete_.post();
-            else if (!frames_.isFull())
-                frames_.write(chain_media_process_stage());
-            return packet;
-        };
-    }
-
-    folly::Function<media_context_optimal::frame_container(media::packet)> media_context_optimal::on_decode_frame()
-    {
-        return [this](media::packet packet)
-        {
-            fmt::print("decoding {} exist {}\n", decode_step_count_, !packet.empty());
-            ++decode_step_count_;
             if (packet.empty())
             {
-                fmt::print("----- decode finish -----\n");
-                if (!decode_complete_.ready())
-                    decode_complete_.post();
+                decode_complete_.post();
                 return frame_container{};
             }
             auto frames = video_codec_.decode(packet);
-            fmt::print("decode frameSize {}\n", frames.size());
+            decode_step_count_ += frames.size();
             frame_container decode_frames;
             decode_frames.assign(std::make_move_iterator(frames.begin()), std::make_move_iterator(frames.end()));
             return decode_frames;
         };
     }
 
-    folly::Future<media_context_optimal::frame_container> media_context_optimal::chain_media_process_stage()
+    folly::Future<media_context::frame_container> media_context::wait_queue_vacancy(media::packet&& packet)
     {
-        return folly::via(read_executor_.get(), on_read_packet())
-            .then(decode_executor_.get(), on_decode_frame());
+        if (frames_.isFull())
+        {
+            read_token_.wait();
+            read_token_.reset();
+        }
+        return folly::via(decode_executor_.get(), on_decode_frame_container(std::move(packet)));
     }
 
-    std::optional<media::frame> media_context_optimal::pop_decode_frame()
+    std::optional<media::frame> media_context::pop_decode_frame()
     {
         folly::Future<frame_container>* front_ptr = frames_.frontPtr();
         if (front_ptr != nullptr && front_ptr->valid() && front_ptr->isReady())
@@ -85,36 +106,45 @@ namespace dll
         return std::nullopt;
     }
 
-    void media_context_optimal::pop_frame_and_resume_read()
+    void media_context::pop_frame_and_resume_read()
     {
+        bool const is_queue_full = frames_.isFull();
         frames_.popFront();
-        if (frames_.isEmpty() && !read_complete_.ready())
-            frames_.write(chain_media_process_stage());
+        if (is_queue_full)
+            read_token_.post();
     }
 
+    std::pair<int64_t, int64_t> media_context::stop_and_wait()
+    {
+        stop_request_.store(true);
+        pop_decode_frame();
+        read_complete_.wait();
+        decode_complete_.wait();
+        return { read_step_count_, decode_step_count_ };
+    }
 
-    void media_context_optimal::wait_parser_complete() const
+    void media_context::wait_parse_complete() const
     {
         parse_complete_.wait();
     }
 
-    void media_context_optimal::wait_decode_complete() const
+    void media_context::wait_decode_complete() const
     {
         decode_complete_.wait();
     }
 
-    bool media_context_optimal::is_decode_complete() const
+    bool media_context::is_decode_complete() const
     {
-        return decode_complete_.ready();
+        return frames_.isEmpty() && decode_complete_.ready();
     }
 
 
-    std::pair<int, int> media_context_optimal::resolution() const
+    std::pair<int, int> media_context::resolution() const
     {
         return media_format_.demux(media::category::video{}).scale();
     }
 
-    bool media_context_optimal::operator<(media_context_optimal const& that) const
+    bool media_context::operator<(media_context const& that) const
     {
         return ordinal_ < that.ordinal_;
     }
