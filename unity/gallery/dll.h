@@ -2,64 +2,55 @@
 
 namespace dll
 {
-    boost::asio::io_context& register_module();
-    int16_t unregister_module();
+    folly::CPUThreadPoolExecutor& cpu_executor();
+    folly::ThreadedExecutor& thread_executor();
+    boost::asio::io_context::executor_type asio_executor();
+
+    int16_t register_module();
+    int16_t deregister_module();
 
     struct media_module
     {
         static std::optional<media::frame> decoded_frame();
     };
 
-    class context_interface
+    class media_context_optimal
     {
-    public:
-        virtual void start() = 0;
-        virtual void stop() = 0;
-        virtual size_t hash_code() const = 0;
-        virtual bool operator<(const context_interface&) const = 0;
-        virtual ~context_interface() = default;
-    };
+        static constexpr auto frame_capacity = 90 + 20;
 
-    class media_context : public context_interface
-    {
+        using frame_container = folly::small_vector<media::frame, 1, uint16_t>;
+
+        std::pair<int16_t, int16_t> ordinal_;
+        media::format_context media_format_;
+        media::codec_context video_codec_;
+        folly::Baton<> mutable parse_complete_;
+        folly::Baton<> mutable decode_complete_;
+        folly::Baton<> mutable read_complete_;
+        folly::Promise<std::string> url_;
+        folly::ProducerConsumerQueue<folly::Future<frame_container>> frames_{ frame_capacity };
+        folly::Executor::KeepAlive<folly::SerialExecutor> read_executor_;
+        folly::Executor::KeepAlive<folly::SerialExecutor> decode_executor_;
+        int64_t mutable read_step_count_ = 0;
+        int64_t mutable decode_step_count_ = 0;
+
     public:
-        void start() override;
-        void stop() override;
-        size_t hash_code() const override;
-        bool operator<(const context_interface&) const override;
-        bool empty() const;
-        static constexpr size_t capacity();
+        explicit media_context_optimal(std::string url);
+        bool operator<(media_context_optimal const& that) const;
+        std::optional<media::frame> pop_decode_frame();
+        void wait_parser_complete() const;
+        void wait_decode_complete() const;
+        bool is_decode_complete() const;
         std::pair<int, int> resolution() const;
-        uint64_t count_frame() const;
-        std::optional<media::frame> pop_frame();
-        media_context() = delete;
-        explicit media_context(const std::string& url);
-        media_context(const media_context&) = delete;
-        media_context& operator=(const media_context&) = delete;
-        ~media_context() override;
+
     private:
-        void push_frames(std::vector<media::frame>&& fvec);
-        struct status
-        {
-            std::atomic<bool> is_active = false;
-            std::atomic<bool> has_read = false;
-            std::atomic<bool> has_decode = false;
-        };
-        struct pending
-        {
-            std::future<size_t> decode_video;
-            std::future<size_t> read_media;
-        };
-        mutable status status_;
-        mutable std::recursive_mutex rmutex_;
-        mutable std::condition_variable_any condvar_;
-        pending pending_;
-        std::deque<media::frame> frame_deque_;
-        const media::format_context media_format_;
-        const media::codec_context video_codec_;
+        folly::Function<void(std::string_view)> on_parse_format();
+        folly::Function<media::packet()> on_read_packet();
+        folly::Function<frame_container(media::packet)> on_decode_frame();
+        folly::Future<frame_container> chain_media_process_stage();
+        void pop_frame_and_resume_read();
     };
 
-#ifdef GALLERY_USE_LEGACY 
+    #ifdef GALLERY_USE_LEGACY
     void timer_startup();
     std::chrono::high_resolution_clock::duration timer_elapsed();
     void media_prepare();
@@ -72,5 +63,5 @@ namespace dll
     void interprocess_async_send(ipc::message message);
     void interprocess_send(ipc::message message);
     void graphics_release();
-#endif  // GALLERY_USE_LEGACY
+    #endif  // GALLERY_USE_LEGACY
 }

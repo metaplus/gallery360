@@ -267,14 +267,14 @@ std::pair<media::codec, media::stream> media::format_context::demux_with_codec(c
 
 media::packet media::format_context::read(category::type media_type) const
 {
-    packet pkt;
-    while (av_read_frame(format_handle_.get(), core::get_pointer(pkt)) == 0
+    media::packet packet;
+    while (av_read_frame(format_handle_.get(), core::get_pointer(packet)) == 0
            && media_type != category::unknown::value
-           && format_handle_->streams[pkt->stream_index]->codecpar->codec_type != media_type)
+           && format_handle_->streams[packet->stream_index]->codecpar->codec_type != media_type)
     {
-        pkt.unref();
+        packet.unref();
     }
-    return pkt;
+    return packet;
 }
 
 std::vector<media::packet> media::format_context::read(const size_t count, category::type media_type) const

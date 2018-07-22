@@ -12,8 +12,7 @@ namespace unity
 
     namespace debug
     {
-        EXTERN_C UINT64 DLLAPI _nativeMediaSessionGetFrameCount(UINT64 hashID);
-        EXTERN_C BOOL DLLAPI _nativeMediaSessionDropFrame(UINT64 hashID, UINT64 count = 1);
+        EXTERN_C BOOL DLLAPI _nativeMediaSessionDropFrame(UINT64 hashID, INT64 count = 1);
     }
 
     EXTERN_C void DLLAPI _nativeGraphicSetTextures(HANDLE textureY, HANDLE textureU, HANDLE textureV);

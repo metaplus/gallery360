@@ -16,12 +16,6 @@
     <Filter Include="Header Files\unity">
       <UniqueIdentifier>{6e30f3cf-a0fa-4dba-b271-5d6b70ed6020}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\module">
-      <UniqueIdentifier>{5a114c39-cf9f-47ca-908a-20b2715bb4fd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\context">
-      <UniqueIdentifier>{0b8c33c4-ffa2-4489-9795-2533e7eb8db0}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -74,19 +68,19 @@
     <ClCompile Include="timer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="media.cpp">
-      <Filter>Source Files\module</Filter>
+    <ClCompile Include="dll.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="media_context.cpp">
-      <Filter>Source Files\context</Filter>
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="net_context.cpp">
-      <Filter>Source Files\context</Filter>
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="net.cpp">
-      <Filter>Source Files\module</Filter>
+    <ClCompile Include="media_module.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="dll.cpp">
+    <ClCompile Include="net_module.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -90,10 +90,15 @@ using namespace boost::hana::literals;
 #include <folly/AtomicHashMap.h>
 #include <folly/AtomicLinkedList.h>
 #include <folly/AtomicUnorderedMap.h>
+#include <folly/concurrency/ConcurrentHashMap.h>
+#include <folly/concurrency/DynamicBoundedQueue.h>
+#include <folly/concurrency/UnboundedQueue.h>
+#include <folly/container/BitIterator.h>
 #include <folly/dynamic.h>
 //#include <folly/io/IOBuf.h>
 //#include <folly/io/IOBufQueue.h>
 #ifdef CORE_USE_FOLLY_EXECUTOR
+#include <folly/executors/Async.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/FiberIOExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
@@ -107,6 +112,7 @@ using namespace boost::hana::literals;
 #include <folly/futures/Future.h>
 #include <folly/Lazy.h>
 #include <folly/PackedSyncPtr.h>
+#include <folly/ProducerConsumerQueue.h>
 #include <folly/small_vector.h>
 #include <folly/stop_watch.h>
 #include <folly/Synchronized.h>
@@ -154,3 +160,4 @@ using namespace core::literals;
 #pragma comment(lib, "tbb")
 #endif  // _DEBUG
 #endif  // CORE_USE_TBB
+

@@ -170,9 +170,9 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="gallery.cpp" />
     <ClCompile Include="graphic.cpp" />
-    <ClCompile Include="media.cpp" />
+    <ClCompile Include="media_module.cpp" />
     <ClCompile Include="media_context.cpp" />
-    <ClCompile Include="net.cpp" />
+    <ClCompile Include="net_module.cpp" />
     <ClCompile Include="net_context.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
