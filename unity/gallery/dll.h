@@ -2,8 +2,6 @@
 
 namespace dll
 {
-    boost::asio::io_context& register_module();
-    int16_t unregister_module();
 
     struct media_module
     {

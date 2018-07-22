@@ -95,11 +95,9 @@ using namespace boost::hana::literals;
 //#include <folly/io/IOBufQueue.h>
 #ifdef CORE_USE_FOLLY_EXECUTOR
 #include <folly/executors/CPUThreadPoolExecutor.h>
-#include <folly/executors/FiberIOExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/ScheduledExecutor.h>
 #include <folly/executors/SerialExecutor.h>
-#include <folly/executors/thread_factory/NamedThreadFactory.h>
 #include <folly/executors/ThreadedExecutor.h>
 #endif
 #include <folly/fibers/Fiber.h>

@@ -6,39 +6,36 @@ namespace
     using context_ptr = std::shared_ptr<dll::media_context>;
     using context_container = std::vector<context_ptr>;
 
-    folly::Synchronized<context_container> media_contexts;
+    context_container media_contexts;
 
     context_container::iterator find_context_by_hashid(uint64_t hashid, context_container& contexts)
     {
         return std::find_if(contexts.begin(), contexts.end(),
-                            [hashid](context_ptr const& pss) { return pss->hash_code() == hashid; });
+                            [hashid](context_ptr const& pss)
+                            {
+                                return pss->hash_code() == hashid;
+                            });
     }
 }
 
 void unity::_nativeMediaCreate()
 {
-    media_contexts.wlock()->clear();
+    media_contexts = {};
 }
 
 void unity::_nativeMediaRelease()
 {
-    auto const wlock_context = media_contexts.wlock();
-    for (auto const& context_ptr : *wlock_context)
-        context_ptr->stop();
-    wlock_context->clear();
+    media_contexts.clear();
 }
 
 UINT64 unity::_nativeMediaSessionCreate(LPCSTR url)
 {
-    return media_contexts.wlock()
-        ->emplace_back(std::make_shared<dll::media_context>(std::string{ url }))
-        ->hash_code();
+    return media_contexts.emplace_back(std::make_shared<dll::media_context>(std::string{ url }))->hash_code();
 }
 
 void unity::_nativeMediaSessionPause(UINT64 hashID)
 {
-    auto wlock_context = media_contexts.wlock();
-    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    if (auto context_iter = find_context_by_hashid(hashID, media_contexts); context_iter != media_contexts.end())
     {
         (*context_iter)->stop();
     }
@@ -46,18 +43,16 @@ void unity::_nativeMediaSessionPause(UINT64 hashID)
 
 void unity::_nativeMediaSessionRelease(UINT64 hashID)
 {
-    auto wlock_context = media_contexts.wlock();
-    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    if (auto context_iter = find_context_by_hashid(hashID, media_contexts); context_iter != media_contexts.end())
     {
         context_iter->reset();
-        wlock_context->erase(context_iter);
+        media_contexts.erase(context_iter);
     }
 }
 
 void unity::_nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height)
 {
-    auto wlock_context = media_contexts.wlock();
-    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    if (auto context_iter = find_context_by_hashid(hashID, media_contexts); context_iter != media_contexts.end())
     {
         std::tie(width, height) = (*context_iter)->resolution();
     }
@@ -65,8 +60,7 @@ void unity::_nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& hei
 
 BOOL unity::_nativeMediaSessionHasNextFrame(UINT64 hashID)
 {
-    auto wlock_context = media_contexts.wlock();
-    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    if (auto context_iter = find_context_by_hashid(hashID, media_contexts); context_iter != media_contexts.end())
     {
         return !(*context_iter)->empty();
     }
@@ -75,8 +69,7 @@ BOOL unity::_nativeMediaSessionHasNextFrame(UINT64 hashID)
 
 UINT64 unity::debug::_nativeMediaSessionGetFrameCount(UINT64 hashID)
 {
-    auto wlock_context = media_contexts.wlock();
-    if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+    if (auto context_iter = find_context_by_hashid(hashID, media_contexts); context_iter != media_contexts.end())
     {
         return (*context_iter)->count_frame();
     }
@@ -88,14 +81,14 @@ BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, UINT64 count)
     if (count != 0)
     {
         uint64_t drop_count = 0;
-        auto wlock_context = media_contexts.wlock();
-        if (auto context_iter = find_context_by_hashid(hashID, *wlock_context); context_iter != wlock_context->end())
+        if (auto context_iter = find_context_by_hashid(hashID, media_contexts); context_iter != media_contexts.end())
         {
             do
             {
                 auto frame = (*context_iter)->pop_frame();
                 drop_count += frame.has_value();
-            } while (--count != 0);
+            }
+            while (--count != 0);
             return drop_count > 0;
         }
     }
@@ -104,13 +97,12 @@ BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, UINT64 count)
 
 std::optional<media::frame> dll::media_module::decoded_frame()
 {
-    auto wlock_context = media_contexts.wlock();
-    if (wlock_context->size())
-        return wlock_context->back()->pop_frame();
+    if (media_contexts.size())
+        return media_contexts.back()->pop_frame();
     return std::nullopt;
 }
 
-#ifdef GALLERY_USE_LEGACY 
+#ifdef GALLERY_USE_LEGACY
 
 using namespace av;
 using namespace core;
