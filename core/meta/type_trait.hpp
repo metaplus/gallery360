@@ -36,14 +36,23 @@ namespace meta
     };
 
     template<typename T>
-    struct value_trait : detail::value_trait<remove_cv_ref_t<T>> {};
+    using value = typename detail::value_trait<remove_cv_ref_t<T>>::type;
 
     template<typename T>
-    struct value : value_trait<T>::type {};
+    struct is_future : is_within<remove_cv_ref_t<T>, std::future<value<T>>, std::shared_future<value<T>>,
+                                 folly::Future<value<T>>, folly::SemiFuture<value<T>>
+                                 #ifdef CORE_USE_BOOST_FIBER
+                                 , boost::fibers::future<value<T>>
+                                 #endif //CORE_USE_BOOST_FIBER
+        > {};
 
     template<typename T>
-    struct is_future : is_within<remove_cv_ref_t<T>,
-                                 std::future<value<T>>, std::shared_future<value<T>>> {};
+    struct is_promise : is_within<remove_cv_ref_t<T>, std::promise<value<T>>, folly::Promise<value<T>>
+                                 #ifdef CORE_USE_BOOST_FIBER
+                                 , boost::fibers::promise<value<T>>
+                                 #endif //CORE_USE_BOOST_FIBER
+        > {};
+
 
     template<typename T>
     struct is_atomic : std::is_same<remove_cv_ref_t<T>, std::atomic<value<T>>> {};
@@ -76,8 +85,7 @@ namespace meta
     struct max_size<std::pair<T, U>> : max_size<T, U> {};
 
     template<typename T, typename ...Types>
-    struct index : std::integral_constant<size_t,
-                                          detail::index_impl<T, std::index_sequence_for<Types...>, Types...>::type::index>
+    struct index : std::integral_constant<size_t, detail::index_impl<T, std::index_sequence_for<Types...>, Types...>::type::index>
     {
         static_assert(meta::is_within<T, Types...>::value, "T is outside Types... pack");
     };

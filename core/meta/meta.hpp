@@ -104,4 +104,10 @@ namespace meta
     {
         return { static_cast<std::common_type_t<Types...>>(args)... };
     }
+
+    template<typename T>
+    struct type_base
+    {
+        using type = T;
+    };
 }

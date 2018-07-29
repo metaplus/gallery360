@@ -28,17 +28,17 @@ namespace core
 
     namespace literals
     {
-        constexpr size_t operator""_kbyte(const size_t n)
+        constexpr size_t operator""_kbyte(size_t const n)
         {
             return n * 1024;
         }
 
-        constexpr size_t operator""_mbyte(const size_t n)
+        constexpr size_t operator""_mbyte(size_t const n)
         {
             return n * 1024 * 1024;
         }
 
-        constexpr size_t operator""_gbyte(const size_t n)
+        constexpr size_t operator""_gbyte(size_t const n)
         {
             return n * 1024 * 1024 * 1024;
         }
@@ -48,12 +48,17 @@ namespace core
         {
             using namespace std::chrono;
             return
-                dura < 1us ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns" :
-                dura < 1ms ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us" :
-                dura < 1s ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms" :
-                dura < 1min ? os << duration_cast<duration<double>>(dura).count() << "s" :
-                dura < 1h ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min" :
-                os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
+                dura < 1us
+                    ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns"
+                    : dura < 1ms
+                          ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us"
+                          : dura < 1s
+                                ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms"
+                                : dura < 1min
+                                      ? os << duration_cast<duration<double>>(dura).count() << "s"
+                                      : dura < 1h
+                                            ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min"
+                                            : os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
         }
     }
 
@@ -202,11 +207,24 @@ namespace core
     }
 
     template<typename T>
-    void as_mutable(const T&&) = delete;
+    void as_mutable(T const&&) = delete;
 
     template<typename T, typename U>
-    constexpr bool address_same(const T& x, const U& y) noexcept
+    constexpr bool address_same(T const& x, U const& y) noexcept
     {
         return std::addressof(x) == std::addressof(y);
+    }
+
+    template<typename Enum>
+    constexpr std::underlying_type_t<Enum> underlying(Enum const& enumeration) noexcept
+    {
+        static_assert(std::is_enum<Enum>::value);
+        return static_cast<std::underlying_type_t<Enum>>(enumeration);
+    }
+
+    template<typename EnumT, typename EnumU>
+    constexpr bool underlying_same(EnumT const& et, EnumU const& eu) noexcept
+    {
+        return std::equal_to<>{}(underlying(et), underlying(eu));
     }
 }
