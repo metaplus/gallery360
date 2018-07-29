@@ -123,9 +123,9 @@ media::codec::parameter media::stream::params() const
     return std::cref(*get().codecpar);
 }
 
-media::category::type media::stream::media() const
+media::type media::stream::media() const
 {
-    return get().codecpar->codec_type;
+    return  static_cast<media::type>( get().codecpar->codec_type);
 }
 
 std::pair<int, int> media::stream::scale() const

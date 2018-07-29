@@ -1,12 +1,13 @@
 #include "stdafx.h"
 #include "dll.h"
 
-namespace
+namespace dll::internal
 {
     std::atomic<int16_t> module_count = 0;
     std::shared_ptr<folly::CPUThreadPoolExecutor> cpu_thread_pool_executor;
-    std::shared_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> io_context_guard;
     std::shared_ptr<boost::asio::io_context> io_context;
+    std::shared_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> io_context_guard;
+    boost::thread_group asio_threads;
     std::mutex resouce_mutex;
 }
 
@@ -21,16 +22,20 @@ namespace dll
     {
         return [task_queue_capacity]
         {
-            auto const thread_capacity = std::thread::hardware_concurrency();
-            cpu_thread_pool_executor = std::make_shared<folly::CPUThreadPoolExecutor>(
+            auto const thread_capacity = std::thread::hardware_concurrency() / 4;
+            auto named_thread_factory = create_thread_factory("GalleryPool");
+            internal::cpu_thread_pool_executor = std::make_shared<folly::CPUThreadPoolExecutor>(
                 thread_capacity,
                 std::make_unique<folly::LifoSemMPMCQueue<
-                    folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::THROW>>(task_queue_capacity),
-                create_thread_factory("GalleryPool"));
-            folly::setCPUExecutor(cpu_thread_pool_executor);
-            io_context = std::make_shared<boost::asio::io_context>();
-            io_context_guard = std::make_shared<boost::asio::executor_work_guard<
-                boost::asio::io_context::executor_type>>(io_context->get_executor());
+                folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::THROW>>(task_queue_capacity),
+                std::move(named_thread_factory));
+            folly::setCPUExecutor(internal::cpu_thread_pool_executor);
+            internal::io_context = std::make_shared<boost::asio::io_context>();
+            internal::io_context_guard = std::make_shared<boost::asio::executor_work_guard<
+                boost::asio::io_context::executor_type>>(internal::io_context->get_executor());
+            std::vector<boost::thread*> threads(thread_capacity);
+            std::generate(threads.begin(), threads.end(),
+                          [] { return internal::asio_threads.create_thread([] { internal::io_context->run(); }); });
         };
     }
 
@@ -38,20 +43,21 @@ namespace dll
     {
         return []
         {
-            cpu_thread_pool_executor->stop();
-            cpu_thread_pool_executor->join();
-            //  cpu_thread_pool_executor.reset();
-            io_context_guard->reset();
-            io_context_guard.reset();
-            io_context->stop();
-            io_context.reset();
+            internal::cpu_thread_pool_executor->stop();
+            internal::cpu_thread_pool_executor->join();
+            //cpu_thread_pool_executor.reset();
+            internal::io_context_guard->reset();
+            //internal::io_context_guard.reset();
+            internal::io_context->stop();
+            //internal::io_context.reset();
+            internal::asio_threads.join_all();
         };
     }
 
     int16_t register_module()
     {
-        std::lock_guard<std::mutex> guard{ resouce_mutex };
-        auto const module_index = std::atomic_fetch_add(&module_count, 1);
+        std::lock_guard<std::mutex> guard{ internal::resouce_mutex };
+        auto const module_index = std::atomic_fetch_add(&internal::module_count, 1);
         if (module_index == 0)
             std::invoke(on_initialize_resouce(8'192));
         return module_index;
@@ -59,8 +65,8 @@ namespace dll
 
     int16_t deregister_module()
     {
-        std::lock_guard<std::mutex> guard{ resouce_mutex };
-        auto const module_left = std::atomic_fetch_sub(&module_count, 1) - 1;
+        std::lock_guard<std::mutex> guard{ internal::resouce_mutex };
+        auto const module_left = std::atomic_fetch_sub(&internal::module_count, 1) - 1;
         if (module_left <= 0)
         {
             assert(module_left == 0);
@@ -69,13 +75,16 @@ namespace dll
         return module_left;
     }
 
+    
+
+
     folly::CPUThreadPoolExecutor& cpu_executor()
     {
-        return cpu_thread_pool_executor.operator*();
+        return internal::cpu_thread_pool_executor.operator*();
     }
 
     boost::asio::io_context::executor_type asio_executor()
     {
-        return io_context->get_executor();
+        return internal::io_context->get_executor();
     }
 }

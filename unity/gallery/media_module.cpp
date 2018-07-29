@@ -5,54 +5,62 @@ namespace
 {
     using ordinal = std::pair<int, int>;
 
-    std::map<ordinal, dll::media_context> contexts;
+    std::map<ordinal, dll::media_context> media_contexts;
+    std::atomic<int> session_index = 0;
 }
 
 void unity::_nativeMediaCreate()
 {
-    contexts.clear();
+    media_contexts.clear();
     dll::register_module();
 }
 
 void unity::_nativeMediaRelease()
 {
     dll::deregister_module();
-    contexts.clear();
+    media_contexts.clear();
 }
 
 UINT64 unity::_nativeMediaSessionCreate(LPCSTR url)
 {
     auto const ordinal = std::make_pair(0, 0);
-    contexts.emplace(ordinal, std::string{ url });
-    return 666;
+    media_contexts.emplace(ordinal, std::string{ url });
+    return std::atomic_fetch_add(&session_index, 1);
+}
+
+INT64 unity::_nativeMediaSessionCreateNetStream(LPCSTR url, INT row, INT column)
+{
+    auto const ordinal = std::make_pair(row, column);
+
+    return std::atomic_fetch_add(&session_index, 1);
 }
 
 void unity::_nativeMediaSessionRelease(UINT64 hashID)
 {
-    for (auto& pair : contexts)
+    for (auto& pair : media_contexts)
     {
         auto& media_context = pair.second;
-        auto const [read_count, decode_count] = media_context.stop_and_wait();
+        auto const[read_count, decode_count] = media_context.stop_and_wait();
         boost::ignore_unused(read_count, decode_count);
     }
 }
 
 void unity::_nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height)
 {
-    auto const& context = contexts.at(std::make_pair(0, 0));
+    auto const& context = media_contexts.at(std::make_pair(0, 0));
     context.wait_parse_complete();
     std::tie(width, height) = context.resolution();
 }
 
 BOOL unity::_nativeMediaSessionHasNextFrame(UINT64 hashID)
 {
-    auto const& context = contexts.at(std::make_pair(0, 0));
+    auto const& context = media_contexts.at(std::make_pair(0, 0));
     return !context.is_decode_complete();
 }
 
 BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, INT64 count)
 {
-    auto& context = contexts.at(std::make_pair(0, 0));
+    auto& context = media_contexts.at(std::make_pair(0, 0));
     auto decode_count = 0;
     while (--count >= 0)
     {
@@ -64,9 +72,9 @@ BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, INT64 count)
 
 namespace dll
 {
-    std::optional<media::frame> media_module::decoded_frame()
+    std::optional<media::frame> media_module::try_grab_decoded_frame()
     {
-        auto& context = contexts.at(std::make_pair(0, 0));
+        auto& context = media_contexts.at(std::make_pair(0, 0));
         return context.pop_decode_frame();
     }
 }

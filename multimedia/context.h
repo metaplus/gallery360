@@ -88,10 +88,10 @@ namespace media
         pointer operator->() const;
         explicit operator bool() const;
 
-        stream demux(category::type media_type) const;
-        std::pair<codec, stream> demux_with_codec(category::type media_type) const;
-        packet read(category::type media_type) const;
-        std::vector<packet> read(size_t count, category::type media_type) const;
+        stream demux(media::type media_type) const;
+        std::pair<codec, stream> demux_with_codec(media::type media_type) const;
+        packet read(media::type media_type) const;
+        std::vector<packet> read(size_t count, media::type media_type) const;
     };
 
     class codec_context
@@ -107,7 +107,7 @@ namespace media
         using resolution = std::pair<decltype(AVCodecContext::width), decltype(AVCodecContext::height)>;
 
         codec_context(codec codec, stream stream, unsigned threads = boost::thread::hardware_concurrency());
-        codec_context(format_context& format, category::type type, unsigned threads = boost::thread::hardware_concurrency());
+        codec_context(format_context& format, media::type type, unsigned threads = boost::thread::hardware_concurrency());
 
         codec_context() = default;
         codec_context(codec_context const&) = default;

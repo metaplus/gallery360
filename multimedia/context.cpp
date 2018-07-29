@@ -251,33 +251,33 @@ media::format_context::operator bool() const
     return format_handle_ != nullptr;
 }
 
-media::stream media::format_context::demux(const category::type media_type) const
+media::stream media::format_context::demux(media::type media_type) const
 {
     return stream{ format_handle_->streams[
-        av_find_best_stream(format_handle_.get(), media_type, -1, -1, nullptr, 0)] };
+        av_find_best_stream(format_handle_.get(), static_cast<AVMediaType>(media_type), -1, -1, nullptr, 0)] };
 }
 
-std::pair<media::codec, media::stream> media::format_context::demux_with_codec(const category::type media_type) const
+std::pair<media::codec, media::stream> media::format_context::demux_with_codec(media::type media_type) const
 {
     codec::pointer cdc = nullptr;
     const auto format_ptr = format_handle_.get();
-    const auto index = av_find_best_stream(format_ptr, media_type, -1, -1, &cdc, 0);
+    const auto index = av_find_best_stream(format_ptr, static_cast<AVMediaType>(media_type), -1, -1, &cdc, 0);
     return std::make_pair(codec{ cdc }, stream{ format_ptr->streams[index] });
 }
 
-media::packet media::format_context::read(category::type media_type) const
+media::packet media::format_context::read(media::type media_type) const
 {
     media::packet packet;
     while (av_read_frame(format_handle_.get(), core::get_pointer(packet)) == 0
-           && media_type != category::unknown::value
-           && format_handle_->streams[packet->stream_index]->codecpar->codec_type != media_type)
+           && media_type != media::type::unknown
+           &&  !core::underlying_same(media_type,format_handle_->streams[packet->stream_index]->codecpar->codec_type) )
     {
         packet.unref();
     }
     return packet;
 }
 
-std::vector<media::packet> media::format_context::read(const size_t count, category::type media_type) const
+std::vector<media::packet> media::format_context::read(const size_t count, media::type media_type) const
 {
     std::vector<packet> packets; packets.reserve(count);
     std::generate_n(std::back_inserter(packets), count,
@@ -295,7 +295,7 @@ media::codec_context::codec_context(codec codec, stream stream, unsigned threads
     core::verify(avcodec_open2(codec_handle_.get(), core::get_pointer(codec), nullptr));
 }
 
-media::codec_context::codec_context(format_context& format, category::type media_type, unsigned threads)
+media::codec_context::codec_context(format_context& format, media::type media_type, unsigned threads)
 {
     auto[codec, stream] = format.demux_with_codec(media_type);
     *this = codec_context{ codec,stream,threads };

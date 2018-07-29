@@ -6,10 +6,30 @@ namespace net
     {
         struct http
         {
-            using under_layer_protocal = boost::asio::ip::tcp;
-            using socket = boost::asio::ip::tcp::socket;
             static constexpr auto default_version = 11;
             static constexpr auto default_method = boost::beast::http::verb::get;
+
+            struct protocal_base
+            {
+                template<typename Body>
+                using response_type = boost::beast::http::response<Body, boost::beast::http::fields>;
+                template<typename Body>
+                using request_type = boost::beast::http::request<Body, boost::beast::http::fields>;
+                using under_protocal_type = boost::asio::ip::tcp;
+                using socket_type = boost::asio::ip::tcp::socket;
+                std::string_view host;
+                std::string_view target;
+            };
+        };
+
+        struct tcp
+        {
+            struct protocal_base
+            {
+                using protocal_type = boost::asio::ip::tcp;
+                using socket_type = boost::asio::ip::tcp::socket;
+                std::string_view host;
+            };
         };
     }
 
@@ -21,8 +41,23 @@ namespace net
         }
     }
 
+    template<typename... Options>
+    struct policy;
+
     inline constexpr size_t default_max_chunk_size{ 128_kbyte };
     inline constexpr size_t default_max_chunk_quantity{ 1024 };
+
+    template<typename Body>
+    boost::beast::http::request<Body> make_request(std::string_view host, std::string_view target)
+    {
+        static_assert(boost::beast::http::is_body<Body>::value);
+        boost::beast::http::request<Body> request;
+        request.version(protocal::http::default_version);
+        request.method(protocal::http::default_method);
+        request.target(target.data());
+        request.set(boost::beast::http::field::host, host.data());
+        return request;
+    }
 
     std::string config_path(core::as_view_t) noexcept;
 
@@ -41,8 +76,8 @@ namespace net
         class state_base
         {
             enum state_index { active, state_size };
-
             folly::AtomicBitSet<state_size> state_;
+
         protected:
             bool is_active() const
             {

@@ -1,16 +1,16 @@
 #include "stdafx.h"
 
 
-namespace impl
+namespace dll::internal
 {
     folly::ThreadedExecutor& io_executor()
     {
         static std::optional<folly::ThreadedExecutor> executor;
         static std::once_flag flag;
         std::call_once(flag, []
-        {
-            executor.emplace(dll::create_thread_factory("MediaContext"));
-        });
+                       {
+                           executor.emplace(dll::create_thread_factory("MediaContext"));
+                       });
         return executor.value();
     }
 }
@@ -21,10 +21,10 @@ namespace dll
         : url_(url)
         , decode_executor_(folly::SerialExecutor::create(folly::getKeepAliveToken(dll::cpu_executor())))
     {
-        impl::io_executor().add([this]
-        {
-            std::invoke(on_parse_read_loop(), std::string_view{ url_ });
-        });
+        internal::io_executor().add([this]
+                                    {
+                                        std::invoke(on_parse_read_loop(), std::string_view{ url_ });
+                                    });
     }
 
     folly::Function<void(std::string_view)> media_context::on_parse_read_loop()
@@ -32,9 +32,9 @@ namespace dll
         return [this](std::string_view url)
         {
             media_format_ = media::format_context{ media::source::path{ url.data() } };
-            video_codec_ = media::codec_context{ media_format_, media::category::video{} };
+            video_codec_ = media::codec_context{ media_format_, media::type::video };
             parse_complete_.post();
-            media::packet packet = media_format_.read(media::category::video{});
+            media::packet packet = media_format_.read(media::type::video);
             try
             {
                 while (!packet.empty())
@@ -45,7 +45,7 @@ namespace dll
                     }
                     frames_.write(wait_queue_vacancy(std::move(packet)));
                     ++read_step_count_;
-                    packet = media_format_.read(media::category::video{});
+                    packet = media_format_.read(media::type::video);
                 }
                 frames_.write(wait_queue_vacancy(std::move(packet)));
             }
@@ -59,24 +59,24 @@ namespace dll
         };
     }
 
-    folly::Function<media_context::frame_container()> media_context::on_decode_frame_container(media::packet&& packet)
+    folly::Function<media_context::container<media::frame>()> media_context::on_decode_frame_container(media::packet&& packet)
     {
-        return [this, packet = std::move(packet)]
+        return[this, packet = std::move(packet)]
         {
             if (packet.empty())
             {
                 decode_complete_.post();
-                return frame_container{};
+                return container<media::frame>{};
             }
             auto frames = video_codec_.decode(packet);
             decode_step_count_ += frames.size();
-            frame_container decode_frames;
+            container<media::frame> decode_frames;
             decode_frames.assign(std::make_move_iterator(frames.begin()), std::make_move_iterator(frames.end()));
             return decode_frames;
         };
     }
 
-    folly::Future<media_context::frame_container> media_context::wait_queue_vacancy(media::packet&& packet)
+    folly::Future<media_context::container<media::frame>> media_context::wait_queue_vacancy(media::packet&& packet)
     {
         if (frames_.isFull())
         {
@@ -88,10 +88,10 @@ namespace dll
 
     std::optional<media::frame> media_context::pop_decode_frame()
     {
-        folly::Future<frame_container>* front_ptr = frames_.frontPtr();
+        folly::Future<container<media::frame>>* front_ptr = frames_.frontPtr();
         if (front_ptr != nullptr && front_ptr->valid() && front_ptr->isReady())
         {
-            frame_container front_frames = front_ptr->get();
+            container<media::frame> front_frames = front_ptr->get();
             if (front_frames.size())
             {
                 media::frame frame = std::move(front_frames.front());
@@ -141,7 +141,7 @@ namespace dll
 
     std::pair<int, int> media_context::resolution() const
     {
-        return media_format_.demux(media::category::video{}).scale();
+        return media_format_.demux(media::type::video).scale();
     }
 
     bool media_context::operator<(media_context const& that) const
