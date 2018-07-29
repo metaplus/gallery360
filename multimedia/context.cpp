@@ -3,7 +3,7 @@
 
 namespace
 {
-    struct io_context_impl final : media::io_context::io_interface
+    struct io_context_impl final : media::io_context::io_base
     {
         media::io_context::read_context read_context;
         media::io_context::write_context write_context;
@@ -34,7 +34,7 @@ namespace
         bool seekable() override final { return seek_context != nullptr; }
     };
 
-    struct io_curser_impl : media::io_context::io_interface, media::io_context::cursor
+    struct io_curser_impl final : media::io_context::io_base, media::io_context::cursor
     {
         explicit io_curser_impl(buffer_type const& buffer)
             : cursor(buffer) {}
@@ -91,7 +91,7 @@ namespace
     };
 }
 
-media::io_context::io_context(std::shared_ptr<io_interface_internal> io)
+media::io_context::io_context(std::shared_ptr<io_base> io)
     : io_interface_(std::move(io))
     , io_handle_(avio_alloc_context(static_cast<uint8_t*>(av_malloc(default_cache_page_size)),
                                     default_cache_page_size, default_buffer_writable, io_interface_.get(),
@@ -155,17 +155,17 @@ int64_t media::io_context::cursor::sequence_size() const
 
 int media::io_context::on_read_buffer(void* opaque, uint8_t* buffer, int size)
 {
-    return static_cast<io_interface_internal*>(opaque)->read(buffer, size);
+    return static_cast<io_base*>(opaque)->read(buffer, size);
 }
 
 int media::io_context::on_write_buffer(void* opaque, uint8_t* buffer, int size)
 {
-    return static_cast<io_interface_internal*>(opaque)->write(buffer, size);
+    return static_cast<io_base*>(opaque)->write(buffer, size);
 }
 
 int64_t media::io_context::on_seek_stream(void* opaque, int64_t offset, int whence)
 {
-    return static_cast<io_interface_internal*>(opaque)->seek(offset, whence);
+    return static_cast<io_base*>(opaque)->seek(offset, whence);
 }
 
 #ifdef MULTIMEDIA_USE_LEGACY
@@ -201,7 +201,8 @@ media::format_context::format_context(io_context io, source::format iformat)
     register_all();
     auto format_ptr = avformat_alloc_context();
     format_ptr->pb = core::get_pointer(io_handle_);
-    core::verify(avformat_open_input(&format_ptr, nullptr, av_find_input_format(iformat.data()), nullptr));
+    core::verify(avformat_open_input(&format_ptr, nullptr,
+                                     iformat.empty() ? nullptr : av_find_input_format(iformat.data()), nullptr));
     format_handle_.reset(format_ptr, [](pointer p) { avformat_close_input(&p); });
     core::verify(avformat_find_stream_info(format_ptr, nullptr));
 #ifdef _DEBUG
@@ -211,7 +212,14 @@ media::format_context::format_context(io_context io, source::format iformat)
 
 media::format_context::format_context(io_context io, sink::format oformat)
 {
-    throw core::not_implemented_error{ "not_implemented_error" };
+    throw core::not_implemented_error{ "format_context::constructor" };
+}
+
+media::format_context::format_context(io_context io, bool source)
+{
+    *this = source ?
+        format_context{ std::move(io), source::format{""} } :
+        format_context{ std::move(io), sink::format{""} };
 }
 
 media::format_context::format_context(source::path ipath)
@@ -243,30 +251,30 @@ media::format_context::operator bool() const
     return format_handle_ != nullptr;
 }
 
-media::stream media::format_context::demux(const media::type media_type) const
+media::stream media::format_context::demux(media::type media_type) const
 {
     return stream{ format_handle_->streams[
-        av_find_best_stream(format_handle_.get(), media_type, -1, -1, nullptr, 0)] };
+        av_find_best_stream(format_handle_.get(), static_cast<AVMediaType>(media_type), -1, -1, nullptr, 0)] };
 }
 
-std::pair<media::codec, media::stream> media::format_context::demux_with_codec(const media::type media_type) const
+std::pair<media::codec, media::stream> media::format_context::demux_with_codec(media::type media_type) const
 {
     codec::pointer cdc = nullptr;
     const auto format_ptr = format_handle_.get();
-    const auto index = av_find_best_stream(format_ptr, media_type, -1, -1, &cdc, 0);
+    const auto index = av_find_best_stream(format_ptr, static_cast<AVMediaType>(media_type), -1, -1, &cdc, 0);
     return std::make_pair(codec{ cdc }, stream{ format_ptr->streams[index] });
 }
 
 media::packet media::format_context::read(media::type media_type) const
 {
-    packet pkt;
-    while (av_read_frame(format_handle_.get(), core::get_pointer(pkt)) == 0
-           && media_type != media::unknown::value
-           && format_handle_->streams[pkt->stream_index]->codecpar->codec_type != media_type)
+    media::packet packet;
+    while (av_read_frame(format_handle_.get(), core::get_pointer(packet)) == 0
+           && media_type != media::type::unknown
+           &&  !core::underlying_same(media_type,format_handle_->streams[packet->stream_index]->codecpar->codec_type) )
     {
-        pkt.unref();
+        packet.unref();
     }
-    return pkt;
+    return packet;
 }
 
 std::vector<media::packet> media::format_context::read(const size_t count, media::type media_type) const

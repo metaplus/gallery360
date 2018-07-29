@@ -23,7 +23,7 @@
     <ProjectGuid>{42B147AA-0F5D-4479-AF8A-5861D7B6CA07}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>gallery</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -157,20 +157,22 @@
     <ClInclude Include="..\detail\IUnityGraphicsD3D11.h" />
     <ClInclude Include="..\detail\IUnityInterface.h" />
     <ClInclude Include="..\detail\PlatformBase.h" />
+    <ClInclude Include="dll.h" />
     <ClInclude Include="graphic.h" />
-    <ClInclude Include="interface.h" />
+    <ClInclude Include="export.h" />
     <ClInclude Include="openvr.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="dll.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="gallery.cpp" />
     <ClCompile Include="graphic.cpp" />
-    <ClCompile Include="media.cpp" />
+    <ClCompile Include="media_module.cpp" />
     <ClCompile Include="media_context.cpp" />
-    <ClCompile Include="net.cpp" />
+    <ClCompile Include="net_module.cpp" />
     <ClCompile Include="net_context.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

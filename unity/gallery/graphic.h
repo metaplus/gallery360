@@ -11,7 +11,7 @@ public:
     };
     void process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
     void store_textures(HANDLE texY, HANDLE texU, HANDLE texV);
-    void update_textures(av::frame& frame) const;
+    void update_textures(media::frame& frame) const;
     void clean_up() const;
     graphic() = default;
 private:

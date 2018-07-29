@@ -163,6 +163,7 @@
     <ClInclude Include="executor_guard.hpp" />
     <ClInclude Include="net.hpp" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="promise_base.hpp" />
     <ClInclude Include="server.hpp" />
     <ClInclude Include="session_base.h" />
     <ClInclude Include="stdafx.h" />

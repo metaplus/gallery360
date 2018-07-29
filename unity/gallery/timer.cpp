@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "interface.h"
+#include "export.h"
 
 #ifdef GALLERY_USE_LEGACY
 

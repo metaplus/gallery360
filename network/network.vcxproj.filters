@@ -45,6 +45,9 @@
     <ClInclude Include="session_base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="promise_base.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
