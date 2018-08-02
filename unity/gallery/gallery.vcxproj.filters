@@ -71,12 +71,6 @@
     <ClCompile Include="dll.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="media_context.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="net_context.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="media_module.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

@@ -2,68 +2,63 @@
 
 namespace dll
 {
-    folly::CPUThreadPoolExecutor& cpu_executor();
-    boost::asio::io_context::executor_type asio_executor();
+    std::unique_ptr<folly::NamedThreadFactory> create_thread_factory(std::string_view name_prefix);
 
-    std::shared_ptr<folly::NamedThreadFactory> create_thread_factory(std::string_view name_prefix);
-
-    int16_t register_module();
-    int16_t deregister_module();
+    inline namespace config
+    {
+        using protocal_type = net::protocal::http;
+        using request_body = boost::beast::http::empty_body;
+        using response_body = boost::beast::http::dynamic_body;
+        using response_container = net::protocal::http::protocal_base::response_type<response_body>;
+        using client_session = net::client::session<protocal_type, net::policy<response_body>>;
+        using ordinal = std::pair<int16_t, int16_t>;
+    }
 
     namespace net_module
     {
-        using protocal_type = net::protocal::http;
-        using response_body = boost::beast::http::dynamic_body;
-        using client_session = net::client::session<protocal_type, net::policy<response_body>>;
-
-        boost::asio::io_context& initialize(boost::thread_group& thread_group);
+        boost::asio::io_context& initialize();
         void release();
         std::unique_ptr<client_session> establish_http_session(std::string_view host, std::string_view service);
-        boost::fibers::fiber make_continuous_receiver(client_session& client,
-                                                      boost::fibers::unbuffered_channel<response_body>& response);
+        std::pair<std::string_view, std::string_view> split_url_components(std::string_view url);
     }
 
-    struct media_module
+    namespace media_module
     {
-        static std::optional<media::frame> try_grab_decoded_frame();
-    };
+        media::frame try_take_decoded_frame(int64_t id);
+    }
 
-    class media_context : public boost::noncopyable
+    class player_context
     {
-        static constexpr auto frame_capacity = 90 + 20;
+        static constexpr auto frame_capacity = 60;
         template<typename Element>
-        using container = folly::small_vector<Element, 1, uint16_t>;
+        using queue_type = folly::LifoSemMPMCQueue<Element, folly::QueueBehaviorIfFull::BLOCK>;
 
-        std::string url_;
-        std::pair<int16_t, int16_t> ordinal_;
-        std::optional<media::io_context> media_io_;
-        media::format_context media_format_;
-        media::codec_context video_codec_;
-        mutable folly::Baton<> parse_complete_;
-        mutable folly::Baton<> decode_complete_;
-        mutable folly::Baton<> read_complete_;
-        mutable folly::Baton<> read_token_;
-        mutable std::atomic<bool> stop_request_ = false;
-        folly::ProducerConsumerQueue<folly::Future<container<media::frame>>> frames_{ frame_capacity };
-        folly::Executor::KeepAlive<folly::SerialExecutor> decode_executor_;
-        mutable int64_t read_step_count_ = 0;
-        mutable int64_t decode_step_count_ = 0;
+        std::string_view host_;
+        std::string_view target_;
+        ordinal ordinal_;
+        std::unique_ptr<client_session> net_client_;
+        queue_type<media::frame> frames_{ frame_capacity };
+        folly::Baton<> on_decode_complete_;
+        bool on_last_frame_ = false;
+        std::atomic<bool> active_ = true;
+        std::future<media::format_context> future_parsed_;
+        std::atomic<int64_t> step_count_decode_ = 0;
+        int64_t frame_amount_ = 0;
+        std::thread thread_;
 
     public:
-        explicit media_context(std::string url);
-        bool operator<(media_context const& that) const;
-        std::optional<media::frame> pop_decode_frame();
-        void wait_parse_complete() const;
-        std::pair<int64_t, int64_t> stop_and_wait();
-        void wait_decode_complete() const;
-        bool is_decode_complete() const;
-        std::pair<int, int> resolution() const;
+        explicit player_context(std::string_view host, std::string_view target, ordinal ordinal);
+        ~player_context();
+        std::pair<int, int> resolution();
+        media::frame take_decode_frame();
+        uint64_t available_size();
+        bool is_codec_complete() const;
+        bool is_last_frame_taken() const;
+        void deactive();
+        void deactive_and_wait();
 
     private:
-        folly::Function<void(std::string_view)> on_parse_read_loop();
-        folly::Function<container<media::frame>()> on_decode_frame_container(media::packet&& packet);
-        void pop_frame_and_resume_read();
-        folly::Future<container<media::frame>> wait_queue_vacancy(media::packet&& packet);
+        folly::Function<void()> on_media_streaming(std::promise<media::format_context>&& promise_parsed);
     };
 
 #ifdef GALLERY_USE_LEGACY

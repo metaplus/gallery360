@@ -33,12 +33,12 @@ namespace net::client
         using session_base::remote_endpoint;
 
         template<typename RequestBody, template<typename> typename Promise>
-        int64_t async_send_request(request_type<RequestBody>&& request, Promise<response_body>&& promise)
+        int64_t async_send_request(request_type<RequestBody>&& request, Promise<response_type<response_body>>&& promise)
         {
             namespace http = boost::beast::http;
             static_assert(http::is_body<RequestBody>::value);
             fmt::print("session: async_send_request\n");
-            response_promise_ = promise_base<response_body>::from(std::move(promise));
+            response_promise_ = promise_base<response_type<response_body>>::from(std::move(promise));
             auto request_ptr = std::make_unique<http::request<RequestBody>>(std::move(request));
             auto& request_ref = *request_ptr;
             http::async_write(socket_, request_ref, on_send_request(std::move(request_ptr)));
@@ -58,7 +58,7 @@ namespace net::client
                 fmt::print("session: on_send_request, errc {}, transfer {}\n", errc, transfer_size);
                 if (errc)
                     return fail_promise_then_close_socket(*response_promise_, errc);
-                auto response = std::make_unique<response_type>();
+                auto response = std::make_unique<response_type<response_body>>();
                 auto& response_ref = *response;
                 if (is_chunked())
                     throw core::not_implemented_error{ "" };

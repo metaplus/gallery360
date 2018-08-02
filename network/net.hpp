@@ -48,14 +48,15 @@ namespace net
     inline constexpr size_t default_max_chunk_quantity{ 1024 };
 
     template<typename Body>
-    boost::beast::http::request<Body> make_request(std::string_view host, std::string_view target)
+    boost::beast::http::request<Body> make_http_request(std::string_view host, std::string_view target)
     {
         static_assert(boost::beast::http::is_body<Body>::value);
         boost::beast::http::request<Body> request;
         request.version(protocal::http::default_version);
         request.method(protocal::http::default_method);
         request.target(target.data());
-        request.set(boost::beast::http::field::host, host.data());
+        request.set(boost::beast::http::field::host, host);
+        //request.set(boost::beast::http::field::user_agent, "MetaPlus");
         return request;
     }
 

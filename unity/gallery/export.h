@@ -6,17 +6,16 @@ namespace unity
     EXTERN_C void DLLAPI _nativeLibraryInitialize();
     EXTERN_C void DLLAPI _nativeLibraryRelease();
 
-    EXTERN_C void DLLAPI _nativeMediaCreate();
-    EXTERN_C void DLLAPI _nativeMediaRelease();
-    EXTERN_C UINT64 DLLAPI _nativeMediaSessionCreate(LPCSTR url);
+    EXTERN_C INT64 DLLAPI _nativeMediaSessionCreateFileReader(LPCSTR url);
     EXTERN_C INT64 DLLAPI _nativeMediaSessionCreateNetStream(LPCSTR url, INT row, INT column);
-    EXTERN_C void DLLAPI _nativeMediaSessionRelease(UINT64 hashID);
-    EXTERN_C void DLLAPI _nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height);
-    EXTERN_C BOOL DLLAPI _nativeMediaSessionHasNextFrame(UINT64 hashID);
+    EXTERN_C void DLLAPI _nativeMediaSessionRelease(INT64 id);
+    EXTERN_C void DLLAPI _nativeMediaSessionGetResolution(INT64 id, INT& width, INT& height);
+    EXTERN_C BOOL DLLAPI _nativeMediaSessionTryUpdateFrame(INT64 id);
+    EXTERN_C BOOL DLLAPI  _nativeMediaSessionHasNextFrame(INT64 id);
 
     namespace debug
     {
-        EXTERN_C BOOL DLLAPI _nativeMediaSessionDropFrame(UINT64 hashID, INT64 count = 1);
+        EXTERN_C BOOL DLLAPI _nativeMediaSessionDropFrame(INT64 id);
     }
 
     EXTERN_C void DLLAPI _nativeGraphicSetTextures(HANDLE textureY, HANDLE textureU, HANDLE textureV);

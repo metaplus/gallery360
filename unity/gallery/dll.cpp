@@ -1,90 +1,86 @@
 #include "stdafx.h"
 #include "dll.h"
 
-namespace dll::internal
-{
-    std::atomic<int16_t> module_count = 0;
-    std::shared_ptr<folly::CPUThreadPoolExecutor> cpu_thread_pool_executor;
-    std::shared_ptr<boost::asio::io_context> io_context;
-    std::shared_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> io_context_guard;
-    boost::thread_group asio_threads;
-    std::mutex resouce_mutex;
-}
-
 namespace dll
 {
-    std::shared_ptr<folly::NamedThreadFactory> create_thread_factory(std::string_view name_prefix)
+    std::unique_ptr<folly::NamedThreadFactory> create_thread_factory(std::string_view name_prefix)
     {
-        return std::make_shared<folly::NamedThreadFactory>(name_prefix.data());
+        return std::make_unique<folly::NamedThreadFactory>(name_prefix.data());
     }
 
-    folly::Function<void()> on_initialize_resouce(int task_queue_capacity)
+}
+
+namespace unity::internal
+{
+    std::mutex resouce_mutex;
+    std::map<int64_t, std::unique_ptr<dll::player_context>> player_contexts;
+    std::atomic<int64_t> session_index = 0;
+}
+
+namespace unity
+{
+    void _nativeLibraryInitialize()
     {
-        return [task_queue_capacity]
-        {
-            auto const thread_capacity = std::thread::hardware_concurrency() / 4;
-            auto named_thread_factory = create_thread_factory("GalleryPool");
-            internal::cpu_thread_pool_executor = std::make_shared<folly::CPUThreadPoolExecutor>(
-                thread_capacity,
-                std::make_unique<folly::LifoSemMPMCQueue<
-                folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::THROW>>(task_queue_capacity),
-                std::move(named_thread_factory));
-            folly::setCPUExecutor(internal::cpu_thread_pool_executor);
-            internal::io_context = std::make_shared<boost::asio::io_context>();
-            internal::io_context_guard = std::make_shared<boost::asio::executor_work_guard<
-                boost::asio::io_context::executor_type>>(internal::io_context->get_executor());
-            std::vector<boost::thread*> threads(thread_capacity);
-            std::generate(threads.begin(), threads.end(),
-                          [] { return internal::asio_threads.create_thread([] { internal::io_context->run(); }); });
-        };
+        dll::net_module::initialize();
     }
 
-    folly::Function<void()> on_release_resouce()
+    void _nativeLibraryRelease()
     {
-        return []
-        {
-            internal::cpu_thread_pool_executor->stop();
-            internal::cpu_thread_pool_executor->join();
-            //cpu_thread_pool_executor.reset();
-            internal::io_context_guard->reset();
-            //internal::io_context_guard.reset();
-            internal::io_context->stop();
-            //internal::io_context.reset();
-            internal::asio_threads.join_all();
-        };
+        dll::net_module::release();
     }
 
-    int16_t register_module()
+    INT64 _nativeMediaSessionCreateFileReader(LPCSTR url)
     {
-        std::lock_guard<std::mutex> guard{ internal::resouce_mutex };
-        auto const module_index = std::atomic_fetch_add(&internal::module_count, 1);
-        if (module_index == 0)
-            std::invoke(on_initialize_resouce(8'192));
-        return module_index;
+        auto const ordinal = std::make_pair(0, 0);
+        return -1;
     }
 
-    int16_t deregister_module()
+    INT64 _nativeMediaSessionCreateNetStream(LPCSTR url, INT row, INT column)
     {
-        std::lock_guard<std::mutex> guard{ internal::resouce_mutex };
-        auto const module_left = std::atomic_fetch_sub(&internal::module_count, 1) - 1;
-        if (module_left <= 0)
-        {
-            assert(module_left == 0);
-            std::invoke(on_release_resouce());
-        }
-        return module_left;
+        auto const ordinal = std::make_pair(row, column);
+        auto const[host, target] = dll::net_module::split_url_components(url);
+        auto session_index = std::atomic_fetch_add(&internal::session_index, 1);
+        internal::player_contexts.emplace(session_index, std::make_unique<dll::player_context>(host, target, ordinal));
+        return session_index;
     }
 
-    
-
-
-    folly::CPUThreadPoolExecutor& cpu_executor()
+    void _nativeMediaSessionRelease(INT64 id)
     {
-        return internal::cpu_thread_pool_executor.operator*();
+        internal::player_contexts.at(id)->deactive();
     }
 
-    boost::asio::io_context::executor_type asio_executor()
+    void _nativeMediaSessionGetResolution(INT64 id, INT& width, INT& height)
     {
-        return internal::io_context->get_executor();
+        std::tie(width, height) = internal::player_contexts.at(id)->resolution();
+    }
+
+    BOOL _nativeMediaSessionTryUpdateFrame(INT64 id)
+    {
+        auto& player = *internal::player_contexts.begin();
+        return false;
+        //return !player.is_codec_complete() || player.available_size() > 0;
+    }
+
+    BOOL unity::_nativeMediaSessionHasNextFrame(INT64 id)
+    {
+        return !internal::player_contexts.begin()->second->is_last_frame_taken();
+    }
+
+}
+
+namespace dll::media_module
+{
+    media::frame try_take_decoded_frame(int64_t id)
+    {
+        return  unity::internal::player_contexts.begin()->second->take_decode_frame();
+    }
+}
+
+namespace unity::debug
+{
+    BOOL _nativeMediaSessionDropFrame(INT64 id)
+    {
+        auto frame = dll::media_module::try_take_decoded_frame(id);
+        return !frame.empty();
     }
 }
