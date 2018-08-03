@@ -1,22 +1,34 @@
 #include "stdafx.h"
 #include "export.h"
 
+namespace
+{
+    int16_t asio_thread_count = 0;
+}
+
+namespace unity
+{
+    void _nativeConfigureNet(INT16 threads)
+    {
+        asio_thread_count = threads;
+    }
+}
+
 namespace dll::net_module
 {
     std::unique_ptr<boost::asio::io_context> io_context;
     std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> io_context_guard;
-    std::unique_ptr<net::connector<net::protocal::tcp>> connector;
+    std::unique_ptr<net::client::connector<net::protocal::tcp>> connector;
     std::unique_ptr<folly::NamedThreadFactory> net_thread_factory;
     std::vector<std::thread> net_threads;
 
     boost::asio::io_context& initialize()
     {
-        auto const thread_capacity = std::thread::hardware_concurrency() / 4;
         io_context = std::make_unique<boost::asio::io_context>();
         io_context_guard = std::make_unique<boost::asio::executor_work_guard<
             boost::asio::io_context::executor_type>>(io_context->get_executor());
         net_threads.clear();
-        net_threads.resize(thread_capacity);
+        net_threads.resize(asio_thread_count);
         net_thread_factory = create_thread_factory("NetModule");
         std::generate(net_threads.begin(), net_threads.end(), []
                       {
@@ -39,19 +51,25 @@ namespace dll::net_module
         net_threads.clear();
     }
 
-    std::unique_ptr<client_session> net_module::establish_http_session(std::string_view host, std::string_view service)
+    boost::future<net_session_ptr> net_module::establish_http_session(folly::Uri const& uri)
     {
-        return connector->establish_session<protocal_type, response_body>(host, service);
+        auto port = std::to_string(uri.port());
+        return connector->establish_session<protocal_type, response_body>(uri.host(), std::move(port));
     }
 
-    std::pair<std::string_view, std::string_view> split_url_components(std::string_view url)
+    std::tuple<std::string_view, std::string_view, std::string_view> split_url_components(std::string_view url)
     {
-        if (auto const pos = url.find("//"); pos != std::string_view::npos)
-            url.remove_prefix(pos + 1);
-        auto const pos = url.find('/');
-        auto const host = url.substr(0, pos);
-        auto const target = url.substr(pos);
-        return std::make_pair(host, target);
+        std::string_view const protocal_sep{ "//" };
+        std::string_view const port_sep{ ":" };
+        if (auto const pos = url.find(protocal_sep); pos != std::string_view::npos)
+            url.remove_prefix(pos + protocal_sep.size());
+        auto pos = url.find('/');
+        auto  host = url.substr(0, pos);
+        pos = host.find(port_sep);
+        auto  port = host.substr(pos + 1);
+        host = host.substr(0, pos);
+        auto  target = url.substr(pos);
+        return std::make_tuple(host, port, target);
     }
 }
 

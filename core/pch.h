@@ -108,9 +108,11 @@ using namespace std::literals;
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/SerialExecutor.h>
+#endif //CORE_USE_FOLLY_EXECUTOR
+#include <folly/executors/task_queue/LifoSemMPMCQueue.h>
+#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/executors/thread_factory/NamedThreadFactory.h>
 #include <folly/executors/ThreadedExecutor.h>
-#endif //CORE_USE_FOLLY_EXECUTOR
 
 #ifdef CORE_USE_FOLLY_FIBER
 #include <folly/fibers/Fiber.h>
@@ -125,6 +127,7 @@ using namespace std::literals;
 //#include <folly/stop_watch.h>
 #include <folly/Synchronized.h>
 //#include <folly/SynchronizedPtr.h>
+#include <folly/Uri.h>
 using namespace folly::literals;
 #pragma warning(pop)
 
@@ -144,7 +147,7 @@ using namespace fmt::literals;
 #include "meta/member_function_trait.hpp"
 #include "core/core.hpp"
 #include "core/exception.hpp"
-#include "core/guard.h"
+#include "core/guard.hpp"
 #include "core/verify.hpp"
 #include "concurrency/async_chain.hpp"
 #include "concurrency/barrier.hpp"

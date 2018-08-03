@@ -7,10 +7,9 @@ namespace dll
     {
         return std::make_unique<folly::NamedThreadFactory>(name_prefix.data());
     }
-
 }
 
-namespace unity::internal
+namespace
 {
     std::mutex resouce_mutex;
     std::map<int64_t, std::unique_ptr<dll::player_context>> player_contexts;
@@ -22,11 +21,13 @@ namespace unity
     void _nativeLibraryInitialize()
     {
         dll::net_module::initialize();
+        std::atomic_store(&session_index, 0);
     }
 
     void _nativeLibraryRelease()
     {
         dll::net_module::release();
+        player_contexts.clear();
     }
 
     INT64 _nativeMediaSessionCreateFileReader(LPCSTR url)
@@ -38,41 +39,34 @@ namespace unity
     INT64 _nativeMediaSessionCreateNetStream(LPCSTR url, INT row, INT column)
     {
         auto const ordinal = std::make_pair(row, column);
-        auto const[host, target] = dll::net_module::split_url_components(url);
-        auto session_index = std::atomic_fetch_add(&internal::session_index, 1);
-        internal::player_contexts.emplace(session_index, std::make_unique<dll::player_context>(host, target, ordinal));
-        return session_index;
+        auto index = std::atomic_fetch_add(&session_index, 1);
+        folly::Uri uri{ url };
+        auto player = std::make_unique<dll::player_context>(std::move(uri), ordinal);
+        player_contexts.emplace(index, std::move(player));
+        return index;
     }
 
     void _nativeMediaSessionRelease(INT64 id)
     {
-        internal::player_contexts.at(id)->deactive();
+        player_contexts.at(id)->deactive();
     }
 
     void _nativeMediaSessionGetResolution(INT64 id, INT& width, INT& height)
     {
-        std::tie(width, height) = internal::player_contexts.at(id)->resolution();
+        std::tie(width, height) = player_contexts.at(id)->resolution();
     }
 
-    BOOL _nativeMediaSessionTryUpdateFrame(INT64 id)
+    BOOL _nativeMediaSessionHasNextFrame(INT64 id)
     {
-        auto& player = *internal::player_contexts.begin();
-        return false;
-        //return !player.is_codec_complete() || player.available_size() > 0;
+        return !player_contexts.at(id)->is_last_frame_taken();
     }
-
-    BOOL unity::_nativeMediaSessionHasNextFrame(INT64 id)
-    {
-        return !internal::player_contexts.begin()->second->is_last_frame_taken();
-    }
-
 }
 
 namespace dll::media_module
 {
     media::frame try_take_decoded_frame(int64_t id)
     {
-        return  unity::internal::player_contexts.begin()->second->take_decode_frame();
+        return player_contexts.at(id)->take_decode_frame();
     }
 }
 

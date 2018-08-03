@@ -2,25 +2,30 @@
 
 namespace net::detail
 {
-    template<typename Socket>
+    template<typename Socket, typename RecvBuffer>
     class session_base;
 
-    template<typename Protocal>
-    class session_base<boost::asio::basic_stream_socket<Protocal>>
+    template<typename Protocal, typename RecvBuffer>
+    class session_base<boost::asio::basic_stream_socket<Protocal>, RecvBuffer>
     {
         enum state_index { active, serialize, chunked, state_size };
-
         folly::AtomicBitSet<state_size> state_;
 
     protected:
+        using buffer_type = RecvBuffer;
+
         boost::asio::io_context& context_;
         boost::asio::basic_stream_socket<Protocal> socket_;
-        boost::beast::multi_buffer recvbuf_;
+        buffer_type recvbuf_;
+        mutable std::atomic<int64_t> round_trip_index_ = -1;
+
+        // static_assert(boost::asio::is_mutable_buffer_sequence<buffer_type>::value);
 
         session_base(boost::asio::basic_stream_socket<Protocal>&& socket,
                      boost::asio::io_context& context)
             : context_(context)
-            , socket_(std::move(socket)) {}
+            , socket_(std::move(socket))
+        {}
 
         void reserve_recvbuf_capacity(size_t size = boost::asio::detail::default_max_transfer_size)
         {
@@ -54,7 +59,6 @@ namespace net::detail
             promise.set_exception(errc.message());
             close_socket(errc, operation);
         }
-
 
         bool is_active() const
         {

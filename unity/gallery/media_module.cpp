@@ -1,15 +1,28 @@
 #include "stdafx.h"
 #include "export.h"
 
+namespace
+{
+    int16_t thread_count_per_codec = 0;
+}
+
+namespace unity
+{
+    INT16 _nativeConfigureMedia(INT16 streams)
+    {
+        thread_count_per_codec = std::max<int16_t>(2, streams / std::thread::hardware_concurrency());
+        return thread_count_per_codec;
+    }
+}
+
 namespace dll
 {
-    player_context::player_context(std::string_view host, std::string_view target, ordinal ordinal)
-        : host_(host)
-        , target_(target)
+    player_context::player_context(folly::Uri uri, ordinal ordinal)
+        : uri_(std::move(uri))
         , ordinal_(ordinal)
-        , net_client_(net_module::establish_http_session(host, "80"))
+        , future_net_client_(net_module::establish_http_session(uri_))
     {
-        std::promise<media::format_context> promise_parsed;
+        boost::promise<media::format_context> promise_parsed;
         future_parsed_ = promise_parsed.get_future();
         thread_ = std::thread{ on_media_streaming(std::move(promise_parsed)) };
     }
@@ -20,14 +33,14 @@ namespace dll
             thread_.join();
     }
 
-    folly::Function<void()> player_context::on_media_streaming(std::promise<media::format_context>&& promise_parsed)
+    folly::Function<void()> player_context::on_media_streaming(boost::promise<media::format_context>&& promise_parsed)
     {
         return[this, promise_parsed = std::move(promise_parsed)]() mutable
         {
-            auto request = net::make_http_request<request_body>(host_, target_);
-            std::promise<response_container> promise_response;
-            auto future_response = promise_response.get_future();
-            auto send_count = net_client_->async_send_request(std::move(request), std::move(promise_response));
+            auto request = net::make_http_request<request_body>(uri_.host(), uri_.path());
+            boost::promise<response_container> promise_response;
+            auto net_client = future_net_client_.get();
+            auto future_response = net_client->async_send_request(std::move(request));
             while (true)
             {
                 auto response = future_response.get();
@@ -37,21 +50,28 @@ namespace dll
                 media::format_context media_format{ media_io,true };
                 frame_amount_ = media_format.demux(media::type::video)->nb_frames;
                 assert(frame_amount_ > 0);
-                media::codec_context video_codec{ media_format, media::type::video };
+                media::codec_context video_codec{ media_format, media::type::video, boost::numeric_cast<unsigned>(thread_count_per_codec) };
                 promise_parsed.set_value(media_format);
                 media::packet packet = media_format.read(media::type::video);
-                while (!packet.empty())
+                try
                 {
-                    auto decoded_frames = video_codec.decode(packet);
-                    for (auto& frame : decoded_frames)
+                    while (!packet.empty())
                     {
-                        if (std::atomic_load(&active_))
+                        auto decoded_frames = video_codec.decode(packet);
+                        for (auto& frame : decoded_frames)
+                        {
+                            if (!std::atomic_load(&active_))
+                                throw std::runtime_error{ "abort throw" };
                             frames_.add(std::move(frame));
+                        }
+                        packet = media_format.read(media::type::video);
                     }
-                    std::atomic_fetch_add(&step_count_decode_, decoded_frames.size());
-                    packet = media_format.read(media::type::video);
+                    frames_.add(media::frame{ nullptr });
                 }
-                frames_.add(media::frame{ nullptr });
+                catch (...)
+                {
+                    fmt::print("abort catch");
+                }
                 break;
             }
             on_decode_complete_.post();
@@ -80,11 +100,6 @@ namespace dll
         return frames_.size();
     }
 
-    bool player_context::is_codec_complete() const
-    {
-        return std::atomic_load(&step_count_decode_) == frame_amount_;
-    }
-
     void player_context::deactive()
     {
         std::atomic_store(&active_, false);
@@ -102,12 +117,6 @@ namespace dll
         return on_last_frame_;
     }
 }
-
-namespace dll::media_module
-{
-
-}
-
 
 #ifdef GALLERY_USE_LEGACY
 

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace net
+namespace net::client
 {
     template<typename Protocal>
     class connector;
@@ -10,14 +10,14 @@ namespace net
         : detail::state_base
         , protocal::tcp::protocal_base
     {
-        struct pending_entry
+        struct pending
         {
-            std::string_view host;
-            std::string_view service;
+            std::string host;
+            std::string service;
             boost::promise<socket_type> promise;
         };
 
-        folly::Synchronized<std::list<pending_entry>> resolve_pendlist_;
+        folly::Synchronized<std::list<pending>> resolve_pendlist_;
         boost::asio::io_context& context_;
         boost::asio::ip::tcp::resolver resolver_;
 
@@ -28,65 +28,69 @@ namespace net
         {}
 
         template<typename Protocal, typename ResponseBody>
-        std::unique_ptr<client::session<Protocal, policy<ResponseBody>>>
-            establish_session(std::string_view host, std::string_view service)
+        boost::future<session_ptr<Protocal, policy<ResponseBody>>>
+            establish_session(std::string host, std::string service)
         {
-            boost::promise<boost::asio::ip::tcp::socket> socket_promise;
-            auto socket_future = socket_promise.get_future();
+            boost::promise<boost::asio::ip::tcp::socket> promise_socket;
+            auto future_socket = promise_socket.get_future();
             {
-                auto const wlocked_pendlist = resolve_pendlist_.wlock();
-                auto const pend_iter = wlocked_pendlist->insert(
-                    wlocked_pendlist->end(), pending_entry{ host, service, std::move(socket_promise) });
-                if (wlocked_pendlist->size() <= 1) // the only pending work to resolve
+                auto const wlock = resolve_pendlist_.wlock();
+                auto const pending_iter = wlock->insert(
+                    wlock->end(), pending{ std::move(host), std::move(service), std::move(promise_socket) });
+                if (wlock->size() <= 1) // the only pending work to resolve
                 {
                     auto const inactive = is_active(true);
                     assert(!inactive);
-                    boost::asio::post(context_, on_establish_session(pend_iter));
+                    boost::asio::post(context_, on_establish_session(pending_iter));
                 }
             }
-            return std::make_unique<client::session<Protocal, policy<ResponseBody>>>(
-                socket_future.get(), resolver_.get_executor().context());
+            return future_socket.then(
+                [this](boost::future<boost::asio::ip::tcp::socket> future_socket)
+                {
+                    return std::make_unique<session<Protocal, policy<ResponseBody>>>(
+                        future_socket.get(), resolver_.get_executor().context());
+                });
         }
 
         void fail_promises_then_close_resolver(boost::system::error_code errc)
         {
             fmt::print(std::cerr, "resolver: close errc {}, errmsg {}\n", errc, errc.message());
             resolver_.cancel();
-            for (auto& pend_entry : *resolve_pendlist_.wlock())
-                pend_entry.promise.set_exception(std::runtime_error{ errc.message() });
+            for (auto& pending : *resolve_pendlist_.wlock())
+                pending.promise.set_exception(std::runtime_error{ errc.message() });
             auto const active = is_active(false);
             assert(active);
         }
 
     private:
         folly::Function<void() const>
-            on_establish_session(std::list<pending_entry>::iterator pend_iter)
+            on_establish_session(std::list<pending>::iterator pending)
         {
-            return [this, pend_iter]
+            return [this, pending]
             {
-                resolver_.async_resolve(pend_iter->host, pend_iter->service, on_resolve(pend_iter));
+                resolver_.async_resolve(pending->host, pending->service, on_resolve(pending));
             };
         }
 
         folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints) const>
-            on_resolve(std::list<pending_entry>::iterator pend_iter)
+            on_resolve(std::list<pending>::iterator pending)
         {
-            return [this, pend_iter](boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints)
+            return [this, pending](boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints)
             {
                 fmt::print(std::cout, "connector: on_resolve errc {}, errmsg {}\n", errc, errc.message());
-                auto& socket_promise = pend_iter->promise;
+                auto& promise_socket = pending->promise;
                 if (errc)
                 {
-                    socket_promise.set_exception(std::runtime_error{ errc.message() });
+                    promise_socket.set_exception(std::runtime_error{ errc.message() });
                     return fail_promises_then_close_resolver(errc);
                 }
                 auto socket_ptr = std::make_unique<boost::asio::ip::tcp::socket>(context_);
                 auto& socket_ref = *socket_ptr;
-                boost::asio::async_connect(socket_ref, endpoints, on_connect(std::move(socket_ptr), std::move(socket_promise)));
-                auto const wlocked_pendlist = resolve_pendlist_.wlock();
-                wlocked_pendlist->erase(pend_iter);
-                if (wlocked_pendlist->size())
-                    return boost::asio::dispatch(context_, on_establish_session(wlocked_pendlist->begin()));
+                boost::asio::async_connect(socket_ref, endpoints, on_connect(std::move(socket_ptr), std::move(promise_socket)));
+                auto const wlock = resolve_pendlist_.wlock();
+                wlock->erase(pending);
+                if (wlock->size())
+                    return boost::asio::dispatch(context_, on_establish_session(wlock->begin()));
                 auto const active = is_active(false);
                 assert(active);
             };
@@ -94,18 +98,18 @@ namespace net
 
         folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint)>
             on_connect(std::unique_ptr<boost::asio::ip::tcp::socket> socket_ptr,
-                       boost::promise<socket_type>&& socket_promise)
+                       boost::promise<socket_type>&& promise_socket)
         {
-            return[this, socket_ptr = std::move(socket_ptr), socket_promise = std::move(socket_promise)]
+            return[this, socket_ptr = std::move(socket_ptr), promise_socket = std::move(promise_socket)]
             (boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint) mutable
             {
                 fmt::print(std::cout, "connector: on_connect errc {}, errmsg {}\n", errc, errc.message());
                 if (errc)
                 {
-                    socket_promise.set_exception(std::runtime_error{ errc.message() });
+                    promise_socket.set_exception(std::runtime_error{ errc.message() });
                     return fail_promises_then_close_resolver(errc);
                 }
-                socket_promise.set_value(std::move(*socket_ptr.release()));
+                promise_socket.set_value(std::move(*socket_ptr.release()));
             };
         }
     };
