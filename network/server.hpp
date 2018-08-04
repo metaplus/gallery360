@@ -2,291 +2,101 @@
 
 namespace net::server
 {
-    template<typename Protocal, typename Socket = boost::asio::ip::tcp::socket>
+    using default_policy = policy<boost::beast::http::string_body>;
+
+    template<typename Protocal, typename Policy = default_policy>
     class session;
 
-    template<>
-    class session<protocal::http, boost::asio::ip::tcp::socket>
+    template<typename RequestBody>
+    class session<protocal::http, policy<RequestBody>>
+        : detail::session_base<boost::asio::ip::tcp::socket, boost::beast::flat_buffer>
+        , protocal::http::protocal_base
     {
-        using request_type = boost::beast::http::request<boost::beast::http::string_body>;
-        using request_container = std::map<std::chrono::steady_clock::time_point, request_type>;
-        using request_recvbuf = boost::beast::flat_buffer;
+        using request_body = RequestBody;
 
-        boost::asio::io_context& context_;
         std::filesystem::path const root_path_;
-        boost::asio::ip::tcp::socket socket_;
-        request_container requests_;
-        request_recvbuf recvbuf_;
-        boost::asio::io_context::strand mutable session_strand_;
-        boost::asio::io_context::strand mutable process_strand_;
-        bool const chunked_{ false };
-        std::atomic<bool> mutable active_{ false };
-        std::atomic<size_t> mutable request_consume_{ 0 };
+        boost::asio::io_context::strand mutable strand_;
 
     public:
-        session(boost::asio::ip::tcp::socket sock,
-                boost::asio::io_context& context,
-                std::filesystem::path root)
-            : context_(context)
+        session(boost::asio::ip::tcp::socket&& socket, boost::asio::io_context& context,
+                std::filesystem::path root, bool chunked = false)
+            : session_base(std::move(socket), context)
             , root_path_(std::move(root))
-            , socket_(std::move(sock))
-            , session_strand_(sock.get_executor().context())
-            , process_strand_(sock.get_executor().context())
+            , strand_(socket.get_executor().context())
         {
             assert(socket_.is_open());
             assert(std::filesystem::is_directory(root_path_));
-            fmt::print(std::cout, "session: socket peer endpoint {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
-            fmt::print(std::cout, "session: file root path {}\n", root_path_);
+            fmt::print("session: socket peer endpoint {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
+            fmt::print("session: file root path {}\n", root_path_);
         }
 
-        session(boost::asio::ip::tcp::socket sock,
-                boost::asio::io_context& context,
-                std::filesystem::path root,
-                use_chunk_t)
-            : session(std::move(sock), context, std::move(root))
-        {
-            const_cast<bool&>(chunked_) = true;
-        }
-
-        session<protocal::http, boost::asio::ip::tcp::socket>& async_run()
-        {
-            if (!std::atomic_exchange(&active_, true))
-                boost::asio::post(session_strand_, [this]
-                {
-                    exec_recv();
-                });
-            return *this;
-        }
-
-        bool operator<(session<protocal::http, boost::asio::ip::tcp::socket> const& that) const
+        bool operator<(session<protocal::http, policy<RequestBody>> const& that) const
         {
             return std::less<boost::asio::basic_socket<boost::asio::ip::tcp>>{}(socket_, that.socket_);
         }
 
-        boost::asio::ip::tcp::endpoint local_endpoint() const
-        {
-            return socket_.local_endpoint();
-        }
+        using session_base::local_endpoint;
+        using session_base::remote_endpoint;
 
-        boost::asio::ip::tcp::endpoint remote_endpoint() const
+        void async_run()
         {
-            return socket_.local_endpoint();
+            fmt::print("session: async_run\n");
+            request_ptr<request_body> request = std::make_unique<request_type<request_body>>();
+            auto& request_ref = *request;
+            boost::beast::http::async_read(socket_, recvbuf_, request_ref, on_recv_request(std::move(request)));
         }
 
     private:
-        void exec_recv()
-        {
-            assert(session_strand_.running_in_this_thread());
-            erase_consumed_request();
-            auto& request = insert_empty_request()->second;
-            fmt::print("session: exec recv, recvbuf size {}\n", recvbuf_.size());
-            boost::beast::http::async_read(
-                socket_, recvbuf_, request,
-                bind_executor(session_strand_, [&request, this](boost::system::error_code errc, std::size_t transfer_size)
-                {
-                    fmt::print(std::cout, "session: handle recv errc {}, transfer {}\n", errc, transfer_size);
-                    if (errc)
-                        close_socket(errc, boost::asio::socket_base::shutdown_both);
-                    //boost::asio::post(process_strand_, [&request, this]
-                    //{
-                    fmt::print(std::cout, "session: request head\n{}", request.base());
-                    fmt::print(std::cout, "session: request body\n{}", request.body());
-                    // TODO: external process routine towards request
-                    std::atomic_fetch_add(&request_consume_, 1);
-                    //});
-                    if (chunked_)
-                        exec_send_header(request, use_chunk);
-                    else
-                        exec_send(request);
-                }));
-        }
 
-        void exec_send(request_type& request)
+        template<typename Body>
+        folly::Function<void(boost::system::error_code, std::size_t)>
+            on_recv_request(request_ptr<Body> request)
         {
             namespace http = boost::beast::http;
-            assert(session_strand_.running_in_this_thread());
-            auto const target_path = concat_target_path(request.target());
-            fmt::print(std::cout, "target file path {}, exists {}\n", target_path, exists(target_path));
-            assert(exists(target_path));
-            boost::system::error_code file_errc;
-            http::file_body::value_type response_body;
-            response_body.open(target_path.generic_string().c_str(), boost::beast::file_mode::scan, file_errc);
-            assert(!file_errc);
-            auto response = std::make_unique<http::response<http::file_body>>(http::status::ok, request.version(), std::move(response_body));
-            response->set(http::field::server, "METAPLUS");
-            // response->set(http::field::content_type, "video/mp4");
-            response->content_length(response_body.size());
-            response->keep_alive(request.keep_alive());
-            auto& response_ref = *response;
-            fmt::print(std::cout, "session: response head {}\n", response_ref.base());
-            http::async_write(
-                socket_, response_ref,
-                bind_executor(session_strand_, [this, response = std::move(response)](boost::system::error_code errc, size_t transfer_size)
-                {
-                    fmt::print(std::cout, "session: handle send errc {}, last {}, transfer {}\n", errc, response->need_eof(), transfer_size);
-                    if (errc || response->need_eof())
-                        return close_socket(errc, boost::asio::socket_base::shutdown_send);
-                    boost::asio::post(session_strand_, [this]
-                    {
-                        exec_recv();
-                    });
-                }));
+            return[this, request = std::move(request)](boost::system::error_code errc, std::size_t transfer_size)
+            {
+                fmt::print("session: on_recv_request, errc {}, transfer {}\n", errc, transfer_size);
+                fmt::print("session: on_recv_request, request head\n{}", request->base());
+                fmt::print("session: on_recv_request, request body\n{}", request->body());
+                if (errc || request->need_eof())
+                    return close_socket(boost::asio::socket_base::shutdown_receive);
+                auto const target_path = concat_target_path(request->target());
+                fmt::print(std::cout, "target file path {}, exists {}\n", target_path, exists(target_path));
+                assert(std::filesystem::exists(target_path));
+                boost::system::error_code file_errc;
+                http::file_body::value_type response_body;
+                response_body.open(target_path.generic_string().c_str(), boost::beast::file_mode::scan, file_errc);
+                assert(!file_errc);
+                auto response = std::make_unique<http::response<http::file_body>>(http::status::ok, request->version(), std::move(response_body));
+                response->set(http::field::server, "MetaPlus");
+                //response->set(http::field::content_type, "video/mp4");
+                response->content_length(response_body.size());
+                response->keep_alive(request->keep_alive());
+                auto& response_ref = *response;
+                fmt::print("session: on_recv_request, response head {}\n", response->base());
+                http::async_write(socket_, response_ref, on_send_response(std::move(response)));
+            };
         }
 
-        class read_chunk_context : boost::noncopyable
+        template<typename Body>
+        folly::Function<void(boost::system::error_code, std::size_t)>
+            on_send_response(response_ptr<Body> response)
         {
-            std::filesystem::path const file_path_;
-            std::list<std::vector<char>> chunk_buflist_;
-            boost::mutex mutable buflist_mutex_;
-            boost::condition_variable mutable buflist_condvar_;
-            boost::thread mutable read_thread_;
-
-        public:
-            explicit read_chunk_context(std::filesystem::path path)
-                : file_path_(std::move(path))
-                , read_thread_(&read_chunk_context::read_until_eof, this) {}
-
-            explicit read_chunk_context(std::string_view path)
-                : read_chunk_context(std::filesystem::path{ path }) {}
-
-            std::optional<std::vector<char>> get_chunk()
+            return[this, response = std::move(response)](boost::system::error_code errc, std::size_t transfer_size) mutable
             {
-                if (read_thread_.interruption_requested())
-                    return std::nullopt;
-                boost::unique_lock<boost::mutex> buflist_lock{ buflist_mutex_ };
-                if (chunk_buflist_.empty())
-                    buflist_condvar_.wait(buflist_lock);
-                std::optional<std::vector<char>> chunk{ std::move(chunk_buflist_.front()) };
-                chunk_buflist_.pop_front();
-                return chunk;
-            }
-
-            ~read_chunk_context()
-            {
-                read_thread_.interrupt();
-                if (read_thread_.joinable())
-                    read_thread_.join();
-            }
-
-        private:
-            void read_until_eof()
-            {
-                boost::beast::file file;
-                boost::system::error_code errc;
-                size_t total_read_size{ 0 };
-                try
-                {
-                    file.open(file_path_.generic_string().c_str(), boost::beast::file_mode::scan, errc);
-                    assert(file.is_open());
-                    assert(!errc);
-                    while (!errc && !read_thread_.interruption_requested())
-                    {
-                        std::vector<char> chunk(default_max_chunk_size);
-                        auto const read_size = file.read(chunk.data(), chunk.size(), errc);
-                        if (read_size < chunk.size())
-                            chunk.resize(read_size);
-                        {
-                            boost::lock_guard<boost::mutex> lock_guard{ buflist_mutex_ };
-                            chunk_buflist_.push_back(std::move(chunk));
-                        }
-                        buflist_condvar_.notify_one();
-                        total_read_size += read_size;
-                    }
-                    boost::lock_guard<boost::mutex> lock_guard{ buflist_mutex_ };
-                    chunk_buflist_.emplace_back();
-                }
-                catch (...)
-                {
-                    fmt::print(std::cerr, "read_chunk_context: read_until_eof errc{}, errmsg{}\n", errc, errc.message());
-                }
-            }
-        };
-
-        void exec_send_header(request_type& request, use_chunk_t)
-        {
-            namespace http = boost::beast::http;
-            assert(session_strand_.running_in_this_thread());
-            fmt::print("session: exec send header, recvbuf size {}\n", recvbuf_.size());
-            auto response = std::make_shared<http::response<http::empty_body>>(http::status::ok, request.version());
-            auto serializer = std::make_shared<http::response_serializer<http::empty_body>>(*response);
-            auto& serializer_ref = *serializer;
-            response->set(http::field::server, "METAPLUS");
-            response->chunked(true);
-            auto const read_context = std::make_shared<read_chunk_context>(concat_target_path(request.target()));
-            http::async_write_header(
-                socket_, serializer_ref,
-                bind_executor(session_strand_, [this, read_context, response, serializer, &request](boost::system::error_code errc, size_t transfer_size)
-                {
-                    fmt::print("session: handle send header errc {}, transfer {}\n", errc, transfer_size);
-                    if (errc || request.method() == boost::beast::http::verb::head)
-                        return close_socket(errc, boost::asio::socket_base::shutdown_send);
-                    exec_send_chunk(read_context);
-                }));
-        }
-
-        void exec_send_chunk(std::shared_ptr<read_chunk_context> read_context)
-        {
-            namespace http = boost::beast::http;
-            assert(session_strand_.running_in_this_thread());
-            fmt::print("session: exec send chunk\n");
-            auto const chunk = read_context->get_chunk();
-            if (!chunk.has_value() || chunk->empty())
-            {
-                [[maybe_unused]] auto const write_size = boost::asio::write(socket_, http::make_chunk_last());
-                fmt::print("session: last chunk written, transfer size {}, has_value {}, empty {}\n",
-                           write_size, chunk.has_value(), chunk.has_value() && chunk->empty());
-                read_context = nullptr;
-                std::atomic_store(&active_, false);
-                return close_socket(boost::asio::socket_base::shutdown_send);
-                // return socket_.shutdown(boost::asio::socket_base::shutdown_both);
-                // return exec_recv();
-            }
-            auto chunk_ptr = std::make_unique<std::vector<char>>(std::move(chunk.value()));
-            auto& chunk_ref = *chunk_ptr;
-            boost::asio::async_write(
-                socket_, http::make_chunk(boost::asio::buffer(chunk_ref)),
-                bind_executor(session_strand_, [this, read_context, chunk_ptr=std::move(chunk_ptr)](boost::system::error_code errc, size_t transfer_size)
-                {
-                    fmt::print(std::cout, "session: handle send chunk errc {}, transfer {}\n", errc, transfer_size);
-                    if (errc)
-                        return close_socket(errc, boost::asio::socket_base::shutdown_send);
-                    exec_send_chunk(read_context);
-                }));
+                fmt::print("session: on_send_response, errc {}, last {}, transfer {}\n", errc, response->need_eof(), transfer_size);
+                if (errc || response->need_eof())
+                    return close_socket(boost::asio::socket_base::shutdown_send);
+                async_run();
+            };
         }
 
         std::filesystem::path concat_target_path(boost::beast::string_view request_target) const
         {
             return std::filesystem::path{ root_path_ }.concat(request_target.begin(), request_target.end());
         }
-
-        request_container::iterator insert_empty_request()
-        {
-            auto const [iterator, success] = requests_.emplace(std::chrono::steady_clock::now(), request_container::mapped_type{});
-            assert(success);
-            return iterator;
-        }
-
-        size_t erase_consumed_request()
-        {
-            auto const consume_size = std::atomic_exchange(&request_consume_, 0);
-            if (consume_size > 0)
-                requests_.erase(requests_.begin(), std::next(requests_.begin(), consume_size));
-            return consume_size;
-        }
-
-        void close_socket(boost::asio::socket_base::shutdown_type operation)
-        {
-            socket_.cancel();
-            socket_.shutdown(operation);
-            erase_consumed_request();
-        }
-
-        void close_socket(boost::system::error_code errc, boost::asio::socket_base::shutdown_type operation)
-        {
-            fmt::print(std::cerr, "session: socket close, errc {}, errmsg {}\n", errc, errc.message());
-            close_socket(operation);
-        }
     };
 
-    static_assert(!std::is_move_constructible<session<protocal::http, boost::asio::ip::tcp::socket>>::value);
+    template<typename Protocal, typename Policy = default_policy>
+    using session_ptr = std::unique_ptr<session<Protocal, Policy>>;
 }

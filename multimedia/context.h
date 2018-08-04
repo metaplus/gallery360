@@ -15,7 +15,7 @@ namespace media
             virtual bool seekable() = 0;
         };
 
-        std::shared_ptr<io_interface> io_interface_;
+        std::shared_ptr<io_interface> io_base_;
         std::shared_ptr<AVIOContext> io_handle_;
 
     public:

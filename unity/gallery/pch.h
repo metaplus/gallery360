@@ -47,6 +47,5 @@
 #include "unity/detail/IUnityGraphics.h"
 #include "unity/detail/IUnityGraphicsD3D11.h"
 //#include "unity/gallery/interprocess.h"
-#include "unity/gallery/graphic.h"
 #include "unity/gallery/dll.h"
 #include "unity/gallery/export.h"

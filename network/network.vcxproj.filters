@@ -27,9 +27,6 @@
     <ClInclude Include="client.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="server.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="net.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -39,13 +36,13 @@
     <ClInclude Include="connector.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="executor_guard.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="session_base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="promise_base.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="server.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -92,15 +92,15 @@ namespace
 }
 
 media::io_context::io_context(std::shared_ptr<io_base> io)
-    : io_interface_(std::move(io))
+    : io_base_(std::move(io))
     , io_handle_(avio_alloc_context(static_cast<uint8_t*>(av_malloc(default_cache_page_size)),
-                                    default_cache_page_size, default_buffer_writable, io_interface_.get(),
-                                    io_interface_->readable() ? on_read_buffer : nullptr,
-                                    io_interface_->writable() ? on_write_buffer : nullptr,
-                                    io_interface_->seekable() ? on_seek_stream : nullptr),
+                                    default_cache_page_size, default_buffer_writable, io_base_.get(),
+                                    io_base_->readable() ? on_read_buffer : nullptr,
+                                    io_base_->writable() ? on_write_buffer : nullptr,
+                                    io_base_->seekable() ? on_seek_stream : nullptr),
                  [](pointer ptr) { av_freep(&ptr->buffer);  av_freep(&ptr); })
 {
-    assert(io_interface_ != nullptr);
+    assert(io_base_ != nullptr);
     assert(io_handle_ != nullptr);
 }
 
@@ -119,7 +119,7 @@ media::io_context::pointer media::io_context::operator->() const
 
 media::io_context::operator bool() const
 {
-    return io_handle_ != nullptr && io_interface_ != nullptr;
+    return io_handle_ != nullptr && io_base_ != nullptr;
 }
 
 media::io_context::cursor::cursor(buffer_type const & buffer)

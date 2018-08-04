@@ -3,82 +3,120 @@
 
 namespace
 {
-    using ordinal = std::pair<int, int>;
-
-    std::map<ordinal, dll::media_context> media_contexts;
-    std::atomic<int> session_index = 0;
+    int16_t thread_count_per_codec = 0;
 }
 
-void unity::_nativeMediaCreate()
+namespace unity
 {
-    media_contexts.clear();
-    dll::register_module();
-}
-
-void unity::_nativeMediaRelease()
-{
-    dll::deregister_module();
-    media_contexts.clear();
-}
-
-UINT64 unity::_nativeMediaSessionCreate(LPCSTR url)
-{
-    auto const ordinal = std::make_pair(0, 0);
-    media_contexts.emplace(ordinal, std::string{ url });
-    return std::atomic_fetch_add(&session_index, 1);
-}
-
-INT64 unity::_nativeMediaSessionCreateNetStream(LPCSTR url, INT row, INT column)
-{
-    auto const ordinal = std::make_pair(row, column);
-
-    return std::atomic_fetch_add(&session_index, 1);
-}
-
-void unity::_nativeMediaSessionRelease(UINT64 hashID)
-{
-    for (auto& pair : media_contexts)
+    INT16 _nativeConfigureMedia(INT16 streams)
     {
-        auto& media_context = pair.second;
-        auto const[read_count, decode_count] = media_context.stop_and_wait();
-        boost::ignore_unused(read_count, decode_count);
+        thread_count_per_codec = std::max<int16_t>(2, streams / std::thread::hardware_concurrency());
+        return thread_count_per_codec;
     }
-}
-
-void unity::_nativeMediaSessionGetResolution(UINT64 hashID, INT& width, INT& height)
-{
-    auto const& context = media_contexts.at(std::make_pair(0, 0));
-    context.wait_parse_complete();
-    std::tie(width, height) = context.resolution();
-}
-
-BOOL unity::_nativeMediaSessionHasNextFrame(UINT64 hashID)
-{
-    auto const& context = media_contexts.at(std::make_pair(0, 0));
-    return !context.is_decode_complete();
-}
-
-BOOL unity::debug::_nativeMediaSessionDropFrame(UINT64 hashID, INT64 count)
-{
-    auto& context = media_contexts.at(std::make_pair(0, 0));
-    auto decode_count = 0;
-    while (--count >= 0)
-    {
-        auto frame = context.pop_decode_frame();
-        decode_count += frame.has_value();
-    }
-    return decode_count > 0;
 }
 
 namespace dll
 {
-    std::optional<media::frame> media_module::try_grab_decoded_frame()
+    player_context::player_context(folly::Uri uri, ordinal ordinal)
+        : uri_(std::move(uri))
+        , ordinal_(ordinal)
+        , future_net_client_(net_module::establish_http_session(uri_))
     {
-        auto& context = media_contexts.at(std::make_pair(0, 0));
-        return context.pop_decode_frame();
+        boost::promise<media::format_context> promise_parsed;
+        future_parsed_ = promise_parsed.get_future();
+        thread_ = std::thread{ on_media_streaming(std::move(promise_parsed)) };
+    }
+
+    player_context::~player_context()
+    {
+        if (thread_.joinable())
+            thread_.join();
+    }
+
+    folly::Function<void()> player_context::on_media_streaming(boost::promise<media::format_context>&& promise_parsed)
+    {
+        return[this, promise_parsed = std::move(promise_parsed)]() mutable
+        {
+            auto request = net::make_http_request<request_body>(uri_.host(), uri_.path());
+            boost::promise<response_container> promise_response;
+            auto net_client = future_net_client_.get();
+            auto future_response = net_client->async_send_request(std::move(request));
+            while (true)
+            {
+                auto response = future_response.get();
+                auto respones_reason = response.reason();
+                assert(respones_reason == "OK");
+                media::io_context media_io{ response.body() };
+                media::format_context media_format{ media_io,true };
+                frame_amount_ = media_format.demux(media::type::video)->nb_frames;
+                assert(frame_amount_ > 0);
+                media::codec_context video_codec{ media_format, media::type::video, boost::numeric_cast<unsigned>(thread_count_per_codec) };
+                promise_parsed.set_value(media_format);
+                media::packet packet = media_format.read(media::type::video);
+                try
+                {
+                    while (!packet.empty())
+                    {
+                        auto decoded_frames = video_codec.decode(packet);
+                        for (auto& frame : decoded_frames)
+                        {
+                            if (!std::atomic_load(&active_))
+                                throw std::runtime_error{ "abort throw" };
+                            frames_.add(std::move(frame));
+                        }
+                        packet = media_format.read(media::type::video);
+                    }
+                    frames_.add(media::frame{ nullptr });
+                }
+                catch (...)
+                {
+                    fmt::print("abort catch");
+                }
+                break;
+            }
+            on_decode_complete_.post();
+        };
+    }
+
+    std::pair<int, int> player_context::resolution()
+    {
+        auto media_format = future_parsed_.get();
+        return media_format.demux(media::type::video).scale();
+    }
+
+    media::frame player_context::take_decode_frame()
+    {
+        if (!on_last_frame_)
+        {
+            auto frame = frames_.take();
+            on_last_frame_ = frame.empty();
+            return frame;
+        }
+        return media::frame{ nullptr };
+    }
+
+    uint64_t player_context::available_size()
+    {
+        return frames_.size();
+    }
+
+    void player_context::deactive()
+    {
+        std::atomic_store(&active_, false);
+        frames_.try_take_for(50ms);
+    }
+
+    void player_context::deactive_and_wait()
+    {
+        deactive();
+        on_decode_complete_.wait();
+    }
+
+    bool player_context::is_last_frame_taken() const
+    {
+        return on_last_frame_;
     }
 }
-
 
 #ifdef GALLERY_USE_LEGACY
 

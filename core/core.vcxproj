@@ -111,6 +111,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(Include); $(ProjectDir);../;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -168,7 +169,7 @@
     <ClInclude Include="concurrency\synchronize.hpp" />
     <ClInclude Include="core.hpp" />
     <ClInclude Include="exception.hpp" />
-    <ClInclude Include="guard.h" />
+    <ClInclude Include="guard.hpp" />
     <ClInclude Include="meta\detail.hpp" />
     <ClInclude Include="meta\function_trait.hpp" />
     <ClInclude Include="meta\member_function_trait.hpp" />
@@ -180,7 +181,6 @@
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="guard.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
