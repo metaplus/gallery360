@@ -5,10 +5,8 @@ namespace meta
     template<typename Return, typename Object, bool HasConst, typename... Args>
     struct member_function_trait
     {
-        template<typename Return, typename Object, typename... Args>
         explicit constexpr member_function_trait(Return(Object::*)(Args...)const) { }
 
-        template<typename Return, typename Object, typename... Args>
         explicit constexpr member_function_trait(Return(Object::*)(Args...)) { }
 
         using return_type = Return;

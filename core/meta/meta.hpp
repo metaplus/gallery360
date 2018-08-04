@@ -85,23 +85,29 @@ namespace meta
 
     template<typename ...Types, size_t ...Indexes>
     std::tuple<std::tuple_element_t<Indexes, std::tuple<Types...>>...>
-        make_indexed_tuple(const std::tuple<Types...>& tuple,
-                           std::index_sequence<Indexes...> = std::index_sequence_for<Types...>{})
+    make_indexed_tuple(std::tuple<Types...> const& tuple,
+                       std::index_sequence<Indexes...>  = std::index_sequence_for<Types...>{})
     {
         return std::make_tuple(std::get<Indexes>(tuple)...);
     }
 
     template<typename T, T ...Values>
     constexpr std::array<T, sizeof...(Values)>
-        make_array(std::integer_sequence<T, Values...> = {})
+    make_array(std::integer_sequence<T, Values...>  = {})
     {
         return { Values... };
     }
 
     template<typename ...Types>
     constexpr std::array<std::common_type_t<Types...>, sizeof...(Types)>
-        make_array_any(Types const& ...args)
+    make_array_any(Types const& ...args)
     {
         return { static_cast<std::common_type_t<Types...>>(args)... };
     }
+
+    template<typename T>
+    struct type_base
+    {
+        using type = T;
+    };
 }

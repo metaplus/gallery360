@@ -3,7 +3,10 @@
 namespace meta
 {
     template<typename T, typename ...Types>
-    struct is_within : detail::is_within_impl<T, Types...> { static_assert(sizeof...(Types) > 1); };
+    struct is_within : detail::is_within_impl<T, Types...>
+    {
+        static_assert(sizeof...(Types) > 1);
+    };
 
     template<typename T, typename ...Types>
     struct is_within<T, std::variant<Types...>> : is_within<T, Types...> {};
@@ -20,24 +23,36 @@ namespace meta
     template<typename T>
     using add_const_ref_t = typename add_const_ref<T>::type;
 
-    template<typename T>    //reference operation precedes
+    template<typename T> //reference operation precedes
     struct remove_cv_ref : std::remove_cv<std::remove_reference_t<T>> {};
 
     template<typename T>
     using remove_cv_ref_t = typename remove_cv_ref<T>::type;
 
     template<typename T, typename ...Types>
-    struct is_similar : std::conjunction<std::is_same<remove_cv_ref_t<T>, remove_cv_ref_t<Types>>...> { static_assert(sizeof...(Types) > 0); };
+    struct is_similar : std::conjunction<std::is_same<remove_cv_ref_t<T>, remove_cv_ref_t<Types>>...>
+    {
+        static_assert(sizeof...(Types) > 0);
+    };
 
     template<typename T>
-    struct value_trait : detail::value_trait<remove_cv_ref_t<T>> {};
+    using value = typename detail::value_trait<remove_cv_ref_t<T>>::type;
 
     template<typename T>
-    struct value : value_trait<T>::type {};
+    struct is_future : is_within<remove_cv_ref_t<T>, std::future<value<T>>, std::shared_future<value<T>>,
+                                 folly::Future<value<T>>, folly::SemiFuture<value<T>>
+                                 #ifdef CORE_USE_BOOST_FIBER
+                                 , boost::fibers::future<value<T>>
+                                 #endif //CORE_USE_BOOST_FIBER
+        > {};
 
     template<typename T>
-    struct is_future : is_within<remove_cv_ref_t<T>,
-        std::future<value<T>>, std::shared_future<value<T>>> {};
+    struct is_promise : is_within<remove_cv_ref_t<T>, std::promise<value<T>>, folly::Promise<value<T>>
+                                 #ifdef CORE_USE_BOOST_FIBER
+                                 , boost::fibers::promise<value<T>>
+                                 #endif //CORE_USE_BOOST_FIBER
+        > {};
+
 
     template<typename T>
     struct is_atomic : std::is_same<remove_cv_ref_t<T>, std::atomic<value<T>>> {};
@@ -49,10 +64,10 @@ namespace meta
     struct is_packaged_task : std::false_type {};
 
     template<typename Result, typename ...Args>
-    struct is_packaged_task<std::packaged_task<Result(Args...)>> : std::true_type {};
+    struct is_packaged_task<std::packaged_task<Result(Args ...)>> : std::true_type {};
 
     template<typename Result, typename ...Args>
-    struct is_packaged_task<boost::packaged_task<Result(Args...)>> : std::true_type {};
+    struct is_packaged_task<boost::packaged_task<Result(Args ...)>> : std::true_type {};
 
     template<typename T, typename ...Types>
     struct max_size : std::integral_constant<size_t, std::max<size_t>(max_size<T>::value, max_size<Types...>::value)> {};
@@ -70,39 +85,33 @@ namespace meta
     struct max_size<std::pair<T, U>> : max_size<T, U> {};
 
     template<typename T, typename ...Types>
-    struct index : std::integral_constant<size_t,
-        detail::index_impl<T, std::index_sequence_for<Types...>, Types...>::type::index>
+    struct index : std::integral_constant<size_t, detail::index_impl<T, std::index_sequence_for<Types...>, Types...>::type::index>
     {
         static_assert(meta::is_within<T, Types...>::value, "T is outside Types... pack");
     };
 
     template<typename T, typename ...Types>
-    struct index <T, std::variant<Types...>> : std::integral_constant<size_t, index<T, Types...>::value> {};
+    struct index<T, std::variant<Types...>> : std::integral_constant<size_t, index<T, Types...>::value> {};
 
     template<typename T, typename ...Types>
-    struct index <T, std::tuple<Types...>> : std::integral_constant<size_t, index<T, Types...>::value> {};
+    struct index<T, std::tuple<Types...>> : std::integral_constant<size_t, index<T, Types...>::value> {};
 
     template<typename T, typename = void>
     struct is_hashable : std::false_type {};
 
     template<typename T>
-    struct is_hashable < T,
-        std::void_t<decltype(std::hash<std::decay_t<T>>{}(std::declval<std::decay_t<T>&>())) >
-    > : std::true_type
-    {};
+    struct is_hashable<T, std::void_t<decltype(std::hash<std::decay_t<T>>{}(std::declval<std::decay_t<T>&>()))>
+        > : std::true_type {};
 
     template<typename Handle, typename = void>
     struct has_operator_dereference : std::false_type {};
 
     template<typename Handle>
-    struct has_operator_dereference<Handle,
-        std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
-    > : std::true_type
-    {};
+    struct has_operator_dereference<Handle, std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
+        > : std::true_type {};
 
     template<typename Exception>
     struct is_exception : std::disjunction<
-        std::is_base_of<std::exception, Exception>,
-        std::is_base_of<boost::exception, Exception>>
-    {};
+            std::is_base_of<std::exception, Exception>,
+            std::is_base_of<boost::exception, Exception>> {};
 }

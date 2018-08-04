@@ -6,118 +6,113 @@ namespace net::client
     class connector;
 
     template<>
-    class connector<boost::asio::ip::tcp>
-        : public std::enable_shared_from_this<connector<boost::asio::ip::tcp>>
+    class connector<protocal::tcp>
+        : detail::state_base
+        , protocal::tcp::protocal_base
     {
+        struct pending
+        {
+            std::string host;
+            std::string service;
+            boost::promise<socket_type> promise;
+        };
+
+        folly::Synchronized<std::list<pending>> resolve_pendlist_;
+        boost::asio::io_context& context_;
         boost::asio::ip::tcp::resolver resolver_;
-        std::list<
-            std::tuple<std::string_view, std::string_view, boost::promise<boost::asio::ip::tcp::socket>>
-        > resolve_pendinglist_;
-        std::unordered_map<
-            std::pair<std::string_view, std::string_view>,
-            boost::asio::ip::tcp::resolver::results_type,
-            boost::hash<std::pair<std::string_view, std::string_view>>
-        > endpoint_cache_;
-        // std::promise<std::shared_ptr<boost::asio::ip::tcp::socket>> socket_promise_;
-        boost::asio::io_context::strand mutable resolver_strand_;
-        boost::asio::io_context::strand mutable resolve_pendinglist_strand_;
-        std::atomic<bool> mutable active_{ false };
 
     public:
         explicit connector(boost::asio::io_context& context)
-            : resolver_(context)
-            , resolver_strand_(context)
-            , resolve_pendinglist_strand_(context)
+            : context_(context)
+            , resolver_(context)
         {}
 
-        template<typename ApplicationProtocal, typename ...SessionArgs>
-        std::shared_ptr<session<ApplicationProtocal, boost::asio::ip::tcp::socket>>
-            establish_session(std::string_view host, std::string_view service, SessionArgs&& ...args)
+        template<typename Protocal, typename ResponseBody>
+        boost::future<session_ptr<Protocal, policy<ResponseBody>>>
+            establish_session(std::string host, std::string service)
         {
-            boost::promise<boost::asio::ip::tcp::socket> socket_promise;
-            auto socket_future = socket_promise.get_future();
-            boost::asio::post(resolve_pendinglist_strand_,
-                              [socket_promise = std::move(socket_promise), this, self = shared_from_this()]() mutable
+            boost::promise<boost::asio::ip::tcp::socket> promise_socket;
+            auto future_socket = promise_socket.get_future();
             {
-                resolve_pendinglist_.push_back(std::move(socket_promise));
-                // if (resolve_pendinglist_.size() > 1) return;
-                boost::asio::post(resolver_strand_,
-                                  [=, self, socket_iter = resolve_pendinglist_.begin()]{ exec_resolve(host,service,socket_iter); });
-            });
-            return std::make_shared<session<ApplicationProtocal, boost::asio::ip::tcp::socket>>(
-                socket_future.get(), resolver_.get_executor().context(), std::forward<SessionArgs>(args)...);
+                auto const wlock = resolve_pendlist_.wlock();
+                auto const pending_iter = wlock->insert(
+                    wlock->end(), pending{ std::move(host), std::move(service), std::move(promise_socket) });
+                if (wlock->size() <= 1) // the only pending work to resolve
+                {
+                    auto const inactive = is_active(true);
+                    assert(!inactive);
+                    boost::asio::post(context_, on_establish_session(pending_iter));
+                }
+            }
+            return future_socket.then(
+                [this](boost::future<boost::asio::ip::tcp::socket> future_socket)
+                {
+                    return std::make_unique<session<Protocal, policy<ResponseBody>>>(
+                        future_socket.get(), resolver_.get_executor().context());
+                });
+        }
+
+        void fail_promises_then_close_resolver(boost::system::error_code errc)
+        {
+            fmt::print(std::cerr, "resolver: close errc {}, errmsg {}\n", errc, errc.message());
+            resolver_.cancel();
+            for (auto& pending : *resolve_pendlist_.wlock())
+                pending.promise.set_exception(std::runtime_error{ errc.message() });
+            auto const active = is_active(false);
+            assert(active);
         }
 
     private:
-        void exec_resolve(decltype(resolve_pendinglist_)::reference resolve_pending)
+        folly::Function<void() const>
+            on_establish_session(std::list<pending>::iterator pending)
         {
-            auto&[host, service, socket_promise] = resolve_pending;
-            assert(resolver_strand_.running_in_this_thread());
-            auto const endpoints_iter = endpoint_cache_.find(std::make_pair(host, service));
-            if (endpoints_iter != endpoint_cache_.end())
+            return [this, pending]
             {
-                boost::asio::dispatch(resolve_pendinglist_strand_, [=] { extract_pendinglist(endpoints_iter); });
-                return;
-            }
-            resolver_.async_resolve(
-                host, service, bind_executor(resolver_strand_,
-                                             [=, self = shared_from_this()](boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints)
-            {
-                //if (resolve_pendinglist_.size())
+                resolver_.async_resolve(pending->host, pending->service, on_resolve(pending));
+            };
+        }
 
+        folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints) const>
+            on_resolve(std::list<pending>::iterator pending)
+        {
+            return [this, pending](boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints)
+            {
+                fmt::print(std::cout, "connector: on_resolve errc {}, errmsg {}\n", errc, errc.message());
+                auto& promise_socket = pending->promise;
                 if (errc)
                 {
-                    socket_iter->set_exception(std::make_exception_ptr(std::runtime_error{ errc.message() }));
-                    return fmt::print(std::cerr, "resolver: resolve errc {}, errmsg {}\n", errc, errc.message());
+                    promise_socket.set_exception(std::runtime_error{ errc.message() });
+                    return fail_promises_then_close_resolver(errc);
                 }
-
-                auto const[endpoints_iter, success] = endpoint_cache_.emplace(std::make_pair(host, service), std::move(endpoints));
-                assert(success);
-                extract_pendinglist(endpoints_iter);
-
-            }));
-
+                auto socket_ptr = std::make_unique<boost::asio::ip::tcp::socket>(context_);
+                auto& socket_ref = *socket_ptr;
+                boost::asio::async_connect(socket_ref, endpoints, on_connect(std::move(socket_ptr), std::move(promise_socket)));
+                auto const wlock = resolve_pendlist_.wlock();
+                wlock->erase(pending);
+                if (wlock->size())
+                    return boost::asio::dispatch(context_, on_establish_session(wlock->begin()));
+                auto const active = is_active(false);
+                assert(active);
+            };
         }
 
-        void exec_connect(decltype(endpoint_cache_)::mapped_type const& endpoints, decltype(resolve_pendinglist_)::reference socket_promise)
+        folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint)>
+            on_connect(std::unique_ptr<boost::asio::ip::tcp::socket> socket_ptr,
+                       boost::promise<socket_type>&& promise_socket)
         {
-            assert(resolver_.get_executor().running_in_this_thread());
-            auto const socket = std::make_shared<boost::asio::ip::tcp::socket>(resolver_.get_executor().context());
-            boost::asio::async_connect(
-                *socket, endpoints, // bind_executor(resolver_strand_,
-                [=, socket_promise = std::move(socket_promise), self = shared_from_this()
-                ](boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint) mutable
+            return[this, socket_ptr = std::move(socket_ptr), promise_socket = std::move(promise_socket)]
+            (boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint) mutable
             {
+                fmt::print(std::cout, "connector: on_connect errc {}, errmsg {}\n", errc, errc.message());
                 if (errc)
                 {
-                    socket_promise.set_exception(std::make_exception_ptr(std::runtime_error{ errc.message() }));
-                    fmt::print(std::cerr, "accept errc {}, errmsg {}\n", errc, errc.message());
-                } else socket_promise.set_value(std::move(*socket));
-                boost::asio::dispatch(resolve_pendinglist_strand_, [=] { resolve_pendinglist_.erase(socket_iter); });
-            });
-        }
-
-        void extract_pendinglist(decltype(endpoint_cache_)::iterator endpoints_iter)
-        {
-            assert(resolve_pendinglist_strand_.running_in_this_thread());
-            auto socket_promise = std::move(resolve_pendinglist_.front());
-            resolve_pendinglist_.pop_front();
-            if (resolve_pendinglist_.size())
-                boost::asio::post(resolver_strand_, [])
-                auto const& endpoints_ref = endpoints_iter->second;
-            boost::asio::post(resolver_.get_executor(),
-                              [socket_promise = std::move(socket_promise), &endpoints_ref, this, self = shared_from_this()
-                              ]() mutable { exec_connect(endpoints_ref, socket_promise); });
-
-        }
-
-        void close_resolver()
-        {
-            auto const active_old = std::atomic_exchange(&active_, false);
-            assert(active_old);
-            resolver_.cancel();
+                    promise_socket.set_exception(std::runtime_error{ errc.message() });
+                    return fail_promises_then_close_resolver(errc);
+                }
+                promise_socket.set_value(std::move(*socket_ptr.release()));
+            };
         }
     };
 
-    template class connector<boost::asio::ip::tcp>;
+    template class connector<protocal::tcp>;
 }

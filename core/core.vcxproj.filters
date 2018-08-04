@@ -30,51 +30,48 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\meta\type_trait.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="guard.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="verify.hpp">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\meta\meta.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="..\concurrency\async_chain.hpp">
-      <Filter>Header Files\concurrency</Filter>
-    </ClInclude>
-    <ClInclude Include="..\meta\member_function_trait.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="..\meta\detail.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="..\meta\function_trait.hpp">
-      <Filter>Header Files\meta</Filter>
     </ClInclude>
     <ClInclude Include="core.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\concurrency\latch.hpp">
-      <Filter>Header Files\concurrency</Filter>
-    </ClInclude>
-    <ClInclude Include="..\concurrency\barrier.hpp">
-      <Filter>Header Files\concurrency</Filter>
-    </ClInclude>
-    <ClInclude Include="..\concurrency\synchronize.hpp">
-      <Filter>Header Files\concurrency</Filter>
-    </ClInclude>
     <ClInclude Include="exception.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="concurrency\async_chain.hpp">
+      <Filter>Header Files\concurrency</Filter>
+    </ClInclude>
+    <ClInclude Include="concurrency\barrier.hpp">
+      <Filter>Header Files\concurrency</Filter>
+    </ClInclude>
+    <ClInclude Include="concurrency\latch.hpp">
+      <Filter>Header Files\concurrency</Filter>
+    </ClInclude>
+    <ClInclude Include="concurrency\synchronize.hpp">
+      <Filter>Header Files\concurrency</Filter>
+    </ClInclude>
+    <ClInclude Include="meta\detail.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="meta\function_trait.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="meta\member_function_trait.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="meta\meta.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="meta\type_trait.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="guard.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="guard.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
