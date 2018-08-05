@@ -46,6 +46,16 @@ namespace unity
         return index;
     }
 
+    INT64 DLLAPI _nativeMediaSessionCreateDashStream(LPCSTR url, INT row, INT column, INT64 last_tile_index)
+    {
+        auto const ordinal = std::make_pair(row, column);
+        auto index = std::atomic_fetch_add(&session_index, 1);
+        folly::Uri uri{ url };
+        auto player = std::make_unique<dll::player_context>(std::move(uri), ordinal, net::protocal::dash{ last_tile_index });
+        player_contexts.emplace(index, std::move(player));
+        return index;
+    }
+
     void _nativeMediaSessionRelease(INT64 id)
     {
         player_contexts.at(id)->deactive();

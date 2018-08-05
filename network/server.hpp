@@ -56,8 +56,8 @@ namespace net::server
             return[this, request = std::move(request)](boost::system::error_code errc, std::size_t transfer_size)
             {
                 fmt::print("session: on_recv_request, errc {}, transfer {}\n", errc, transfer_size);
-                fmt::print("session: on_recv_request, request head\n{}", request->base());
-                fmt::print("session: on_recv_request, request body\n{}", request->body());
+                fmt::print("session: on_recv_request, request head\n\t{}", request->base());
+                fmt::print("session: on_recv_request, request body\n\t{}", request->body());
                 if (errc || request->need_eof())
                     return close_socket(boost::asio::socket_base::shutdown_receive);
                 auto const target_path = concat_target_path(request->target());
@@ -73,7 +73,7 @@ namespace net::server
                 response->content_length(response_body.size());
                 response->keep_alive(request->keep_alive());
                 auto& response_ref = *response;
-                fmt::print("session: on_recv_request, response head {}\n", response->base());
+                fmt::print("session: on_recv_request, response head {}", response->base());
                 http::async_write(socket_, response_ref, on_send_response(std::move(response)));
             };
         }

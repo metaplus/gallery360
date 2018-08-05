@@ -41,6 +41,11 @@ namespace net
                 using context_type = boost::asio::io_context;
             };
         };
+
+        struct dash : http
+        {
+            int64_t last_tile_index = 1;
+        };
     }
 
     inline namespace tag
@@ -52,12 +57,11 @@ namespace net
     }
 
     inline std::vector<std::thread> create_asio_threads(boost::asio::io_context& context,
-                                                        uint32_t num = std::thread::hardware_concurrency())
-    {
+                                                        uint32_t num = std::thread::hardware_concurrency()) {
         std::vector<std::thread> threads(num);
         auto thread_factory = std::make_unique<folly::NamedThreadFactory>("NetAsio");
-        std::generate(threads.begin(), threads.end(), [&thread_factory, &context]
-                      {
+        std::generate(threads.begin(), threads.end(),
+                      [&thread_factory, &context] {
                           return thread_factory->newThread([&context] { context.run(); });
                       });
         return threads;
@@ -70,8 +74,7 @@ namespace net
     inline constexpr size_t default_max_chunk_quantity{ 1024 };
 
     template<typename Body>
-    boost::beast::http::request<Body> make_http_request(std::string_view host, std::string_view target)
-    {
+    boost::beast::http::request<Body> make_http_request(std::string_view host, std::string_view target) {
         static_assert(boost::beast::http::is_body<Body>::value);
         boost::beast::http::request<Body> request;
         request.version(protocal::http::default_version);
@@ -90,8 +93,7 @@ namespace net
     boost::property_tree::ptree const& config();
 
     template<typename Entry>
-    Entry config_entry(std::string_view entry_name)
-    {
+    Entry config_entry(std::string_view entry_name) {
         return config().get<Entry>(entry_name.data());
     }
 
@@ -103,13 +105,11 @@ namespace net
             folly::AtomicBitSet<state_size> state_;
 
         protected:
-            bool is_active() const
-            {
+            bool is_active() const {
                 return state_.test(active, std::memory_order_acquire);
             }
 
-            bool is_active(bool active)
-            {
+            bool is_active(bool active) {
                 return state_.set(state_index::active, active, std::memory_order_release);
             }
         };
@@ -119,8 +119,7 @@ namespace net
 template<typename Protocal>
 struct std::less<boost::asio::basic_socket<Protocal>>
 {
-    bool operator()(boost::asio::basic_socket<Protocal> const& sock1, boost::asio::basic_socket<Protocal> const& sock2) const
-    {
+    bool operator()(boost::asio::basic_socket<Protocal> const& sock1, boost::asio::basic_socket<Protocal> const& sock2) const {
         return sock1.remote_endpoint() < sock2.remote_endpoint()
             || !(sock2.remote_endpoint() < sock1.remote_endpoint())
             && sock1.local_endpoint() < sock2.local_endpoint();
@@ -130,8 +129,7 @@ struct std::less<boost::asio::basic_socket<Protocal>>
 template<typename Protocal>
 struct std::equal_to<boost::asio::basic_socket<Protocal>>
 {
-    bool operator()(boost::asio::basic_socket<Protocal> const& sock1, boost::asio::basic_socket<Protocal> const& sock2) const
-    {
+    bool operator()(boost::asio::basic_socket<Protocal> const& sock1, boost::asio::basic_socket<Protocal> const& sock2) const {
         return sock1.remote_endpoint() == sock2.remote_endpoint()
             && sock1.local_endpoint() == sock2.local_endpoint();
     }

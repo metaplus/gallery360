@@ -1,96 +1,6 @@
 #include "stdafx.h"
 #include "context.h"
 
-namespace
-{
-    struct io_context_impl final : media::io_context::io_base
-    {
-        media::io_context::read_context read_context;
-        media::io_context::write_context write_context;
-        media::io_context::seek_context seek_context;
-
-        explicit io_context_impl(
-            media::io_context::read_context&& rfunc = nullptr,
-            media::io_context::write_context&& wfunc = nullptr,
-            media::io_context::seek_context&& sfunc = nullptr)
-            : read_context(std::move(rfunc))
-            , write_context(std::move(wfunc))
-            , seek_context(std::move(sfunc))
-        {}
-        int read(uint8_t* buffer, const int size) override final
-        {
-            return readable() ? read_context(buffer, size) : std::numeric_limits<int>::min();
-        }
-        int write(uint8_t* buffer, const int size) override final
-        {
-            return writable() ? write_context(buffer, size) : std::numeric_limits<int>::min();
-        }
-        int64_t seek(const int64_t offset, const int whence) override final
-        {
-            return seekable() ? seek_context(offset, whence) : std::numeric_limits<int64_t>::min();
-        }
-        bool readable() override final { return read_context != nullptr; }
-        bool writable() override final { return write_context != nullptr; }
-        bool seekable() override final { return seek_context != nullptr; }
-    };
-
-    struct io_curser_impl final : media::io_context::io_base, media::io_context::cursor
-    {
-        explicit io_curser_impl(buffer_type const& buffer)
-            : cursor(buffer) {}
-        ~io_curser_impl() override = default;
-        int read(uint8_t* buffer, int expect_size) override
-        {
-            if (buffer_iter != buffer_end)
-            {
-                auto const read_ptr = static_cast<char const*>((*buffer_iter).data());
-                auto const read_size = std::min<int64_t>(expect_size, buffer_size() - buffer_offset);
-                std::copy_n(read_ptr + buffer_offset, read_size, buffer);
-                buffer_offset += read_size;
-                sequence_offset += read_size;
-                if (buffer_offset == buffer_size())
-                {
-                    buffer_iter.operator++();
-                    buffer_offset = 0;
-                }
-                assert(read_size != 0);
-                return boost::numeric_cast<int>(read_size);
-            }
-            return AVERROR_EOF;
-        }
-        int write(uint8_t* buffer, int size) override
-        {
-            throw core::not_implemented_error{ "io_curser_impl::write" };
-        }
-        int64_t seek(int64_t seek_offset, int whence) override
-        {
-            switch (whence)
-            {
-                case SEEK_SET:
-                fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
-                break;
-                case SEEK_END:
-                fmt::print("SEEK_END OFFSET {}\n", seek_offset);
-                seek_offset += sequence_size();
-                break;
-                case SEEK_CUR:
-                fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
-                seek_offset += sequence_offset;
-                break;
-                case AVSEEK_SIZE:
-                fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
-                return sequence_size();
-                default:
-                throw core::unreachable_execution_branch{ "io_context.seek functor" };
-            }
-            return seek_sequence(seek_offset);
-        }
-        bool readable() override { return true; }
-        bool writable() override { return false; }
-        bool seekable() override { return true; }
-    };
-}
-
 media::io_context::io_context(std::shared_ptr<io_base> io)
     : io_base_(std::move(io))
     , io_handle_(avio_alloc_context(static_cast<uint8_t*>(av_malloc(default_cache_page_size)),
@@ -105,11 +15,11 @@ media::io_context::io_context(std::shared_ptr<io_base> io)
 }
 
 media::io_context::io_context(cursor::buffer_type const& buffer)
-    : io_context(std::make_shared<io_curser_impl>(buffer))
+    : io_context(std::make_shared<random_access_curser>(buffer))
 {}
 
 media::io_context::io_context(read_context&& read, write_context&& write, seek_context&& seek)
-    : io_context(std::make_shared<io_context_impl>(std::move(read), std::move(write), std::move(seek)))
+    : io_context(std::make_shared<generic_cursor>(std::move(read), std::move(write), std::move(seek)))
 {}
 
 media::io_context::pointer media::io_context::operator->() const
@@ -120,37 +30,6 @@ media::io_context::pointer media::io_context::operator->() const
 media::io_context::operator bool() const
 {
     return io_handle_ != nullptr && io_base_ != nullptr;
-}
-
-media::io_context::cursor::cursor(buffer_type const & buffer)
-    : buffer_begin(boost::asio::buffer_sequence_begin(buffer.data()))
-    , buffer_end(boost::asio::buffer_sequence_end(buffer.data()))
-    , buffer_iter(buffer_begin)
-{
-    auto& buffer_sizes = core::as_mutable(this->buffer_sizes);
-    std::transform(buffer_begin, buffer_end, std::back_inserter(buffer_sizes),
-                   [](const_iterator::reference buffer) { return boost::asio::buffer_size(buffer); });
-    std::partial_sum(buffer_sizes.begin(), buffer_sizes.end(), buffer_sizes.begin());
-}
-
-int64_t media::io_context::cursor::seek_sequence(int64_t seek_offset)
-{
-    auto const size_iter = std::upper_bound(buffer_sizes.crbegin(), buffer_sizes.crend(), seek_offset, std::greater<>{});
-    buffer_iter = std::prev(buffer_end, std::distance(buffer_sizes.crbegin(), size_iter));
-    auto const partial_sequence_size = size_iter != buffer_sizes.crend() ? *size_iter : 0;
-    buffer_offset = std::min(seek_offset - partial_sequence_size, buffer_size());
-    sequence_offset = partial_sequence_size + buffer_offset;
-    return sequence_offset;
-}
-
-int64_t media::io_context::cursor::buffer_size() const
-{
-    return boost::numeric_cast<int64_t>(boost::asio::buffer_size(*buffer_iter));
-}
-
-int64_t media::io_context::cursor::sequence_size() const
-{
-    return buffer_sizes.back();
 }
 
 int media::io_context::on_read_buffer(void* opaque, uint8_t* buffer, int size)
@@ -203,6 +82,7 @@ media::format_context::format_context(io_context io, source::format iformat)
     format_ptr->pb = core::get_pointer(io_handle_);
     core::verify(avformat_open_input(&format_ptr, nullptr,
                                      iformat.empty() ? nullptr : av_find_input_format(iformat.data()), nullptr));
+    assert(format_ptr != nullptr);
     format_handle_.reset(format_ptr, [](pointer p) { avformat_close_input(&p); });
     core::verify(avformat_find_stream_info(format_ptr, nullptr));
 #ifdef _DEBUG
@@ -270,7 +150,7 @@ media::packet media::format_context::read(media::type media_type) const
     media::packet packet;
     while (av_read_frame(format_handle_.get(), core::get_pointer(packet)) == 0
            && media_type != media::type::unknown
-           &&  !core::underlying_same(media_type,format_handle_->streams[packet->stream_index]->codecpar->codec_type) )
+           && !core::underlying_same(media_type, format_handle_->streams[packet->stream_index]->codecpar->codec_type))
     {
         packet.unref();
     }
