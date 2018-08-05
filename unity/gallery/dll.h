@@ -9,6 +9,7 @@ namespace dll
         using protocal_type = net::protocal::http;
         using request_body = boost::beast::http::empty_body;
         using response_body = boost::beast::http::dynamic_body;
+        using recv_buffer = response_body::value_type;
         using response_container = net::protocal::http::protocal_base::response_type<response_body>;
         using net_session_ptr = net::client::session_ptr<protocal_type, net::policy<response_body>>;
         using ordinal = std::pair<int16_t, int16_t>;
@@ -38,6 +39,8 @@ namespace dll
         using queue_type = folly::LifoSemMPMCQueue<Element, folly::QueueBehaviorIfFull::BLOCK>;
 
         folly::Uri uri_;
+        int64_t dash_tile_index_ = -1;
+        int64_t dash_last_index_ = 0;
         ordinal ordinal_;
         boost::future<net_session_ptr> future_net_client_;
         boost::future<media::format_context> future_parsed_;
@@ -50,6 +53,8 @@ namespace dll
 
     public:
         player_context(folly::Uri uri, ordinal ordinal);
+        player_context(folly::Uri uri, ordinal ordinal, net::protocal::dash dash);
+
         ~player_context();
         std::pair<int, int> resolution();
         media::frame take_decode_frame();
@@ -60,6 +65,9 @@ namespace dll
 
     private:
         folly::Function<void()> on_media_streaming(boost::promise<media::format_context>&& promise_parsed);
+        folly::Function<void()> on_dash_streaming(boost::promise<media::format_context>&& promise_parsed);
+
+        folly::Function<boost::future<recv_buffer>()> on_tile_cursor(net_session_ptr& net_session_ptr);
     };
 
     class graphic

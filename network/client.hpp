@@ -17,7 +17,7 @@ namespace net::client
         using response_parser = response_parser_type<response_body>;
 
         boost::promise<response> promise_response_;
-        response_parser response_parser_;
+        std::optional<response_parser> response_parser_;
 
     public:
         session(boost::asio::ip::tcp::socket&& socket, boost::asio::io_context& context)
@@ -43,12 +43,12 @@ namespace net::client
             static_assert(http::is_body<RequestBody>::value);
             fmt::print("session: async_send_request via message\n");
             promise_response_ = boost::promise<response>{};
-            response_parser_.body_limit(std::numeric_limits<uint64_t>::max());
+            response_parser_.emplace();
+            response_parser_->body_limit(std::numeric_limits<uint64_t>::max());
             auto request_ptr = std::make_unique<http::request<RequestBody>>(std::move(request));
             auto& request_ref = *request_ptr;
             http::async_write(socket_, request_ref, on_send_request(std::move(request_ptr)));
             auto const inactive = is_active(true);
-            assert(!inactive);
             std::atomic_fetch_add(&round_trip_index_, 1);
             return promise_response_.get_future();
         }
@@ -69,7 +69,7 @@ namespace net::client
                 auto& response_ref = *response;
                 if (is_chunked())
                     throw core::not_implemented_error{ "" };
-                http::async_read(socket_, recvbuf_, response_parser_, on_recv_response());
+                http::async_read(socket_, recvbuf_, *response_parser_, on_recv_response());
             };
         }
 
@@ -81,7 +81,7 @@ namespace net::client
                 fmt::print("session: on_recv_response, errc {}, transfer {}\n", errc, transfer_size);
                 if (errc)
                     return fail_promise_then_close_socket(promise_response_, errc, boost::asio::socket_base::shutdown_receive);
-                promise_response_.set_value(response_parser_.release());
+                promise_response_.set_value(response_parser_->release());
             };
         }
     };

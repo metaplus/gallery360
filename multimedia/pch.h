@@ -30,4 +30,5 @@ extern "C" {
 #endif  // _WIN64
 
 #include "multimedia/ffmpeg.h"
+#include "multimedia/cursor.h"
 #include "multimedia/context.h"

@@ -41,6 +41,11 @@ namespace net
                 using context_type = boost::asio::io_context;
             };
         };
+
+        struct dash
+        {
+            int64_t last_tile_index = 1;
+        };
     }
 
     inline namespace tag

@@ -19,9 +19,9 @@
 #include "core/pch.h"
 #include "multimedia/pch.h"
 #include "network/pch.h"
-#include "gallery/pch.h"
-#include "gallery/export.h"
+//#include "gallery/pch.h"
+//#include "gallery/export.h"
 
 #pragma comment(lib, "core")
 #pragma comment(lib, "multimedia")
-#pragma comment(lib, "gallery")
+//#pragma comment(lib, "gallery")

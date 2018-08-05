@@ -11,6 +11,8 @@ namespace unity
 
     EXTERN_C INT64 DLLAPI _nativeMediaSessionCreateFileReader(LPCSTR url);
     EXTERN_C INT64 DLLAPI _nativeMediaSessionCreateNetStream(LPCSTR url, INT row, INT column);
+    EXTERN_C INT64 DLLAPI _nativeMediaSessionCreateDashMpd(LPCSTR url);
+    EXTERN_C INT64 DLLAPI _nativeMediaSessionCreateDashStream(LPCSTR url, INT row, INT column, INT64 last_tile_index);
     EXTERN_C void DLLAPI _nativeMediaSessionRelease(INT64 id);
     EXTERN_C void DLLAPI _nativeMediaSessionGetResolution(INT64 id, INT& width, INT& height);
     EXTERN_C BOOL DLLAPI  _nativeMediaSessionHasNextFrame(INT64 id);
