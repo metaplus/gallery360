@@ -133,15 +133,9 @@ namespace dll
                 auto request = net::make_http_request<request_body>(tile_uri.host(), tile_uri.path());
                 auto future_response = net_session_ptr->async_send_request(std::move(request));
                 return future_response.then([](boost::future<response_container> future_response)
-<<<<<<< HEAD
                 {  //! leak
                     return future_response.get().body();
                 });
-=======
-                                            {  //! leak
-                                                return future_response.get().body();
-                                            });
->>>>>>> dev-module-plugin
             }
             return boost::make_exceptional_future<media::cursor_base::buffer_type>(std::runtime_error{ "LastDashTile" });
         };
