@@ -42,7 +42,11 @@ namespace net
             };
         };
 
+<<<<<<< HEAD
         struct dash : http
+=======
+        struct dash
+>>>>>>> dev-module-plugin
         {
             int64_t last_tile_index = 1;
         };
