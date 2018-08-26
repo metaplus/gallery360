@@ -2,52 +2,19 @@
 
 namespace media
 {
-    class io_context
+    class io_context : io_context_base
     {
-        struct io_interface
-        {
-            virtual ~io_interface() = default;
-            virtual int read(uint8_t* buffer, int size) = 0;
-            virtual int write(uint8_t* buffer, int size) = 0;
-            virtual int64_t seek(int64_t offset, int whence) = 0;
-            virtual bool readable() = 0;
-            virtual bool writable() = 0;
-            virtual bool seekable() = 0;
-        };
-
-        std::shared_ptr<io_interface> io_base_;
+        std::shared_ptr<io_base> io_base_;
         std::shared_ptr<AVIOContext> io_handle_;
 
     public:
         using value_type = AVIOContext;
         using pointer = AVIOContext * ;
-        using io_base = io_interface;
-        using read_context = folly::Function<int(uint8_t*, int)>;
-        using write_context = folly::Function<int(uint8_t*, int)>;
-        using seek_context = folly::Function<int64_t(int64_t, int)>;
-
-        struct cursor
-        {
-            using buffer_type = boost::beast::multi_buffer;
-            using const_iterator = buffer_type::const_buffers_type::const_iterator;
-
-            const_iterator const buffer_begin;
-            const_iterator const buffer_end;
-            const_iterator buffer_iter;
-            int64_t buffer_offset = 0;
-            int64_t sequence_offset = 0;
-            std::vector<int64_t> const buffer_sizes;
-
-            explicit cursor(buffer_type const& buffer);
-            int64_t seek_sequence(int64_t seek_offset);
-            int64_t buffer_size() const;
-            int64_t sequence_size() const;
-        };
 
         static constexpr inline size_t default_cache_page_size = 4096;
         static constexpr inline bool default_buffer_writable = false;
 
-        explicit io_context(std::shared_ptr<io_base> io);
+        explicit io_context(std::shared_ptr<io_base> io_cursor);
         explicit io_context(cursor::buffer_type const& buffer);
         io_context(read_context&& read, write_context&& write, seek_context&& seek);
 

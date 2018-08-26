@@ -38,21 +38,26 @@ namespace meta
     template<typename T>
     using value = typename detail::value_trait<remove_cv_ref_t<T>>::type;
 
+#if __has_include(<!folly/futures/Future.h>)
     template<typename T>
     struct is_future : is_within<remove_cv_ref_t<T>, std::future<value<T>>, std::shared_future<value<T>>,
-                                 folly::Future<value<T>>, folly::SemiFuture<value<T>>
-                                 #ifdef CORE_USE_BOOST_FIBER
-                                 , boost::fibers::future<value<T>>
-                                 #endif //CORE_USE_BOOST_FIBER
-        > {};
+        folly::Future<value<T>>, folly::SemiFuture<value<T>>
+    #ifdef CORE_USE_BOOST_FIBER
+        , boost::fibers::future<value<T>>
+    #endif //CORE_USE_BOOST_FIBER
+    >
+    {};
+#endif
 
+#if __has_include(<!folly/futures/Promise.h>)
     template<typename T>
     struct is_promise : is_within<remove_cv_ref_t<T>, std::promise<value<T>>, folly::Promise<value<T>>
-                                 #ifdef CORE_USE_BOOST_FIBER
-                                 , boost::fibers::promise<value<T>>
-                                 #endif //CORE_USE_BOOST_FIBER
-        > {};
-
+    #ifdef CORE_USE_BOOST_FIBER
+        , boost::fibers::promise<value<T>>
+    #endif //CORE_USE_BOOST_FIBER
+    >
+    {};
+#endif
 
     template<typename T>
     struct is_atomic : std::is_same<remove_cv_ref_t<T>, std::atomic<value<T>>> {};
@@ -100,18 +105,20 @@ namespace meta
     struct is_hashable : std::false_type {};
 
     template<typename T>
-    struct is_hashable<T, std::void_t<decltype(std::hash<std::decay_t<T>>{}(std::declval<std::decay_t<T>&>()))>
-        > : std::true_type {};
+    struct is_hashable < T, std::void_t<decltype(std::hash<std::decay_t<T>>{}(std::declval<std::decay_t<T>&>())) >
+    > : std::true_type
+    {};
 
     template<typename Handle, typename = void>
     struct has_operator_dereference : std::false_type {};
 
     template<typename Handle>
     struct has_operator_dereference<Handle, std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
-        > : std::true_type {};
+    > : std::true_type
+    {};
 
     template<typename Exception>
     struct is_exception : std::disjunction<
-            std::is_base_of<std::exception, Exception>,
-            std::is_base_of<boost::exception, Exception>> {};
+        std::is_base_of<std::exception, Exception>,
+        std::is_base_of<boost::exception, Exception>> {};
 }

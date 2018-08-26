@@ -5,23 +5,14 @@ namespace media
     struct pixel
     {
         using type = AVPixelFormat;
-
         struct nv12 : std::integral_constant<type, AV_PIX_FMT_NV12> {};
-
         struct nv21 : std::integral_constant<type, AV_PIX_FMT_NV21> {};
-
         struct rgb24 : std::integral_constant<type, AV_PIX_FMT_RGB24> {};
-
         struct rgba : std::integral_constant<type, AV_PIX_FMT_RGBA> {};
-
         struct yuv420 : std::integral_constant<type, AV_PIX_FMT_YUV420P> {};
-
         struct yuv422 : std::integral_constant<type, AV_PIX_FMT_YUV422P> {};
-
         struct uyvy : std::integral_constant<type, AV_PIX_FMT_UYVY422> {};
-
         struct yuyv : std::integral_constant<type, AV_PIX_FMT_YUYV422> {};
-
         struct yvyu : std::integral_constant<type, AV_PIX_FMT_YVYU422> {};
     };
 
@@ -33,14 +24,12 @@ namespace media
         unknown = AVMEDIA_TYPE_UNKNOWN,
     };
 
-    void register_all();
-
     class frame
     {
         std::shared_ptr<AVFrame> handle_;
     public:
-        using pointer = AVFrame *;
-        using reference = AVFrame &;
+        using pointer = AVFrame * ;
+        using reference = AVFrame & ;
         frame();
         explicit frame(std::nullptr_t);
         pointer operator->() const;
@@ -53,8 +42,8 @@ namespace media
         std::shared_ptr<AVPacket> handle_;
         struct chunk;
     public:
-        using pointer = AVPacket *;
-        using reference = AVPacket &;
+        using pointer = AVPacket * ;
+        using reference = AVPacket & ;
         packet();
         explicit packet(std::nullptr_t);
         explicit packet(std::basic_string_view<uint8_t> sv); // copy by av_malloc from buffer view
@@ -69,8 +58,8 @@ namespace media
 
     struct codec : std::reference_wrapper<AVCodec>
     {
-        using pointer = type *;
-        using reference = type &;
+        using pointer = type * ;
+        using reference = type & ;
         using parameter = std::reference_wrapper<const AVCodecParameters>;
         codec();
         explicit codec(reference ref);
@@ -80,8 +69,8 @@ namespace media
 
     struct stream : std::reference_wrapper<AVStream>
     {
-        using pointer = type *;
-        using reference = type &;
+        using pointer = type * ;
+        using reference = type & ;
         stream();
         explicit stream(reference ref);
         explicit stream(pointer ptr);

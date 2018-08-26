@@ -1,10 +1,5 @@
 #pragma once
 
-#ifdef _DEBUG
-#define BOOST_MULTI_INDEX_ENABLE_INVARIANT_CHECKING
-#define BOOST_MULTI_INDEX_ENABLE_SAFE_MODE
-#endif
-
 #define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE
 #define BOOST_THREAD_VERSION 4
 #define BOOST_FILESYSTEM_NO_DEPRECATED 
@@ -58,11 +53,11 @@ using namespace std::literals;
 
 #ifdef CORE_USE_BOOST_ASIO
 #include <boost/asio.hpp>
-#else
-#include <boost/asio/buffer.hpp>
 #endif //CORE_USE_BOOST_ASIO
-#include <boost/beast/core/flat_buffer.hpp>
-#include <boost/beast/core/multi_buffer.hpp>
+
+//#include <boost/asio/buffer.hpp>
+//#include <boost/beast/core/flat_buffer.hpp>
+//#include <boost/beast/core/multi_buffer.hpp>
 #include <boost/container_hash/hash.hpp>
 #include <boost/core/ignore_unused.hpp>
 #include <boost/core/null_deleter.hpp>
@@ -71,9 +66,9 @@ using namespace std::literals;
 //#include <boost/hana.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/numeric/conversion/cast.hpp>
-#include <boost/numeric/conversion/converter.hpp>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/xml_parser.hpp>
+//#include <boost/numeric/conversion/converter.hpp>
+//#include <boost/property_tree/ptree.hpp>
+//#include <boost/property_tree/xml_parser.hpp>
 #include <boost/stacktrace.hpp>
 #include <boost/thread.hpp>
 #include <boost/type_index.hpp>
@@ -90,14 +85,14 @@ using namespace std::literals;
 #pragma warning(push)
 #pragma warning(disable:4267 4250)
 #define GLOG_NO_ABBREVIATED_SEVERITIES
-#include <folly/AtomicBitSet.h>
+//#include <folly/AtomicBitSet.h>
 //#include <folly/AtomicHashMap.h>
 //#include <folly/AtomicLinkedList.h>
 //#include <folly/AtomicUnorderedMap.h>
-#include <folly/concurrency/ConcurrentHashMap.h>
-#include <folly/concurrency/DynamicBoundedQueue.h>
-#include <folly/concurrency/UnboundedQueue.h>
-#include <folly/container/Access.h>
+//#include <folly/concurrency/ConcurrentHashMap.h>
+//#include <folly/concurrency/DynamicBoundedQueue.h>
+//#include <folly/concurrency/UnboundedQueue.h>
+//#include <folly/container/Access.h>
 #include <folly/container/Array.h>
 #include <folly/container/Foreach.h>
 //#include <folly/dynamic.h>
@@ -109,20 +104,19 @@ using namespace std::literals;
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/SerialExecutor.h>
 #endif //CORE_USE_FOLLY_EXECUTOR
-#include <folly/executors/task_queue/LifoSemMPMCQueue.h>
-#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
-#include <folly/executors/thread_factory/NamedThreadFactory.h>
-#include <folly/executors/ThreadedExecutor.h>
+//#include <folly/executors/task_queue/LifoSemMPMCQueue.h>
+//#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
+//#include <folly/executors/thread_factory/NamedThreadFactory.h>
+//#include <folly/executors/ThreadedExecutor.h>
 
 #ifdef CORE_USE_FOLLY_FIBER
 #include <folly/fibers/Fiber.h>
 #endif //CORE_USE_FOLLY_FIBER
-
 #include <folly/Function.h>
-#include <folly/futures/Barrier.h>
-#include <folly/futures/Future.h>
+//#include <folly/futures/Barrier.h>
+//#include <folly/futures/Future.h>
 //#include <folly/PackedSyncPtr.h>
-#include <folly/ProducerConsumerQueue.h>
+//#include <folly/ProducerConsumerQueue.h>
 #include <folly/small_vector.h>
 //#include <folly/stop_watch.h>
 #include <folly/Synchronized.h>

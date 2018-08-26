@@ -32,5 +32,11 @@
     <ClCompile Include="folly_test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="media_test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="xml_test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

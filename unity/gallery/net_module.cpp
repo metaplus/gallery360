@@ -8,8 +8,7 @@ namespace
 
 namespace unity
 {
-    void _nativeConfigureNet(INT16 threads)
-    {
+    void _nativeConfigureNet(INT16 threads) {
         asio_thread_count = threads;
     }
 }
@@ -22,43 +21,37 @@ namespace dll::net_module
     std::unique_ptr<folly::NamedThreadFactory> net_thread_factory;
     std::vector<std::thread> net_threads;
 
-    boost::asio::io_context& initialize()
-    {
+    boost::asio::io_context& initialize() {
         io_context = std::make_unique<boost::asio::io_context>();
         io_context_guard = std::make_unique<boost::asio::executor_work_guard<
             boost::asio::io_context::executor_type>>(io_context->get_executor());
         net_threads.clear();
         net_threads.resize(asio_thread_count);
         net_thread_factory = create_thread_factory("NetModule");
-        std::generate(net_threads.begin(), net_threads.end(), []
-                      {
-                          return net_thread_factory->newThread([] { io_context->run(); });
+        std::generate(net_threads.begin(), net_threads.end(), [] {
+            return net_thread_factory->newThread([] { io_context->run(); });
                       });
         connector = std::make_unique<decltype(connector)::element_type>(*io_context);
         return *io_context;
     }
 
-    void release()
-    {
+    void release() {
         //connector->fail_promises_then_close_resolver(boost::system::error_code{});
         io_context_guard->reset();
         io_context->stop();
-        for (auto& thread : net_threads)
-        {
+        for (auto& thread : net_threads) {
             if (thread.joinable())
                 thread.join();
         }
         net_threads.clear();
     }
 
-    boost::future<net_session_ptr> net_module::establish_http_session(folly::Uri const& uri)
-    {
+    boost::future<net_session_ptr> net_module::establish_http_session(folly::Uri const& uri) {
         auto port = std::to_string(uri.port());
         return connector->establish_session<protocal_type, response_body>(uri.host(), std::move(port));
     }
 
-    std::tuple<std::string_view, std::string_view, std::string_view> split_url_components(std::string_view url)
-    {
+    std::tuple<std::string_view, std::string_view, std::string_view> split_url_components(std::string_view url) {
         std::string_view const protocal_sep{ "//" };
         std::string_view const port_sep{ ":" };
         if (auto const pos = url.find(protocal_sep); pos != std::string_view::npos)

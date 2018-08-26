@@ -10,7 +10,7 @@ namespace unity
 {
     INT16 _nativeConfigureMedia(INT16 streams)
     {
-        thread_count_per_codec = std::max<int16_t>(2, streams / std::thread::hardware_concurrency());
+        thread_count_per_codec = std::max<int16_t>(1, streams / std::thread::hardware_concurrency());
         return thread_count_per_codec;
     }
 }
@@ -27,6 +27,17 @@ namespace dll
         thread_ = std::thread{ on_media_streaming(std::move(promise_parsed)) };
     }
 
+    player_context::player_context(folly::Uri uri, ordinal ordinal, net::protocal::dash dash)
+        : uri_(std::move(uri))
+        , dash_last_index_(dash.last_tile_index)
+        , ordinal_(ordinal)
+        , future_net_client_(net_module::establish_http_session(uri_))
+    {
+        boost::promise<media::format_context> promise_parsed;
+        future_parsed_ = promise_parsed.get_future();
+        thread_ = std::thread{ on_dash_streaming(std::move(promise_parsed)) };
+    }
+
     player_context::~player_context()
     {
         if (thread_.joinable())
@@ -38,43 +49,95 @@ namespace dll
         return[this, promise_parsed = std::move(promise_parsed)]() mutable
         {
             auto request = net::make_http_request<request_body>(uri_.host(), uri_.path());
-            boost::promise<response_container> promise_response;
             auto net_client = future_net_client_.get();
             auto future_response = net_client->async_send_request(std::move(request));
-            while (true)
+            auto response = future_response.get();
+            auto respones_reason = response.reason();
+            assert(respones_reason == "OK");
+            media::io_context media_io{ response.body() };
+            media::format_context media_format{ media_io,true };
+            frame_amount_ = media_format.demux(media::type::video)->nb_frames;
+            //assert(frame_amount_ > 0);
+            media::codec_context video_codec{ media_format, media::type::video, boost::numeric_cast<unsigned>(thread_count_per_codec) };
+            promise_parsed.set_value(media_format);
+            media::packet packet = media_format.read(media::type::video);
+            try
             {
-                auto response = future_response.get();
-                auto respones_reason = response.reason();
-                assert(respones_reason == "OK");
-                media::io_context media_io{ response.body() };
-                media::format_context media_format{ media_io,true };
-                frame_amount_ = media_format.demux(media::type::video)->nb_frames;
-                assert(frame_amount_ > 0);
-                media::codec_context video_codec{ media_format, media::type::video, boost::numeric_cast<unsigned>(thread_count_per_codec) };
-                promise_parsed.set_value(media_format);
-                media::packet packet = media_format.read(media::type::video);
-                try
+                while (!packet.empty())
                 {
-                    while (!packet.empty())
+                    auto decoded_frames = video_codec.decode(packet);
+                    for (auto& frame : decoded_frames)
                     {
-                        auto decoded_frames = video_codec.decode(packet);
-                        for (auto& frame : decoded_frames)
-                        {
-                            if (!std::atomic_load(&active_))
-                                throw std::runtime_error{ "abort throw" };
-                            frames_.add(std::move(frame));
-                        }
-                        packet = media_format.read(media::type::video);
+                        if (!std::atomic_load(&active_))
+                            throw std::runtime_error{ "abort throw" };
+                        frames_.add(std::move(frame));
                     }
-                    frames_.add(media::frame{ nullptr });
+                    packet = media_format.read(media::type::video);
                 }
-                catch (...)
-                {
-                    fmt::print("abort catch");
-                }
-                break;
+                frames_.add(media::frame{ nullptr });
+            }
+            catch (...)
+            {
+                fmt::print("abort catch");
             }
             on_decode_complete_.post();
+        };
+    }
+
+    folly::Function<void()> player_context::on_dash_streaming(boost::promise<media::format_context>&& promise_parsed)
+    {
+        return[this, promise_parsed = std::move(promise_parsed)]() mutable
+        {
+            auto request = net::make_http_request<request_body>(uri_.host(), uri_.path());
+            auto net_client = future_net_client_.get();
+            auto cursor_stream = media::forward_cursor_stream::create(on_tile_cursor(net_client));
+            media::io_context media_io{ cursor_stream };
+            media::format_context media_format{ media_io, true };
+            frame_amount_ = media_format.demux(media::type::video)->nb_frames;
+            //assert(frame_amount_ > 0);
+            media::codec_context video_codec{ media_format, media::type::video, boost::numeric_cast<unsigned>(thread_count_per_codec) };
+            promise_parsed.set_value(media_format);
+            media::packet packet = media_format.read(media::type::video);
+            try
+            {
+                while (!packet.empty())
+                {
+                    auto decoded_frames = video_codec.decode(packet);
+                    for (auto& frame : decoded_frames)
+                    {
+                        if (!std::atomic_load(&active_))
+                            throw std::runtime_error{ "abort throw" };
+                        frames_.add(std::move(frame));
+                    }
+                    packet = media_format.read(media::type::video);
+                }
+                frames_.add(media::frame{ nullptr });
+            }
+            catch (...)
+            {
+                fmt::print("abort catch");
+            }
+            on_decode_complete_.post();
+        };
+    }
+
+    folly::Function<boost::future<recv_buffer>()> player_context::on_tile_cursor(net_session_ptr& net_session_ptr)
+    {
+        return [this, &net_session_ptr]
+        {
+            if (++dash_tile_index_ <= dash_last_index_)
+            {
+                auto const dash_suffix = dash_tile_index_ > 0
+                    ? fmt::format("{}.{}", dash_tile_index_, "m4s") : "init.mp4"s;
+                folly::Uri tile_uri{ uri_.str() + dash_suffix };
+                auto request = net::make_http_request<request_body>(tile_uri.host(), tile_uri.path());
+                auto future_response = net_session_ptr->async_send_request(std::move(request));
+                return future_response.then([](boost::future<response_container> future_response)
+                {  //! leak
+                    return future_response.get().body();
+                });
+            }
+            return boost::make_exceptional_future<media::cursor_base::buffer_type>(std::runtime_error{ "LastDashTile" });
         };
     }
 
@@ -160,10 +223,10 @@ namespace
         std::unique_lock<std::mutex> exlock{ frames->mutex };
         if (frames->container.size() > max_fps + 20)
             frames->condition.wait(exlock, []
-                                   {
-                                       return
-                                           frames->container.size() < max_fps || !status::running.load(std::memory_order_relaxed);
-                                   });
+        {
+            return
+                frames->container.size() < max_fps || !status::running.load(std::memory_order_relaxed);
+        });
         if (!status::running.load(std::memory_order_relaxed))
             throw core::aborted_error{};
         std::move(fvec.begin(), fvec.end(), std::back_inserter(frames->container));
@@ -178,10 +241,10 @@ namespace
         std::unique_lock<std::mutex> exlock{ frames->mutex };
         if (frames->container.empty())
             frames->condition.wait(exlock, []
-                                   {
-                                       return
-                                           !frames->container.empty() || !status::running.load(std::memory_order_relaxed);
-                                   });
+        {
+            return
+                !frames->container.empty() || !status::running.load(std::memory_order_relaxed);
+        });
         if (!status::running.load(std::memory_order_relaxed))
             throw core::aborted_error{};
         const auto frame = std::move(frames->container.front());
@@ -204,7 +267,7 @@ BOOL unity::store_media_url(LPCSTR url)
         std::promise<av::format_context> parse;
         routine::parse = parse.get_future().share();
         routine::decode = std::async(std::launch::async,
-                                     [parse = std::move(parse), path = path.generic_string()]() mutable
+            [parse = std::move(parse), path = path.generic_string()]() mutable
         {
             uint64_t decode_count = 0;
             routine::registry.wait();
@@ -286,10 +349,10 @@ void dll::media_release()
     status::running.store(false, std::memory_order_seq_cst);
     frames->condition.notify_all();
     core::repeat_each([](auto& future)
-                      {
-                          future.wait();
-                          future = {};
-                      }, routine::registry, routine::parse, routine::decode);
+    {
+        future.wait();
+        future = {};
+    }, routine::registry, routine::parse, routine::decode);
     if (!routine::cleanup.empty())
     {
         for (const auto& func : routine::cleanup)

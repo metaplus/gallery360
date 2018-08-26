@@ -22,24 +22,21 @@ namespace net::server
                 std::filesystem::path root, bool chunked = false)
             : session_base(std::move(socket), context)
             , root_path_(std::move(root))
-            , strand_(socket.get_executor().context())
-        {
+            , strand_(socket.get_executor().context()) {
             assert(socket_.is_open());
             assert(std::filesystem::is_directory(root_path_));
             fmt::print("session: socket peer endpoint {}/{}\n", socket_.local_endpoint(), socket_.remote_endpoint());
             fmt::print("session: file root path {}\n", root_path_);
         }
 
-        bool operator<(session<protocal::http, policy<RequestBody>> const& that) const
-        {
+        bool operator<(session<protocal::http, policy<RequestBody>> const& that) const {
             return std::less<boost::asio::basic_socket<boost::asio::ip::tcp>>{}(socket_, that.socket_);
         }
 
         using session_base::local_endpoint;
         using session_base::remote_endpoint;
 
-        void async_run()
-        {
+        void async_run() {
             fmt::print("session: async_run\n");
             request_ptr<request_body> request = std::make_unique<request_type<request_body>>();
             auto& request_ref = *request;
@@ -50,14 +47,13 @@ namespace net::server
 
         template<typename Body>
         folly::Function<void(boost::system::error_code, std::size_t)>
-            on_recv_request(request_ptr<Body> request)
-        {
+            on_recv_request(request_ptr<Body> request) {
             namespace http = boost::beast::http;
             return[this, request = std::move(request)](boost::system::error_code errc, std::size_t transfer_size)
             {
                 fmt::print("session: on_recv_request, errc {}, transfer {}\n", errc, transfer_size);
-                fmt::print("session: on_recv_request, request head\n{}", request->base());
-                fmt::print("session: on_recv_request, request body\n{}", request->body());
+                fmt::print("session: on_recv_request, request head\n\t{}", request->base());
+                fmt::print("session: on_recv_request, request body\n\t{}", request->body());
                 if (errc || request->need_eof())
                     return close_socket(boost::asio::socket_base::shutdown_receive);
                 auto const target_path = concat_target_path(request->target());
@@ -73,15 +69,14 @@ namespace net::server
                 response->content_length(response_body.size());
                 response->keep_alive(request->keep_alive());
                 auto& response_ref = *response;
-                fmt::print("session: on_recv_request, response head {}\n", response->base());
+                fmt::print("session: on_recv_request, response head {}", response->base());
                 http::async_write(socket_, response_ref, on_send_response(std::move(response)));
             };
         }
 
         template<typename Body>
         folly::Function<void(boost::system::error_code, std::size_t)>
-            on_send_response(response_ptr<Body> response)
-        {
+            on_send_response(response_ptr<Body> response) {
             return[this, response = std::move(response)](boost::system::error_code errc, std::size_t transfer_size) mutable
             {
                 fmt::print("session: on_send_response, errc {}, last {}, transfer {}\n", errc, response->need_eof(), transfer_size);
@@ -91,8 +86,7 @@ namespace net::server
             };
         }
 
-        std::filesystem::path concat_target_path(boost::beast::string_view request_target) const
-        {
+        std::filesystem::path concat_target_path(boost::beast::string_view request_target) const {
             return std::filesystem::path{ root_path_ }.concat(request_target.begin(), request_target.end());
         }
     };

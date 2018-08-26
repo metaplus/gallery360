@@ -5,9 +5,9 @@ namespace meta
     template<typename Return, typename... Args>
     struct function_trait
     {
-        explicit constexpr function_trait(Return(*)(Args...)) { }
+        explicit constexpr function_trait(Return(*)(Args...)) {}
 
-        explicit constexpr function_trait(Return(&)(Args...)) { }
+        explicit constexpr function_trait(Return(&)(Args...)) {}
 
         using return_type = Return;
         using args_tuple = std::tuple<Args...>;
@@ -16,10 +16,10 @@ namespace meta
     };
 
     template<typename Return, typename... Args>
-    function_trait(Return(*)(Args...)) -> function_trait<Return, Args...>;
+    function_trait(Return(*)(Args...))->function_trait<Return, Args...>;
 
     template<typename Return, typename... Args>
-    function_trait(Return(&)(Args...)) -> function_trait<Return, Args...>;
+    function_trait(Return(&)(Args...))->function_trait<Return, Args...>;
 
     template<auto FreeFuncPtr>
     struct function
