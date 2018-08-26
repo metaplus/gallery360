@@ -6,14 +6,12 @@ namespace core
     {
     public:
         time_guard() :
-            time_mark_(std::chrono::steady_clock::now())
-        {}
+            time_mark_(std::chrono::steady_clock::now()) {}
         time_guard(const time_guard&) = delete;
         time_guard(time_guard&&) noexcept = default;
         time_guard& operator=(const time_guard&) = delete;
         time_guard& operator=(time_guard&&) noexcept = default;
-        ~time_guard()
-        {
+        ~time_guard() {
             //std::cout.setf(std::ios::hex);
             std::cout
                 << "thread@" << std::this_thread::get_id() << ' '
@@ -29,8 +27,7 @@ namespace core
     {
     public:
         explicit scope_guard(std::function<void()> release, bool ctor_invoke = false)
-            : release_(ctor_invoke ? release : std::move(release))
-        {
+            : release_(ctor_invoke ? release : std::move(release)) {
             if (ctor_invoke)
                 release();
         }
@@ -39,8 +36,7 @@ namespace core
         scope_guard(scope_guard&&) = default;
         scope_guard& operator=(const scope_guard&) = delete;
         scope_guard& operator=(scope_guard&& other) = default;
-        ~scope_guard()
-        {
+        ~scope_guard() {
             if (release_)
                 release_();
         }
@@ -55,15 +51,13 @@ namespace core
     public:
         explicit scope_guard_generic(const std::decay_t<Callable>&) = delete;
         explicit scope_guard_generic(std::decay_t<Callable>&& callable)
-            : std::decay_t<Callable>(std::move(callable))
-        {}
+            : std::decay_t<Callable>(std::move(callable)) {}
         scope_guard_generic() = delete;
         scope_guard_generic(const scope_guard_generic&) = delete;
         scope_guard_generic(scope_guard_generic&&) noexcept/*(std::is_nothrow_invocable_v<std::decay_t<Callable>>)*/ = default;
         scope_guard_generic& operator=(const scope_guard_generic&) = delete;
         scope_guard_generic& operator=(scope_guard_generic&&) noexcept/*(std::is_nothrow_invocable_v<std::decay_t<Callable>>)*/ = default;
-        ~scope_guard_generic()
-        {
+        ~scope_guard_generic() {
             operator()();
         }
 
@@ -74,8 +68,7 @@ namespace core
     namespace v2
     {
         template<typename Callable>
-        scope_guard_generic<std::decay_t<Callable>> make_guard(Callable&& callable)
-        {
+        scope_guard_generic<std::decay_t<Callable>> make_guard(Callable&& callable) {
             return scope_guard_generic<std::decay_t<Callable>>{ std::forward<Callable>(callable) };
         }
     }
@@ -94,8 +87,7 @@ namespace core
             explicit scope_guard_tuple(std::decay_t<Callable>&&... callable)
                 : std::decay_t<Callable>(std::move(callable))...
             {}
-            ~scope_guard_tuple()
-            {
+            ~scope_guard_tuple() {
                 (..., std::decay_t<Callable>::operator()());
                 //(..., &scope_guard_generic<std::decay_t<Callable>>::operator()(this));
             }
@@ -104,8 +96,7 @@ namespace core
         };
 
         template<typename... Callable>
-        scope_guard_tuple<std::decay_t<Callable>...> make_guard(Callable&&... callable)
-        {
+        scope_guard_tuple<std::decay_t<Callable>...> make_guard(Callable&&... callable) {
             return scope_guard_tuple<std::decay_t<Callable>...>{ std::forward<Callable>(callable)... };
         }
     }

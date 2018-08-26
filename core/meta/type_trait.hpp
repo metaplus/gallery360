@@ -55,7 +55,8 @@ namespace meta
     #ifdef CORE_USE_BOOST_FIBER
         , boost::fibers::promise<value<T>>
     #endif //CORE_USE_BOOST_FIBER
-    > {};
+    >
+    {};
 #endif
 
     template<typename T>

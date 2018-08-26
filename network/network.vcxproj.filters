@@ -39,9 +39,6 @@
     <ClInclude Include="session_base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="promise_base.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="server.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>

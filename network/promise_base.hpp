@@ -15,21 +15,18 @@ namespace net
         public:
             explicit promise_impl(Promise<T>&& promise)
                 : promise_base<T>()
-                , promise_(std::move(promise))
-            {}
+                , promise_(std::move(promise)) {}
 
             promise_impl(promise_impl const&) = delete;
             promise_impl(promise_impl&&) noexcept = default;
             promise_impl& operator=(promise_impl const&) = delete;
             promise_impl& operator=(promise_impl&&) noexcept = default;
 
-            void set_value(T&& value) override
-            {
+            void set_value(T&& value) override {
                 promise_.set_value(std::move(value));
             }
 
-            void set_exception(std::string_view message) override
-            {
+            void set_exception(std::string_view message) override {
                 promise_.set_exception(std::make_exception_ptr(std::runtime_error{ message.data() }));
             }
         };
@@ -50,8 +47,7 @@ namespace net
         virtual ~promise_base() = default;
 
         template<template<typename> typename Promise>
-        static std::unique_ptr<promise_base<T>> from(Promise<T>&& promise)
-        {
+        static std::unique_ptr<promise_base<T>> from(Promise<T>&& promise) {
             return std::make_unique<detail::promise_impl<T, Promise>>(std::move(promise));
         }
     };

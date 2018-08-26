@@ -7,7 +7,6 @@
 #pragma warning(disable: 4834)
 #include <boost/beast.hpp>
 #pragma warning(pop)
-#include <boost/property_tree/ptree.hpp>
 #include <folly/AtomicBitSet.h>
 
 static_assert(

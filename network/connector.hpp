@@ -24,13 +24,11 @@ namespace net::client
     public:
         explicit connector(boost::asio::io_context& context)
             : context_(context)
-            , resolver_(context)
-        {}
+            , resolver_(context) {}
 
         template<typename Protocal, typename ResponseBody>
         boost::future<session_ptr<Protocal, policy<ResponseBody>>>
-            establish_session(std::string host, std::string service)
-        {
+            establish_session(std::string host, std::string service) {
             boost::promise<boost::asio::ip::tcp::socket> promise_socket;
             auto future_socket = promise_socket.get_future();
             {
@@ -45,15 +43,13 @@ namespace net::client
                 }
             }
             return future_socket.then(
-                [this](boost::future<boost::asio::ip::tcp::socket> future_socket)
-                {
+                [this](boost::future<boost::asio::ip::tcp::socket> future_socket) {
                     return std::make_unique<session<Protocal, policy<ResponseBody>>>(
                         future_socket.get(), resolver_.get_executor().context());
                 });
         }
 
-        void fail_promises_then_close_resolver(boost::system::error_code errc)
-        {
+        void fail_promises_then_close_resolver(boost::system::error_code errc) {
             fmt::print(std::cerr, "resolver: close errc {}, errmsg {}\n", errc, errc.message());
             resolver_.cancel();
             for (auto& pending : *resolve_pendlist_.wlock())
@@ -64,23 +60,18 @@ namespace net::client
 
     private:
         folly::Function<void() const>
-            on_establish_session(std::list<pending>::iterator pending)
-        {
-            return [this, pending]
-            {
+            on_establish_session(std::list<pending>::iterator pending) {
+            return [this, pending] {
                 resolver_.async_resolve(pending->host, pending->service, on_resolve(pending));
             };
         }
 
         folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints) const>
-            on_resolve(std::list<pending>::iterator pending)
-        {
-            return [this, pending](boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints)
-            {
+            on_resolve(std::list<pending>::iterator pending) {
+            return [this, pending](boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints) {
                 fmt::print(std::cout, "connector: on_resolve errc {}, errmsg {}\n", errc, errc.message());
                 auto& promise_socket = pending->promise;
-                if (errc)
-                {
+                if (errc) {
                     promise_socket.set_exception(std::runtime_error{ errc.message() });
                     return fail_promises_then_close_resolver(errc);
                 }
@@ -98,14 +89,12 @@ namespace net::client
 
         folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint)>
             on_connect(std::unique_ptr<boost::asio::ip::tcp::socket> socket_ptr,
-                       boost::promise<socket_type>&& promise_socket)
-        {
+                       boost::promise<socket_type>&& promise_socket) {
             return[this, socket_ptr = std::move(socket_ptr), promise_socket = std::move(promise_socket)]
             (boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint) mutable
             {
                 fmt::print(std::cout, "connector: on_connect errc {}, errmsg {}\n", errc, errc.message());
-                if (errc)
-                {
+                if (errc) {
                     promise_socket.set_exception(std::runtime_error{ errc.message() });
                     return fail_promises_then_close_resolver(errc);
                 }

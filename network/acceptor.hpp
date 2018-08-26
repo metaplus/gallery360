@@ -19,31 +19,26 @@ namespace net::server
     public:
         acceptor(boost::asio::ip::tcp::endpoint endpoint, boost::asio::io_context& context, bool reuse_addr = false)
             : context_(context)
-            , acceptor_(context, endpoint, reuse_addr)
-        {
+            , acceptor_(context, endpoint, reuse_addr) {
             core::verify(acceptor_.is_open());
             fmt::print("acceptor: listen address {}, port {}\n", endpoint.address(), listen_port());
         }
 
         acceptor(uint16_t port, boost::asio::io_context& context, bool reuse_addr = false)
-            : acceptor(boost::asio::ip::tcp::endpoint{ boost::asio::ip::tcp::v4(), port }, context, reuse_addr)
-        {}
+            : acceptor(boost::asio::ip::tcp::endpoint{ boost::asio::ip::tcp::v4(), port }, context, reuse_addr) {}
 
-        uint16_t listen_port() const
-        {
+        uint16_t listen_port() const {
             return acceptor_.local_endpoint().port();
         }
 
         template<typename Protocal, typename ...SessionParams>
-        boost::future<session_ptr<Protocal>> listen_session(SessionParams&& ...args)
-        {
+        boost::future<session_ptr<Protocal>> listen_session(SessionParams&& ...args) {
             pending promise_socket;
             auto future_socket = promise_socket.get_future();
             {
                 auto wlock = socket_pendlist_.wlock();
                 wlock->emplace_back(std::move(promise_socket));
-                if (wlock->size() <= 1)
-                {
+                if (wlock->size() <= 1) {
                     auto const inactive = is_active(true);
                     assert(!inactive);
                     boost::asio::post(context_, on_listen_session());
@@ -57,33 +52,27 @@ namespace net::server
                     args_tuple = std::tuple_cat(std::make_tuple(future_socket.get(), std::ref(context_)), std::move(args));
                 return std::apply([this](boost::asio::ip::tcp::socket& socket,
                                          boost::asio::io_context& context,
-                                         SessionParams&& ...args) -> session_ptr<Protocal>
-                                  {
-                                      return std::make_unique<session<Protocal>>(std::move(socket), context,
-                                                                                 std::forward<SessionParams>(args)...);
+                                         SessionParams&& ...args) -> session_ptr<Protocal> {
+                                             return std::make_unique<session<Protocal>>(std::move(socket), context,
+                                                                                        std::forward<SessionParams>(args)...);
                                   }, args_tuple);
             });
         }
 
     private:
         folly::Function<void() const>
-            on_listen_session()
-        {
-            return [this]
-            {
+            on_listen_session() {
+            return [this] {
                 acceptor_.async_accept(on_accept());
             };
         }
 
         folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::socket socket)>
-            on_accept()
-        {
-            return [this](boost::system::error_code errc, boost::asio::ip::tcp::socket socket)
-            {
+            on_accept() {
+            return [this](boost::system::error_code errc, boost::asio::ip::tcp::socket socket) {
                 fmt::print(std::cout, "acceptor: handle accept errc {}, errmsg {}\n", errc, errc.message());
                 auto wlock = socket_pendlist_.wlock();
-                if (errc)
-                {
+                if (errc) {
                     for (auto& socket_pending : *wlock)
                         socket_pending.set_exception(std::make_exception_ptr(std::runtime_error{ "acceptor error" }));
                     wlock->clear();
@@ -91,8 +80,7 @@ namespace net::server
                 }
                 if (wlock->size() > 1)
                     boost::asio::post(context_, on_listen_session());
-                else
-                {
+                else {
                     auto const active = is_active(false);
                     assert(active);
                 }
@@ -102,8 +90,7 @@ namespace net::server
             };
         }
 
-        void close_acceptor(boost::system::error_code errc)
-        {
+        void close_acceptor(boost::system::error_code errc) {
             fmt::print(std::cerr, "acceptor: close errc {}, errmsg {}\n", errc, errc.message());
             acceptor_.cancel();
             acceptor_.close();
