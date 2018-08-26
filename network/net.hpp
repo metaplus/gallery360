@@ -45,6 +45,55 @@ namespace net
 		struct dash : http
 		{
 			int64_t last_tile_index = 1;
+
+			struct represent
+			{
+				int16_t id = 0;
+				int bandwidth = 0;
+				std::string media;
+				std::string initialization;
+			};
+
+			struct adaptation_set
+			{
+				std::string codecs;
+				std::string mime_type;
+				std::vector<represent> represents;
+			};
+
+			struct video_adaptation_set : adaptation_set
+			{
+				int16_t x = 0;
+				int16_t y = 0;
+				int16_t width = 0;
+				int16_t height = 0;
+			};
+
+			struct audio_adaptation_set : adaptation_set
+			{
+				int sample_rate = 0;
+			};
+
+			class parser
+			{
+				struct impl;
+				std::shared_ptr<impl> impl_;
+
+			public:
+				explicit parser(std::string_view xml_text);
+				parser(const parser&) = default;
+				parser(parser&&) = default;
+				parser& operator=(const parser&) = default;
+				parser& operator=(parser&&) = default;
+				~parser() = default;
+
+				std::string_view title() const;
+				std::pair<int16_t, int16_t> scale() const;
+				video_adaptation_set& video_set(int column, int row) const;
+				audio_adaptation_set& audio_set() const;
+
+				static std::chrono::milliseconds parse_duration(std::string_view duration);
+			};
 		};
 	}
 
@@ -77,11 +126,10 @@ namespace net
 		request.target(target.data());
 		request.keep_alive(true);
 		request.set(boost::beast::http::field::host, host);
-		//request.set(boost::beast::http::field::user_agent, "MetaPlusClient");
+		//request.set(boost::beast::http::field::user_agent, "MetaPlus");
 		return request;
 	}
 
-	std::string config_path(core::as_view_t) noexcept;
 	std::filesystem::path config_path() noexcept;
 	std::string config_entry(std::string_view entry_name);
 
