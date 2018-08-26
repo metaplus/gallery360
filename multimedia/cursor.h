@@ -23,14 +23,13 @@ namespace media
     struct cursor_base
     {
         using buffer_type = boost::beast::multi_buffer;
-        using const_iterator = buffer_type::const_buffers_type::const_iterator;
+        using const_iterator = boost::beast::multi_buffer::const_buffers_type::const_iterator;
     };
 
     struct cursor
     {
         using buffer_type = boost::beast::multi_buffer;
-        using const_iterator = buffer_type::const_buffers_type::const_iterator;
-
+        using const_iterator = boost::beast::multi_buffer::const_buffers_type::const_iterator;
         const_iterator const buffer_begin;
         const_iterator const buffer_end;
         const_iterator buffer_iter;
@@ -93,66 +92,18 @@ namespace media
         boost::future<buffer_type> future_buffer;
         bool eof = false;
 
-        forward_cursor_stream(buffer_supplier&& supplier)
-            : on_future_buffer(std::move(supplier))
-            , future_buffer(on_future_buffer())
-        {}
-
+        explicit forward_cursor_stream(buffer_supplier&& supplier);
         ~forward_cursor_stream() override = default;
 
-        bool shift_next_buffer()
-        {
-            try
-            {
-                current_buffer = future_buffer.get();  // exception point
-                io_base = random_access_curser::create(current_buffer.value());
-                future_buffer = on_future_buffer();
-            }
-            catch (...)
-            {
-                return false;
-            }
-            return true;
-        }
+        bool shift_next_buffer();
 
-        int read(uint8_t* buffer, int expect_size) override
-        {
-            if (eof || !current_buffer.has_value() && !shift_next_buffer())
-            {
-                fmt::print("----- eof\n");
-                return AVERROR_EOF;
-            }
-            auto total_read_size = 0;
-            auto increment_read_size = 0;
-            fmt::print("----- start expect {}\n", expect_size);
-            while (total_read_size < expect_size)
-            {
-                increment_read_size = io_base->read(buffer + total_read_size, expect_size - total_read_size);
-                if (increment_read_size == AVERROR_EOF)
-                {
-                    fmt::print("rebuild\n");
-                    if (!shift_next_buffer())
-                    {
-                        eof = true;
-                        break;
-                    }
-                    increment_read_size = io_base->read(buffer + total_read_size, expect_size - total_read_size);
-                }
-                assert(increment_read_size > 0);
-                total_read_size += increment_read_size;
-            }
-            fmt::print("----- end total read {}\n", total_read_size);
-            return total_read_size;
-        }
+        int read(uint8_t* buffer, int expect_size) override;
         int write(uint8_t* buffer, int size) override { throw 1; }
         int64_t seek(int64_t seek_offset, int whence) override { throw 1; }
         bool readable() override { return true; }
         bool writable() override { return false; }
         bool seekable() override { return false; }
 
-        static std::shared_ptr<forward_cursor_stream> create(buffer_supplier&& supplier)
-        {
-            return std::make_shared<forward_cursor_stream>(std::move(supplier));
-        }
+        static std::shared_ptr<forward_cursor_stream> create(buffer_supplier&& supplier);
     };
 }

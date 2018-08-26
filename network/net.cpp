@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "net.hpp"
+#include <boost/property_tree/xml_parser.hpp>
 
 std::string net::config_path(core::as_view_t) noexcept
 {

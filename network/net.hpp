@@ -56,6 +56,7 @@ namespace net
         }
     }
 
+#if __has_include(<!folly/executors/thread_factory/NamedThreadFactory.h>)
     inline std::vector<std::thread> create_asio_threads(boost::asio::io_context& context,
                                                         uint32_t num = std::thread::hardware_concurrency()) {
         std::vector<std::thread> threads(num);
@@ -66,6 +67,7 @@ namespace net
                       });
         return threads;
     }
+#endif
 
     template<typename... Options>
     struct policy;
