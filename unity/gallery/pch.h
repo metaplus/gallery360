@@ -17,9 +17,6 @@
 #pragma warning(disable:4267 4834)
 
 //#include <cereal/types/variant.hpp>
-#define BOOST_ASIO_NO_DEPRECATED
-#define BOOST_ASIO_USE_FUTURE_HPP
-#include <boost/asio.hpp>
 //#include <boost/interprocess/ipc/message_queue.hpp>
 
 #pragma warning(pop)
@@ -40,12 +37,5 @@
 #define UNITYAPI  __declspec(dllimport) __stdcall
 #endif  // GALLERY_EXPORTS
 
-#include <d3d11.h>
-#include "gallery/openvr.h"
-#include "unity/detail/PlatformBase.h"
-#include "unity/detail/IUnityInterface.h"
-#include "unity/detail/IUnityGraphics.h"
-#include "unity/detail/IUnityGraphicsD3D11.h"
 //#include "unity/gallery/interprocess.h"
-#include "unity/gallery/dll.h"
 #include "unity/gallery/export.h"

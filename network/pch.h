@@ -9,13 +9,6 @@
 #pragma warning(pop)
 #include <folly/AtomicBitSet.h>
 
-static_assert(
-    std::conjunction<
-    std::is_same<boost::asio::ip::tcp::socket, boost::asio::basic_stream_socket<boost::asio::ip::tcp>>,
-    std::is_same<boost::asio::ip::udp::socket, boost::asio::basic_datagram_socket<boost::asio::ip::udp>>,
-    std::is_same<boost::asio::ip::icmp::socket, boost::asio::basic_raw_socket<boost::asio::ip::icmp>>
-    >::value);
-
 #include "network/net.hpp"
 #include "network/executor_guard.hpp"
 #include "network/promise_base.hpp"

@@ -26,10 +26,8 @@ namespace media
         using const_iterator = boost::beast::multi_buffer::const_buffers_type::const_iterator;
     };
 
-    struct cursor
+    struct cursor : cursor_base
     {
-        using buffer_type = boost::beast::multi_buffer;
-        using const_iterator = boost::beast::multi_buffer::const_buffers_type::const_iterator;
         const_iterator const buffer_begin;
         const_iterator const buffer_end;
         const_iterator buffer_iter;
