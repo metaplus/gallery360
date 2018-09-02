@@ -7,7 +7,7 @@ namespace net::server
 
     template<>
     class acceptor<boost::asio::ip::tcp>
-        : detail::state_base
+        : state_base
         , protocal::tcp::protocal_base
     {
         using pending = boost::promise<boost::asio::ip::tcp::socket>;

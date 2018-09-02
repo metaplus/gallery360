@@ -119,7 +119,7 @@ namespace dll
                     });
             }
             return boost::make_exceptional_future<media::cursor_base::buffer_type>(std::runtime_error{ "LastDashTile" });
-        };
+        }; 
     }
 
     std::pair<int, int> player_context::resolution() {

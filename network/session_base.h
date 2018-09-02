@@ -1,6 +1,6 @@
 #pragma once
 
-namespace net::detail
+namespace detail
 {
     template<typename Socket, typename RecvBuffer>
     class session_base;

@@ -17,11 +17,11 @@
 #pragma warning(disable: 4996)
 #define CORE_USE_BOOST_ASIO
 #include "core/pch.h"
-#include "multimedia/pch.h"
-#include "network/pch.h"
+//#include "multimedia/pch.h"
+//#include "network/pch.h"
 //#include "gallery/pch.h"
 //#include "gallery/export.h"
 
 #pragma comment(lib, "core")
-#pragma comment(lib, "multimedia")
+//#pragma comment(lib, "multimedia")
 //#pragma comment(lib, "gallery")

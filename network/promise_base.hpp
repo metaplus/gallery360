@@ -4,34 +4,39 @@ namespace net
 {
     template<typename T>
     class promise_base;
+}
 
-    namespace detail
+namespace detail
+{
+    using net::promise_base;
+
+    template<typename T, template<typename> typename Promise>
+    class promise_impl final : public promise_base<T>
     {
-        template<typename T, template<typename> typename Promise>
-        class promise_impl final : public promise_base<T>
-        {
-            Promise<T> promise_;
+        Promise<T> promise_;
 
-        public:
-            explicit promise_impl(Promise<T>&& promise)
-                : promise_base<T>()
-                , promise_(std::move(promise)) {}
+    public:
+        explicit promise_impl(Promise<T>&& promise)
+            : promise_base<T>()
+            , promise_(std::move(promise)) {}
 
-            promise_impl(promise_impl const&) = delete;
-            promise_impl(promise_impl&&) noexcept = default;
-            promise_impl& operator=(promise_impl const&) = delete;
-            promise_impl& operator=(promise_impl&&) noexcept = default;
+        promise_impl(promise_impl const&) = delete;
+        promise_impl(promise_impl&&) noexcept = default;
+        promise_impl& operator=(promise_impl const&) = delete;
+        promise_impl& operator=(promise_impl&&) noexcept = default;
 
-            void set_value(T&& value) override {
-                promise_.set_value(std::move(value));
-            }
+        void set_value(T&& value) override {
+            promise_.set_value(std::move(value));
+        }
 
-            void set_exception(std::string_view message) override {
-                promise_.set_exception(std::make_exception_ptr(std::runtime_error{ message.data() }));
-            }
-        };
-    }
+        void set_exception(std::string_view message) override {
+            promise_.set_exception(std::make_exception_ptr(std::runtime_error{ message.data() }));
+        }
+    };
+}
 
+namespace net
+{
     template<typename T>
     class promise_base
     {

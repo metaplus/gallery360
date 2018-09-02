@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "CppUnitTest.h"
 #include <fstream>
-
+#include <boost/beast/core/multi_buffer.hpp>
+#include <boost/beast/core/ostream.hpp>
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace test

@@ -26,22 +26,10 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="feature_test.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="folly_test.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="media_test.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="xml_test.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="boost_test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="spdlog_test.cpp">
+    <ClCompile Include="network_test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
