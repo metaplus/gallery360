@@ -38,5 +38,11 @@
     <ClCompile Include="xml_test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="boost_test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spdlog_test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

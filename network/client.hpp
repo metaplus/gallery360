@@ -45,7 +45,7 @@ namespace net::client
             auto request_ptr = std::make_unique<http::request<RequestBody>>(std::move(request));
             auto& request_ref = *request_ptr;
             http::async_write(socket_, request_ref, on_send_request(std::move(request_ptr)));
-            auto const inactive = is_active(true);
+            [[maybe_unused]] auto const inactive = is_active(true);
             std::atomic_fetch_add(&round_trip_index_, 1);
             return promise_response_.get_future();
         }

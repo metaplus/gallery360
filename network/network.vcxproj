@@ -159,6 +159,7 @@
   <ItemGroup>
     <ClInclude Include="acceptor.hpp" />
     <ClInclude Include="client.hpp" />
+    <ClInclude Include="component.h" />
     <ClInclude Include="connector.hpp" />
     <ClInclude Include="net.hpp" />
     <ClInclude Include="pch.h" />
@@ -169,6 +170,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="acceptor.cpp" />
+    <ClCompile Include="component.cpp" />
     <ClCompile Include="connector.cpp" />
     <ClCompile Include="net.cpp" />
     <ClCompile Include="stdafx.cpp">

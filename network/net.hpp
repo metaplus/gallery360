@@ -143,23 +143,20 @@ namespace net
         }
     }
 
-    namespace detail
+    class state_base
     {
-        class state_base
-        {
-            enum state_index { active, state_size };
-            folly::AtomicBitSet<state_size> state_;
+        enum state_index { active, state_size };
+        folly::AtomicBitSet<state_size> state_;
 
-        protected:
-            bool is_active() const {
-                return state_.test(active, std::memory_order_acquire);
-            }
+    protected:
+        bool is_active() const {
+            return state_.test(active, std::memory_order_acquire);
+        }
 
-            bool is_active(bool active) {
-                return state_.set(state_index::active, active, std::memory_order_release);
-            }
-        };
-    }
+        bool is_active(bool active) {
+            return state_.set(state_index::active, active, std::memory_order_release);
+        }
+    };
 }
 
 template<typename Protocal>
