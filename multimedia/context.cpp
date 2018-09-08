@@ -3,18 +3,20 @@
 
 media::io_context::io_context(std::shared_ptr<io_base> io)
     : io_base_(std::move(io))
-    , io_handle_(avio_alloc_context(static_cast<uint8_t*>(av_malloc(default_cache_page_size)),
-                                    default_cache_page_size, default_buffer_writable, io_base_.get(),
-                                    io_base_->readable() ? on_read_buffer : nullptr,
-                                    io_base_->writable() ? on_write_buffer : nullptr,
-                                    io_base_->seekable() ? on_seek_stream : nullptr),
-                 [](pointer ptr) { av_freep(&ptr->buffer);  av_freep(&ptr); }) {
+    , io_handle_(
+        avio_alloc_context(
+            static_cast<uint8_t*>(av_malloc(default_cache_page_size)),
+            default_cache_page_size, default_buffer_writable, &io_base_, //io_base_.get(),
+            io_base_->readable() ? on_read_buffer : nullptr,
+            io_base_->writable() ? on_write_buffer : nullptr,
+            io_base_->seekable() ? on_seek_stream : nullptr),
+        [](pointer ptr) { av_freep(&ptr->buffer);  av_freep(&ptr); }) {
     assert(io_base_ != nullptr);
     assert(io_handle_ != nullptr);
 }
 
-media::io_context::io_context(cursor::buffer_type const& buffer)
-    : io_context(std::make_shared<random_access_curser>(buffer)) {}
+media::io_context::io_context(const multi_buffer& buffer)
+    : io_context(std::make_shared<random_access_cursor>(buffer)) {}
 
 media::io_context::io_context(read_context&& read, write_context&& write, seek_context&& seek)
     : io_context(std::make_shared<generic_cursor>(std::move(read), std::move(write), std::move(seek))) {}
@@ -27,16 +29,20 @@ media::io_context::operator bool() const {
     return io_handle_ != nullptr && io_base_ != nullptr;
 }
 
+std::shared_ptr<media::io_base> media::io_context::exchange_io_base(std::shared_ptr<io_base> io_base) {
+    return std::exchange(io_base_, io_base);
+}
+
 int media::io_context::on_read_buffer(void* opaque, uint8_t* buffer, int size) {
-    return static_cast<io_base*>(opaque)->read(buffer, size);
+    return static_cast<std::shared_ptr<io_base>*>(opaque)->get()->read(buffer, size);
 }
 
 int media::io_context::on_write_buffer(void* opaque, uint8_t* buffer, int size) {
-    return static_cast<io_base*>(opaque)->write(buffer, size);
+    return static_cast<std::shared_ptr<io_base>*>(opaque)->get()->write(buffer, size);
 }
 
 int64_t media::io_context::on_seek_stream(void* opaque, int64_t offset, int whence) {
-    return static_cast<io_base*>(opaque)->seek(offset, whence);
+    return static_cast<std::shared_ptr<io_base>*>(opaque)->get()->seek(offset, whence);
 }
 
 #ifdef MULTIMEDIA_USE_LEGACY

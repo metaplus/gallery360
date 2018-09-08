@@ -21,6 +21,7 @@ namespace net::server
         acceptor(uint16_t port, boost::asio::io_context& context, bool reuse_addr = false);
 
         uint16_t listen_port() const;
+
         boost::future<socket_type> async_listen_socket(pending&& pending);
 
         template<typename Protocal, typename ...SessionParams>
@@ -42,8 +43,10 @@ namespace net::server
     private:
         folly::Function<void() const>
             on_listen_session();
+
         folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::socket socket)>
             on_accept();
+
         void close_acceptor(boost::system::error_code errc);
     };
 

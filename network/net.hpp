@@ -2,6 +2,24 @@
 
 namespace net
 {
+    std::vector<boost::thread*> create_asio_threads(boost::asio::io_context& context,
+                                                    boost::thread_group& thread_group,
+                                                    uint32_t num = std::thread::hardware_concurrency());
+    std::vector<std::thread> create_asio_named_threads(boost::asio::io_context& context,
+                                                       uint32_t num = std::thread::hardware_concurrency());
+
+    template<typename... Options>
+    struct policy;
+
+    inline constexpr size_t default_max_chunk_size = 128_kbyte;
+    inline constexpr size_t default_max_chunk_quantity = 1024;
+
+    using boost::beast::http::empty_body;
+    using boost::beast::http::string_body;
+    using boost::beast::http::dynamic_body;
+    using boost::beast::multi_buffer;
+    using boost::beast::flat_buffer;
+
     namespace protocal
     {
         struct http
@@ -67,6 +85,8 @@ namespace net
                 int16_t y = 0;
                 int16_t width = 0;
                 int16_t height = 0;
+                int64_t index = 0;
+                std::optional<folly::Function<void()>> consumer;
             };
 
             struct audio_adaptation_set : adaptation_set
@@ -88,7 +108,10 @@ namespace net
                 ~parser() = default;
 
                 std::string_view title() const;
-                std::pair<int16_t, int16_t> scale() const;
+                std::pair<int16_t, int16_t> grid_size() const;
+                std::pair<int16_t, int16_t> scale_size() const;
+
+                std::vector<video_adaptation_set>& video_set() const;
                 video_adaptation_set& video_set(int column, int row) const;
                 audio_adaptation_set& audio_set() const;
 
@@ -104,18 +127,6 @@ namespace net
             inline struct use_chunk_t {} use_chunk;
         }
     }
-
-    std::vector<boost::thread*> create_asio_threads(boost::asio::io_context& context,
-                                                    boost::thread_group& thread_group,
-                                                    uint32_t num = std::thread::hardware_concurrency());
-    std::vector<std::thread> create_asio_named_threads(boost::asio::io_context& context,
-                                                       uint32_t num = std::thread::hardware_concurrency());
-
-    template<typename... Options>
-    struct policy;
-
-    inline constexpr size_t default_max_chunk_size{ 128_kbyte };
-    inline constexpr size_t default_max_chunk_quantity{ 1024 };
 
     template<typename Body>
     boost::beast::http::request<Body> make_http_request(std::string_view host, std::string_view target) {
@@ -157,6 +168,10 @@ namespace net
             return state_.set(state_index::active, active, std::memory_order_release);
         }
     };
+
+    struct asio_deleter;
+
+    std::shared_ptr<boost::asio::io_context> create_running_asio_pool(unsigned concurrency);
 }
 
 template<typename Protocal>

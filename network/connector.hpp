@@ -25,7 +25,8 @@ namespace net::client
         explicit connector(boost::asio::io_context& context);
 
         boost::future<boost::asio::ip::tcp::socket> async_connect_socket(pending&& pending);
-        void fail_promises_then_close_resolver(boost::system::error_code errc);
+
+        void close_promises_and_resolver(boost::system::error_code errc);
 
         template<typename Protocal, typename ResponseBody>
         boost::future<session_ptr<Protocal, policy<ResponseBody>>>
@@ -42,8 +43,10 @@ namespace net::client
     private:
         folly::Function<void() const>
             on_establish_session(std::list<pending>::iterator pending);
+
         folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::resolver::results_type endpoints) const>
             on_resolve(std::list<pending>::iterator pending);
+
         folly::Function<void(boost::system::error_code errc, boost::asio::ip::tcp::endpoint endpoint)>
             on_connect(std::unique_ptr<boost::asio::ip::tcp::socket> socket_ptr,
                        boost::promise<socket_type>&& promise_socket);

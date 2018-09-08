@@ -31,6 +31,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "multimedia", "..\multimedia
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test\test.vcxproj", "{4F037041-8432-4B38-9746-96D17CE5EF5A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{900DE24F-834C-4095-B20E-0B1785F1913B} = {900DE24F-834C-4095-B20E-0B1785F1913B}
+		{9057A59A-B55F-42E0-9121-072432C0826D} = {9057A59A-B55F-42E0-9121-072432C0826D}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

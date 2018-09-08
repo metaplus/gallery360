@@ -170,6 +170,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="acceptor.cpp" />
+    <ClCompile Include="client.cpp" />
     <ClCompile Include="component.cpp" />
     <ClCompile Include="connector.cpp" />
     <ClCompile Include="net.cpp" />

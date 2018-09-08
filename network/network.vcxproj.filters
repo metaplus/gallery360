@@ -62,6 +62,9 @@
     <ClCompile Include="component.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Xml Include="config.xml">

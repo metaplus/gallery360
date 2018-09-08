@@ -162,6 +162,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="component.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="cursor.h" />
     <ClInclude Include="ffmpeg.h" />
@@ -170,6 +171,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="component.cpp" />
     <ClCompile Include="context.cpp" />
     <ClCompile Include="cursor.cpp" />
     <ClCompile Include="ffmpeg.cpp" />

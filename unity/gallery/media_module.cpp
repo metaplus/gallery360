@@ -79,7 +79,7 @@ namespace dll
         {
             auto request = net::make_http_request<request_body>(uri_.host(), uri_.path());
             auto net_client = future_net_client_.get();
-            auto cursor_stream = media::forward_cursor_stream::create(on_tile_cursor(net_client));
+            auto cursor_stream = media::forward_stream_cursor::create(on_tile_cursor(net_client));
             media::io_context media_io{ cursor_stream };
             media::format_context media_format{ media_io, true };
             frame_amount_ = media_format.demux(media::type::video)->nb_frames;

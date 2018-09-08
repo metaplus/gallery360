@@ -16,66 +16,7 @@ namespace detail
     using response_container = net::protocal::http::protocal_base::response_type<response_body>;
     using net_session_ptr = net::client::session_ptr<protocal_type, net::policy<response_body>>;
     using ordinal = std::pair<int16_t, int16_t>;
-
-    const auto logger = spdlog::stdout_color_mt("net.component");
-    boost::thread_group net_threads;
-
-    auto create_running_asio_pool() {
-        struct asio_deleter : std::default_delete<boost::asio::io_context>
-        {
-            using resource = boost::asio::io_context;
-            using guardian = boost::asio::executor_work_guard<resource::executor_type>;
-            std::unique_ptr<guardian> guard;
-            std::vector<boost::thread*> threads;
-
-            asio_deleter() = default;
-            asio_deleter(asio_deleter const&) = delete;
-            asio_deleter(asio_deleter&&) noexcept = default;
-            asio_deleter& operator=(asio_deleter const&) = delete;
-            asio_deleter& operator=(asio_deleter&&) noexcept = default;
-            ~asio_deleter() = default;
-
-            explicit asio_deleter(resource* io_context)
-                : guard(std::make_unique<guardian>(boost::asio::make_work_guard(*io_context))) {
-                std::generate_n(
-                    std::back_inserter(threads),
-                    config::net_thread_count,
-                    [this, io_context] {
-                        return net_threads.create_thread(
-                            [this, io_context] {
-                                const auto thread_id = boost::this_thread::get_id();
-                                try {
-                                    logger->info("asio thread {} start", thread_id);
-                                    io_context->run();
-                                    logger->info("asio thread {} finish", thread_id);
-                                } catch (...) {
-                                    const auto message = boost::current_exception_diagnostic_information();
-                                    logger->error("asio thread {} error {}", thread_id, message);
-                                }
-                                logger->info("asio thread {} exit", thread_id);
-                            });
-                    });
-            }
-            void operator()(resource* io_context) {
-                guard->reset();
-                auto join_count = 0;
-                for (auto* const thread : threads) {
-                    if (thread->joinable()) {
-                        thread->join();
-                        ++join_count;
-                    }
-                }
-                logger->info("asio thread_group join count {}", join_count);
-                static_cast<default_delete&>(*this)(io_context);
-                logger->info("asio io_context destructed");
-            }
-        };
-        auto* io_context = new boost::asio::io_context();
-        return std::unique_ptr<boost::asio::io_context, asio_deleter>{
-            io_context, asio_deleter{ io_context }
-        };
-    }
-    using io_context_ptr = std::invoke_result_t<decltype(create_running_asio_pool)>;
+    using io_context_ptr = std::invoke_result_t<decltype(&net::create_running_asio_pool), unsigned>;
 }
 namespace net::error
 {
@@ -87,7 +28,9 @@ namespace net::error
 }
 namespace net::component
 {
-    //-- dash_stream_context
+    const auto logger = spdlog::stdout_color_mt("net.component.dash.manager");
+
+    //-- dash_manager
     struct dash_manager::impl
     {
         detail::io_context_ptr io_context;
@@ -95,10 +38,9 @@ namespace net::component
         std::optional<folly::Uri> mpd_uri;
         std::optional<protocal::dash::parser> mpd_parser;
         std::optional<client::connector<protocal::tcp>> connector;
-        struct pending_task
-        {
-            boost::future<detail::net_session_ptr> future_session_ptr;
-        } pending;
+        folly::Function<double(ordinal)> predictor = [](auto&&) { return 1; };
+        frame_consumer_builder consumer_builder;
+
         struct deleter : std::default_delete<impl>
         {
             void operator()(impl* impl) noexcept {
@@ -106,37 +48,98 @@ namespace net::component
                 static_cast<default_delete&>(*this)(impl);
             }
         };
+
     };
-    dash_manager::dash_manager(std::string&& mpd_url)
+
+    dash_manager::dash_manager(std::string&& mpd_url, unsigned concurrency)
         : impl_(new impl{}, impl::deleter{}) {
-        impl_->io_context = detail::create_running_asio_pool();
+        impl_->io_context = net::create_running_asio_pool(concurrency);
         impl_->mpd_uri.emplace(mpd_url);
         impl_->connector.emplace(*impl_->io_context);
-        impl_->pending.future_session_ptr = impl_->connector
-            ->establish_session<detail::protocal_type, detail::response_body>(
-                impl_->mpd_uri->host(), std::to_string(impl_->mpd_uri->port()));
     }
+
     boost::future<dash_manager> dash_manager::async_create_parsed(std::string mpd_url) {
         static_assert(std::is_move_assignable<dash_manager>::value);
+        logger->info("async_create_parsed @{} chain start", boost::this_thread::get_id());
         dash_manager dash_manager{ std::move(mpd_url) };
-        return dash_manager.impl_->pending.future_session_ptr
-            .then(
-                boost::launch::sync,
-                [dash_manager](boost::future<detail::net_session_ptr> future_session) {
-                    dash_manager.impl_->net_client = future_session.get();
-                    return dash_manager.impl_->net_client
-                        ->async_send_request(net::make_http_request<detail::request_body>(
-                            dash_manager.impl_->mpd_uri->host(), dash_manager.impl_->mpd_uri->path()));
-                })
-            .unwrap().then(
-                boost::launch::sync,
-                [dash_manager](boost::future<detail::response_container> future_response) {
-                    auto response = future_response.get();
-                    if (response.result() != boost::beast::http::status::ok)
-                        core::throw_with_stacktrace(error::http_bad_request{ __PRETTY_FUNCTION__ });
-                    auto mpd_content = boost::beast::buffers_to_string(response.body().data());
-                    dash_manager.impl_->mpd_parser.emplace(mpd_content);
-                    return dash_manager;
-                });
+        return boost::async(
+            [dash_manager] {
+                logger->info("async_create_parsed @{} establish session", boost::this_thread::get_id());
+                auto session_ptr = dash_manager.impl_->connector
+                    ->establish_session<detail::protocal_type, detail::response_body>(
+                        dash_manager.impl_->mpd_uri->host(), std::to_string(dash_manager.impl_->mpd_uri->port()));
+                return session_ptr.get();
+            }
+        ).then(
+            [dash_manager](boost::future<detail::net_session_ptr> future_session) {
+                logger->info("async_create_parsed @{} send request", boost::this_thread::get_id());
+                dash_manager.impl_->net_client = future_session.get();
+                return dash_manager.impl_->net_client
+                    ->async_send_request(net::make_http_request<detail::request_body>(
+                        dash_manager.impl_->mpd_uri->host(), dash_manager.impl_->mpd_uri->path()));
+            }
+        ).unwrap().then(
+            [dash_manager](boost::future<detail::response_container> future_response) {
+                logger->info("async_create_parsed @{} parse mpd", boost::this_thread::get_id());
+                auto response = future_response.get();
+                if (response.result() != boost::beast::http::status::ok)
+                    core::throw_with_stacktrace(error::http_bad_request{ __FUNCSIG__ });
+                auto mpd_content = boost::beast::buffers_to_string(response.body().data());
+                dash_manager.impl_->mpd_parser.emplace(mpd_content);
+                return dash_manager;
+            });
+    }
+
+    std::pair<int16_t, int16_t> dash_manager::scale_size() const {
+        return impl_->mpd_parser->scale_size();
+    }
+
+    std::pair<int16_t, int16_t> dash_manager::grid_size() const {
+        return impl_->mpd_parser->grid_size();
+    }
+
+    folly::Function<multi_buffer()>
+        dash_manager::tile_supplier(
+            int row, int column, folly::Function<double()> predictor) {
+        auto& video_set = impl_->mpd_parser->video_set(column, row);
+        auto represent_predictor =
+            [&video_set, predictor = std::move(predictor)]()->decltype(auto) {
+            auto& video_represents = video_set.represents;
+            const auto predict_index = boost::numeric_cast<size_t>(
+                video_represents.size()*std::invoke(core::as_mutable(predictor)));
+            return video_represents.at(std::max(predict_index, video_represents.size() - 1));
+        };
+        return[&video_set, represent_predictor = std::move(represent_predictor)]{
+            multi_buffer x;
+            return multi_buffer{};
+        };
+    }
+
+    void dash_manager::register_represent_consumer(frame_consumer_builder builder) const {
+        impl_->consumer_builder = std::move(builder);
+    }
+
+    void dash_manager::wait_all_tile_consumed() {
+        for (auto& video_set : impl_->mpd_parser->video_set()) {
+            try
+            {
+              
+            }
+            catch (...)
+            {
+                
+            }
+        }
+    }
+
+    folly::Function<size_t(dash_manager::ordinal)>
+        dash_manager::represent_indexer(folly::Function<double()> probability) {
+        return[this, probability = std::move(probability)](ordinal ordinal) mutable {
+            const auto[x, y] = ordinal;
+            auto& video_set = impl_->mpd_parser->video_set(x, y);
+            const auto represent_size = video_set.represents.size();
+            const auto predict_index = boost::numeric_cast<size_t>(represent_size*std::invoke(probability));
+            return std::max(predict_index, represent_size - 1);
+        };
     }
 }

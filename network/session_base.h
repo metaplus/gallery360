@@ -2,17 +2,17 @@
 
 namespace detail
 {
-    template<typename Socket, typename RecvBuffer>
+    template<typename Socket, typename Buffer>
     class session_base;
 
-    template<typename Protocal, typename RecvBuffer>
-    class session_base<boost::asio::basic_stream_socket<Protocal>, RecvBuffer>
+    template<typename Protocal, typename Buffer>
+    class session_base<boost::asio::basic_stream_socket<Protocal>, Buffer>
     {
         enum state_index { active, serialize, chunked, state_size };
         folly::AtomicBitSet<state_size> state_;
 
     protected:
-        using buffer_type = RecvBuffer;
+        using buffer_type = Buffer;
 
         boost::asio::io_context& context_;
         boost::asio::basic_stream_socket<Protocal> socket_;
@@ -25,6 +25,12 @@ namespace detail
                      boost::asio::io_context& context)
             : context_(context)
             , socket_(std::move(socket)) {}
+
+        bool operator<(const session_base& that) const
+        {
+            using basic_socket_type = boost::asio::basic_socket<Protocal>;
+            return std::less<basic_socket_type>{}(socket_, that.socket_);
+        }
 
         void reserve_recvbuf_capacity(size_t size = boost::asio::detail::default_max_transfer_size) {
             recvbuf_.prepare(size);
@@ -41,7 +47,7 @@ namespace detail
         }
 
         template<typename U>
-        void fail_promise_then_close_socket(boost::promise<U>& promise, boost::system::error_code errc,
+        void close_promise_and_socket(boost::promise<U>& promise, boost::system::error_code errc,
                                             boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
             promise.set_exception(std::runtime_error{ errc.message() });
             close_socket(errc, operation);

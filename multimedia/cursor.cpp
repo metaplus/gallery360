@@ -4,13 +4,13 @@
 namespace media
 {
     //-- cursor
-    cursor::cursor(buffer_type const & buffer)
+    cursor::cursor(const multi_buffer& buffer)
         : buffer_begin(boost::asio::buffer_sequence_begin(buffer.data()))
         , buffer_end(boost::asio::buffer_sequence_end(buffer.data()))
         , buffer_iter(buffer_begin) {
         auto& buffer_sizes = core::as_mutable(this->buffer_sizes);
         std::transform(buffer_begin, buffer_end, std::back_inserter(buffer_sizes),
-                       [](const_iterator::reference buffer) { return boost::asio::buffer_size(buffer); });
+                       [](const_buffer_iterator::reference buffer) { return boost::asio::buffer_size(buffer); });
         //std::partial_sum(buffer_sizes.begin(), buffer_sizes.end(), buffer_sizes.begin());
     }
 
@@ -69,10 +69,10 @@ namespace media
     }
 
     //-- random_access_curser
-    random_access_curser::random_access_curser(buffer_type const& buffer)
+    random_access_cursor::random_access_cursor(const multi_buffer& buffer)
         : cursor(buffer) {}
 
-    int random_access_curser::read(uint8_t* buffer, int expect_size) {
+    int random_access_cursor::read(uint8_t* buffer, int expect_size) {
         if (buffer_iter == buffer_end)
             return AVERROR_EOF;
         auto total_read_size = 0;
@@ -94,11 +94,11 @@ namespace media
         return boost::numeric_cast<int>(total_read_size);
     }
 
-    int random_access_curser::write(uint8_t* buffer, int size) {
-        throw core::not_implemented_error{ __PRETTY_FUNCTION__ };
+    int random_access_cursor::write(uint8_t* buffer, int size) {
+        throw core::not_implemented_error{ __FUNCSIG__ };
     }
 
-    int64_t random_access_curser::seek(int64_t seek_offset, int whence) {
+    int64_t random_access_cursor::seek(int64_t seek_offset, int whence) {
         switch (whence) {
         case SEEK_SET: fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
             break;
@@ -110,44 +110,44 @@ namespace media
             break;
         case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
             return sequence_size();
-        default: throw core::unreachable_execution_branch{ __PRETTY_FUNCTION__ };
+        default:
+            throw core::unreachable_execution_branch{ __FUNCSIG__ };
         }
         return seek_sequence(seek_offset);
     }
 
-    bool random_access_curser::readable() {
+    bool random_access_cursor::readable() {
         return true;
     }
 
-    bool random_access_curser::writable() {
+    bool random_access_cursor::writable() {
         return false;
     }
 
-    bool random_access_curser::seekable() {
+    bool random_access_cursor::seekable() {
         return true;
     }
 
-    std::shared_ptr<random_access_curser> random_access_curser::create(buffer_type const& buffer) {
-        return std::make_shared<random_access_curser>(buffer);
+    std::shared_ptr<random_access_cursor> random_access_cursor::create(const multi_buffer& buffer) {
+        return std::make_shared<random_access_cursor>(buffer);
     }
 
-    forward_cursor_stream::forward_cursor_stream(buffer_supplier&& supplier)
+    forward_stream_cursor::forward_stream_cursor(buffer_supplier&& supplier)
         : on_future_buffer(std::move(supplier))
         , future_buffer(on_future_buffer()) {}
 
-    bool forward_cursor_stream::shift_next_buffer() {
+    bool forward_stream_cursor::shift_next_buffer() {
         try {
             current_buffer = future_buffer.get(); // exception point
-            io_base = random_access_curser::create(current_buffer.value());
+            io_base = random_access_cursor::create(current_buffer.value());
             future_buffer = on_future_buffer();
-        }
-        catch (...) {
+        } catch (...) {
             return false;
         }
         return true;
     }
 
-    int forward_cursor_stream::read(uint8_t* buffer, int expect_size) {
+    int forward_stream_cursor::read(uint8_t* buffer, int expect_size) {
         if (eof || !current_buffer.has_value() && !shift_next_buffer()) {
             fmt::print("----- eof\n");
             return AVERROR_EOF;
@@ -172,7 +172,7 @@ namespace media
         return total_read_size;
     }
 
-    std::shared_ptr<forward_cursor_stream> forward_cursor_stream::create(buffer_supplier&& supplier) {
-        return std::make_shared<forward_cursor_stream>(std::move(supplier));
+    std::shared_ptr<forward_stream_cursor> forward_stream_cursor::create(buffer_supplier&& supplier) {
+        return std::make_shared<forward_stream_cursor>(std::move(supplier));
     }
 }
