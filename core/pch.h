@@ -25,6 +25,7 @@
 #include <cstring>
 #include <deque>
 #include <exception>
+#include <execution>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -149,19 +150,19 @@ using namespace fmt::literals;
 #include "concurrency/synchronize.hpp"
 using namespace core::literals;
 
-#ifdef CORE_USE_FMT
-#ifdef _DEBUG
-#pragma comment(lib, "fmtd")
-#else
-#pragma comment(lib, "fmt")
-#endif  // _DEBUG
-#endif
+//#ifdef CORE_USE_FMT
+//#ifdef _DEBUG
+//#pragma comment(lib, "fmtd")
+//#else
+//#pragma comment(lib, "fmt")
+//#endif  // _DEBUG
+//#endif
 
-#ifdef CORE_USE_TBB
-#include <tbb/tbb.h>
-#ifdef _DEBUG
-#pragma comment(lib, "tbb_debug")
-#else
-#pragma comment(lib, "tbb")
-#endif  // _DEBUG
-#endif  // CORE_USE_TBB
+//#ifdef CORE_USE_TBB
+//#include <tbb/tbb.h>
+//#ifdef _DEBUG
+//#pragma comment(lib, "tbb_debug")
+//#else
+//#pragma comment(lib, "tbb")
+//#endif  // _DEBUG
+//#endif  // CORE_USE_TBB

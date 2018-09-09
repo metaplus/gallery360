@@ -2,7 +2,7 @@
 
 namespace media
 {
-    class io_context : io_context_base
+    class io_context final : io_context_base
     {
         std::shared_ptr<io_base> io_base_;
         std::shared_ptr<AVIOContext> io_handle_;
@@ -15,7 +15,7 @@ namespace media
         static constexpr inline bool default_buffer_writable = false;
 
         explicit io_context(std::shared_ptr<io_base> io_cursor);
-        explicit io_context(cursor::buffer_type const& buffer);
+        explicit io_context(const multi_buffer& buffer);
         io_context(read_context&& read, write_context&& write, seek_context&& seek);
 
         io_context() = default;
@@ -25,6 +25,8 @@ namespace media
         io_context& operator=(io_context &&) noexcept = default;
         pointer operator->() const;
         explicit operator bool() const;
+
+        std::shared_ptr<io_base> exchange_io_base(std::shared_ptr<io_base> io_base);
 
     private:
         static int on_read_buffer(void* opaque, uint8_t* buffer, int size);

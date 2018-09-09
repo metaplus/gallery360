@@ -20,24 +20,20 @@ namespace media
         virtual bool seekable() = 0;
     };
 
-    struct cursor_base
-    {
-        using buffer_type = boost::beast::multi_buffer;
-        using const_iterator = boost::beast::multi_buffer::const_buffers_type::const_iterator;
-    };
+    using boost::beast::multi_buffer;
+    using const_buffer_iterator = multi_buffer::const_buffers_type::const_iterator;
+    using mutable_buffer_iterator = multi_buffer::mutable_buffers_type::const_iterator;
 
     struct cursor
     {
-        using buffer_type = boost::beast::multi_buffer;
-        using const_iterator = boost::beast::multi_buffer::const_buffers_type::const_iterator;
-        const_iterator const buffer_begin;
-        const_iterator const buffer_end;
-        const_iterator buffer_iter;
+        const_buffer_iterator const buffer_begin;
+        const_buffer_iterator const buffer_end;
+        const_buffer_iterator buffer_iter;
         int64_t buffer_offset = 0;
         int64_t sequence_offset = 0;
         std::vector<int64_t> const buffer_sizes;
 
-        explicit cursor(buffer_type const& buffer);
+        explicit cursor(const multi_buffer & buffer);
         int64_t seek_sequence(int64_t seek_offset);
         int64_t buffer_size() const;
         int64_t sequence_size() const;
@@ -67,10 +63,10 @@ namespace media
                                                       seek_context&& sfunc = nullptr);
     };
 
-    struct random_access_curser final : io_base, cursor
+    struct random_access_cursor final : io_base, cursor
     {
-        explicit random_access_curser(buffer_type const& buffer);
-        ~random_access_curser() override = default;
+        explicit random_access_cursor(const multi_buffer& buffer);
+        ~random_access_cursor() override = default;
 
         int read(uint8_t* buffer, int expect_size) override;
         int write(uint8_t* buffer, int size) override;
@@ -79,31 +75,31 @@ namespace media
         bool writable() override;
         bool seekable() override;
 
-        static std::shared_ptr<random_access_curser> create(buffer_type const& buffer);
+        static std::shared_ptr<random_access_cursor> create(const multi_buffer& buffer);
     };
 
-    struct forward_cursor_stream final : io_base, cursor_base
+    struct forward_stream_cursor final : io_base
     {
-        using buffer_supplier = folly::Function<boost::future<buffer_type>()>;
+        using buffer_supplier = folly::Function<boost::future<multi_buffer>()>;
 
-        std::optional<buffer_type> current_buffer;
-        std::shared_ptr<random_access_curser> io_base;
+        std::optional<multi_buffer> current_buffer;
+        std::shared_ptr<random_access_cursor> io_base;
         buffer_supplier on_future_buffer;
-        boost::future<buffer_type> future_buffer;
+        boost::future<multi_buffer> future_buffer;
         bool eof = false;
 
-        explicit forward_cursor_stream(buffer_supplier&& supplier);
-        ~forward_cursor_stream() override = default;
+        explicit forward_stream_cursor(buffer_supplier&& supplier);
+        ~forward_stream_cursor() override = default;
 
         bool shift_next_buffer();
 
         int read(uint8_t* buffer, int expect_size) override;
-        int write(uint8_t* buffer, int size) override { throw 1; }
-        int64_t seek(int64_t seek_offset, int whence) override { throw 1; }
+        int write(uint8_t* buffer, int size) override { throw core::not_implemented_error{ "TBD" }; }
+        int64_t seek(int64_t seek_offset, int whence) override { throw core::not_implemented_error{ "TBD" }; }
         bool readable() override { return true; }
         bool writable() override { return false; }
         bool seekable() override { return false; }
 
-        static std::shared_ptr<forward_cursor_stream> create(buffer_supplier&& supplier);
+        static std::shared_ptr<forward_stream_cursor> create(buffer_supplier&& supplier);
     };
 }
