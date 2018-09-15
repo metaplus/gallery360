@@ -26,15 +26,13 @@ namespace media
         pointer operator->() const;
         explicit operator bool() const;
 
-        std::shared_ptr<io_base> exchange_io_base(std::shared_ptr<io_base> io_base);
-
     private:
         static int on_read_buffer(void* opaque, uint8_t* buffer, int size);
         static int on_write_buffer(void* opaque, uint8_t* buffer, int size);
         static int64_t on_seek_stream(void* opaque, int64_t offset, int whence);
     };
 
-    class format_context
+    class format_context final
     {
         std::shared_ptr<AVFormatContext> format_handle_;
         io_context io_handle_;
@@ -63,7 +61,7 @@ namespace media
         std::vector<packet> read(size_t count, media::type media_type) const;
     };
 
-    class codec_context
+    class codec_context final
     {
         std::shared_ptr<AVCodecContext> codec_handle_;
         stream format_stream_;

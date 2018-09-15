@@ -41,6 +41,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "monitor", "monitor\monitor.
 		{42B147AA-0F5D-4479-AF8A-5861D7B6CA07} = {42B147AA-0F5D-4479-AF8A-5861D7B6CA07}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "multimedia-test", "..\test\multimedia-test\multimedia-test.vcxproj", "{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -105,6 +107,14 @@ Global
 		{68A28898-8BE3-4376-A3B1-5E6E9079D853}.Release|x64.Build.0 = Release|x64
 		{68A28898-8BE3-4376-A3B1-5E6E9079D853}.Release|x86.ActiveCfg = Release|Win32
 		{68A28898-8BE3-4376-A3B1-5E6E9079D853}.Release|x86.Build.0 = Release|Win32
+		{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}.Debug|x64.ActiveCfg = Debug|x64
+		{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}.Debug|x64.Build.0 = Debug|x64
+		{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}.Debug|x86.ActiveCfg = Debug|Win32
+		{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}.Debug|x86.Build.0 = Debug|Win32
+		{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}.Release|x64.ActiveCfg = Release|x64
+		{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}.Release|x64.Build.0 = Release|x64
+		{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}.Release|x86.ActiveCfg = Release|Win32
+		{90D45EFE-A74D-4F56-AE61-CF7DD61CB0C2}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -11,6 +11,11 @@ namespace media
 
     struct io_base
     {
+        io_base() = default;
+        io_base(const io_base&) = default;
+        io_base(io_base&&) noexcept = default;
+        io_base& operator=(const io_base&) = default;
+        io_base& operator=(io_base&&) noexcept = default;
         virtual ~io_base() = default;
         virtual int read(uint8_t* buffer, int size) = 0;
         virtual int write(uint8_t* buffer, int size) = 0;
@@ -18,8 +23,12 @@ namespace media
         virtual bool readable() = 0;
         virtual bool writable() = 0;
         virtual bool seekable() = 0;
+        virtual bool available() { throw core::not_implemented_error{ __FUNCSIG__ }; }
+        virtual int64_t consume_size() { throw core::not_implemented_error{ __FUNCSIG__ }; }
+        virtual int64_t remain_size() { throw core::not_implemented_error{ __FUNCSIG__ }; }
     };
 
+    using boost::asio::const_buffer;
     using boost::beast::multi_buffer;
     using const_buffer_iterator = multi_buffer::const_buffers_type::const_iterator;
     using mutable_buffer_iterator = multi_buffer::mutable_buffers_type::const_iterator;
@@ -76,6 +85,29 @@ namespace media
         bool seekable() override;
 
         static std::shared_ptr<random_access_cursor> create(const multi_buffer& buffer);
+    };
+
+    class buffer_list_cursor final : public io_base
+    {
+        std::list<const_buffer> buffer_list_;
+        std::list<const_buffer>::iterator buffer_iter_;
+        int64_t offset_ = 0;
+        int64_t full_offset_ = 0;
+        int64_t full_size_ = 0;
+
+    public:
+        explicit buffer_list_cursor(std::list<const_buffer> buffer_list);
+        int read(uint8_t* buffer, int expect_size) override;
+        int write(uint8_t* buffer, int size) override;
+        int64_t seek(int64_t seek_offset, int whence) override;
+        bool readable() override;
+        bool writable() override;
+        bool seekable() override;
+        bool available() override;
+        int64_t consume_size() override;
+        int64_t remain_size() override;
+
+        static std::shared_ptr<buffer_list_cursor> create(const multi_buffer& buffer);
     };
 
     struct forward_stream_cursor final : io_base

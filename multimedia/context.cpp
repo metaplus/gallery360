@@ -29,10 +29,6 @@ media::io_context::operator bool() const {
     return io_handle_ != nullptr && io_base_ != nullptr;
 }
 
-std::shared_ptr<media::io_base> media::io_context::exchange_io_base(std::shared_ptr<io_base> io_base) {
-    return std::exchange(io_base_, io_base);
-}
-
 int media::io_context::on_read_buffer(void* opaque, uint8_t* buffer, int size) {
     return static_cast<std::shared_ptr<io_base>*>(opaque)->get()->read(buffer, size);
 }

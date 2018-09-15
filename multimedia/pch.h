@@ -2,8 +2,6 @@
 
 #define __STDC_CONSTANT_MACROS
 
-#include <boost/beast/core/multi_buffer.hpp>
-
 #pragma warning(push)
 #pragma warning(disable:4819)
 extern "C" {

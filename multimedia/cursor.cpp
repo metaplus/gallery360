@@ -132,6 +132,108 @@ namespace media
         return std::make_shared<random_access_cursor>(buffer);
     }
 
+    //-- buffer_list_cursor
+    buffer_list_cursor::buffer_list_cursor(std::list<const_buffer> bufs) {
+        full_size_ = std::accumulate(
+            bufs.begin(), bufs.end(), 0i64,
+            [](int64_t sum, const_buffer& buffer) { return sum + buffer.size(); });
+        buffer_list_ = std::move(bufs);
+    }
+
+    int buffer_list_cursor::read(uint8_t* buffer, int expect_size) {
+        if (buffer_iter_ != buffer_list_.end()) {
+            auto read_size = 0i64;
+            while (buffer_iter_ != buffer_list_.end() && read_size < expect_size) {
+                auto* pointer = static_cast<const char*>(buffer_iter_->data());
+                auto increment = std::min<int64_t>(expect_size - read_size, buffer_iter_->size() - offset_);
+                assert(increment > 0);
+                std::copy_n(pointer + offset_, increment, buffer + read_size);
+                offset_ += increment;
+                full_offset_ += increment;
+                if (offset_ == buffer_iter_->size()) {
+                    buffer_iter_.operator++();
+                    offset_ = 0;
+                }
+                read_size += increment;
+            }
+            fmt::print("read_size {}, expect_size {}, sequence{}/{}\n",
+                       read_size, expect_size, full_offset_, full_size_);
+            return boost::numeric_cast<int>(read_size);
+        }
+        return AVERROR_EOF;
+    }
+
+    int buffer_list_cursor::write(uint8_t* buffer, int size) {
+        throw core::not_implemented_error{ __FUNCSIG__ };
+    }
+
+    int64_t buffer_list_cursor::seek(int64_t seek_offset, int whence) {
+        switch (whence) {
+        case SEEK_SET: fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
+            break;
+        case SEEK_END: fmt::print("SEEK_END OFFSET {}\n", seek_offset);
+            seek_offset += full_size_;
+            break;
+        case SEEK_CUR: fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
+            seek_offset += full_offset_;
+            break;
+        case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
+            return full_size_;       // TODO: return -1 for streaming
+        default:
+            throw core::unreachable_execution_branch{ __FUNCSIG__ };
+        }
+        if (seek_offset >= full_size_) {
+            buffer_iter_ = buffer_list_.end();
+            full_offset_ = full_size_;
+            offset_ = 0;
+            return full_size_;
+        }
+        auto partial_sum = 0i64;
+        buffer_iter_ = std::find_if(
+            buffer_list_.begin(), buffer_list_.end(),
+            [&partial_sum, &seek_offset](const_buffer& buffer) {
+                auto buffer_size = boost::numeric_cast<int64_t>(buffer.size());
+                auto next_buffer_offset = partial_sum + buffer_size;
+                if (next_buffer_offset <= seek_offset) {
+                    partial_sum = next_buffer_offset;
+                    return false;
+                }
+                return true;
+            });
+        full_offset_ = seek_offset;
+        offset_ = seek_offset - partial_sum;
+        return seek_offset;
+    }
+
+    bool buffer_list_cursor::readable() {
+        return true;
+    }
+
+    bool buffer_list_cursor::writable() {
+        return false;
+    }
+
+    bool buffer_list_cursor::seekable() {
+        return true;
+    }
+
+    bool buffer_list_cursor::available() {
+        return buffer_iter_ != buffer_list_.end();
+    }
+
+    int64_t buffer_list_cursor::consume_size() {
+        return full_offset_;
+    }
+
+    int64_t buffer_list_cursor::remain_size() {
+        return full_size_ - full_offset_;
+    }
+
+    std::shared_ptr<buffer_list_cursor> buffer_list_cursor::create(const multi_buffer& buffer) {
+        return std::make_shared<buffer_list_cursor>(core::split_buffer_sequence(buffer));
+    }
+
+    //-- forward_stream_cursor
     forward_stream_cursor::forward_stream_cursor(buffer_supplier&& supplier)
         : on_future_buffer(std::move(supplier))
         , future_buffer(on_future_buffer()) {}

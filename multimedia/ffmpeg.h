@@ -37,7 +37,7 @@ namespace media
         void unref() const;
     };
 
-    class packet
+    class packet final
     {
         std::shared_ptr<AVPacket> handle_;
         struct chunk;
@@ -56,7 +56,7 @@ namespace media
         void unref() const;
     };
 
-    struct codec : std::reference_wrapper<AVCodec>
+    struct codec final : std::reference_wrapper<AVCodec>
     {
         using pointer = type * ;
         using reference = type & ;
@@ -67,7 +67,7 @@ namespace media
         pointer operator->() const;
     };
 
-    struct stream : std::reference_wrapper<AVStream>
+    struct stream final : std::reference_wrapper<AVStream>
     {
         using pointer = type * ;
         using reference = type & ;

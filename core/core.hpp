@@ -2,7 +2,24 @@
 
 namespace core
 {
-    inline std::string time_string(std::string_view tformat = "%c"sv,
+    template<typename BufferSequence, typename ...TailSequence>
+    std::list<boost::asio::const_buffer>
+        split_buffer_sequence(BufferSequence&& sequence, TailSequence&& ...tails) {
+        static_assert(boost::asio::is_const_buffer_sequence<decltype(sequence.data())>::value);
+        std::list<boost::asio::const_buffer> buffer_list;
+        auto sequence_data = std::forward<BufferSequence>(sequence).data();
+        std::transform(boost::asio::buffer_sequence_begin(sequence_data),
+                       boost::asio::buffer_sequence_end(sequence_data),
+                       std::back_inserter(buffer_list),
+                       [](const auto& buffer) { return boost::asio::const_buffer{ buffer }; });
+        if constexpr (sizeof...(TailSequence) > 0) {
+            buffer_list.splice(buffer_list.end(),
+                               split_buffer_sequence(std::forward<TailSequence>(tails)...));
+        }
+        return buffer_list;
+    }
+
+    inline std::string time_string(std::string tformat = "%c"s,
                                    std::tm*(*tfunc)(std::time_t const*) = &std::localtime) {
         // auto const time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         auto const time_tmt = std::time(nullptr);
