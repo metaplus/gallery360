@@ -2,12 +2,28 @@
 
 namespace core
 {
-    inline std::string time_string(std::string_view tformat = "%c"sv,
-                                   std::tm*(*tfunc)(std::time_t const*) = &std::localtime) {
+    template<typename BufferSequence, typename ...TailSequence>
+    std::list<boost::asio::const_buffer>
+        split_buffer_sequence(BufferSequence&& sequence, TailSequence&& ...tails) {
+        static_assert(boost::asio::is_const_buffer_sequence<decltype(sequence.data())>::value);
+        std::list<boost::asio::const_buffer> buffer_list;
+        auto sequence_data = std::forward<BufferSequence>(sequence).data();
+        std::transform(boost::asio::buffer_sequence_begin(sequence_data),
+                       boost::asio::buffer_sequence_end(sequence_data),
+                       std::back_inserter(buffer_list),
+                       [](const auto& buffer) { return boost::asio::const_buffer{ buffer }; });
+        if constexpr (sizeof...(TailSequence) > 0) {
+            buffer_list.splice(buffer_list.end(),
+                               split_buffer_sequence(std::forward<TailSequence>(tails)...));
+        }
+        return buffer_list;
+    }
+
+    inline std::string time_string(std::string format = "%c"s,
+                                   std::tm*(*timing)(std::time_t const*) = &std::localtime) {
         // auto const time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        auto const time_tmt = std::time(nullptr);
-        auto const time_tm = tfunc(&time_tmt);
-        return fmt::format("{}", std::put_time(time_tm, tformat.data()));
+        auto const t = std::time(nullptr);
+        return fmt::format("{}", std::put_time(timing(&t), format.data()));
     }
 
     template<auto Begin, auto End, auto Span = 1>
@@ -15,7 +31,8 @@ namespace core
         static_assert(std::is_same<decltype(Begin), decltype(End)>::value);
         static_assert(Begin != End && Span != 0 && ((Begin < End) ^ (Span < 0)));
         constexpr auto count = std::divides<void>{}(End - Begin + Span, Span);
-        return meta::sequence_plus<Begin>(meta::sequence_multiply<Span>(std::make_integer_sequence<decltype(count), count>{}));
+        return meta::sequence_plus<Begin>(meta::sequence_multiply<Span>(
+            std::make_integer_sequence<std::common_type_t<decltype(Begin), decltype(End)>, count>{}));
     }
 
     template<auto Begin, auto End, auto Span = 1>
@@ -79,16 +96,16 @@ namespace core
 
     inline namespace tag //  tag dispatching usage, clarify semantics
     {
-        inline constexpr struct use_future_t {} use_future;
-        inline constexpr struct use_recursion_t {} use_recursion;
-        inline constexpr struct as_default_t {} as_default;
-        inline constexpr struct as_stacktrace_t {} as_stacktrace;
-        inline constexpr struct as_element_t {} as_element;
-        inline constexpr struct as_view_t {} as_view;
-        inline constexpr struct as_observer_t {} as_observer;
-        inline constexpr struct defer_construct_t {} defer_construct;
-        inline constexpr struct defer_execute_t {} defer_execute;
-        inline constexpr struct defer_destruct_t {} defer_destruct;
+        inline constexpr struct use_future_tag {} use_future;
+        inline constexpr struct use_recursion_tag {} use_recursion;
+        inline constexpr struct as_default_tag {} as_default;
+        inline constexpr struct as_stacktrace_tag {} as_stacktrace;
+        inline constexpr struct as_element_tag {} as_element;
+        inline constexpr struct as_view_tag {} as_view;
+        inline constexpr struct as_observer_tag {} as_observer;
+        inline constexpr struct defer_construct_tag {} defer_construct;
+        inline constexpr struct defer_execute_tag {} defer_execute;
+        inline constexpr struct defer_destruct_tag {} defer_destruct;
     }
 
     namespace v3

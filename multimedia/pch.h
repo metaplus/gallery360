@@ -2,8 +2,6 @@
 
 #define __STDC_CONSTANT_MACROS
 
-#include <boost/beast/core/multi_buffer.hpp>
-
 #pragma warning(push)
 #pragma warning(disable:4819)
 extern "C" {
@@ -11,13 +9,6 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 #pragma warning(pop)
-
-#ifdef _WIN64
-#pragma comment(lib,"avcodec")
-#pragma comment(lib,"avformat")
-#pragma comment(lib,"avutil")
-#pragma comment(lib,"swscale")
-#endif  // _WIN64
 
 #include "multimedia/ffmpeg.h"
 #include "multimedia/cursor.h"
