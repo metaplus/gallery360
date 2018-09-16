@@ -59,6 +59,7 @@ using namespace std::literals;
 #include <boost/asio/buffer.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
+#include <boost/container/small_vector.hpp>
 #include <boost/container_hash/hash.hpp>
 #include <boost/core/ignore_unused.hpp>
 #include <boost/core/null_deleter.hpp>

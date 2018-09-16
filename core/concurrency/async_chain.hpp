@@ -49,7 +49,7 @@ namespace util
             }
 
             template<typename Callable>
-            boost::future<std::invoke_result_t<std::decay_t<Callable>>> append(Callable&& callable, core::use_future_t)
+            boost::future<std::invoke_result_t<std::decay_t<Callable>>> append(Callable&& callable, core::use_future_tag)
             {
                 // emplace from lambda or move construct std::packaged_task
                 boost::packaged_task<std::invoke_result_t<std::decay_t<Callable>>()> task{ std::forward<Callable>(callable) };

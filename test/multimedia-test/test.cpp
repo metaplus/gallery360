@@ -29,6 +29,21 @@ auto create_buffer = [](std::string suffix) {
     return buffer;
 };
 
+auto create_buffer_map = []() -> decltype(auto) {
+    static std::map<int, multi_buffer> map;
+    static std::once_flag flag;
+    std::call_once(flag,
+                   [] {
+                       map.emplace(0, create_buffer("init"));
+                       for (auto i = 1; i <= 10; ++i) {
+                           map.emplace(i, create_buffer(std::to_string(i)));
+                       }
+                   });
+    return (map);
+};
+
+static_assert(std::is_reference<std::invoke_result<decltype(create_buffer_map)>::type>::value);
+
 auto sequence_size = [](auto itbegin, auto itend) {
     auto size = 0i64;
     while (itbegin != itend) {
@@ -105,6 +120,95 @@ TEST(Core, MultiBuffer2List) {
     EXPECT_EQ(total_size<std::list>(list3), 2966);
 }
 
-TEST(MultiMedia, Component) {
+TEST(MultiMedia, Iterate) {
+    auto& buffer_map = create_buffer_map();
+    auto size = 0i64;
+    for (auto&[index, buffer] : buffer_map) {
+        size += buffer_size(buffer.data());
+        EXPECT_EQ(&buffer, &buffer_map[index]);
+    }
+    EXPECT_EQ(size, 11'457'930);
+}
 
+#pragma comment(lib,"multimedia")
+
+TEST(MultiMedia, Base) {
+    auto& buffer_map = create_buffer_map();
+    for (auto&[index, buffer] : buffer_map) {
+        media::component::frame_segmentor frame_segmentor;
+        frame_segmentor.parse_context(core::split_buffer_sequence(buffer));
+        EXPECT_FALSE(frame_segmentor.buffer_available());
+        break;
+    }
+}
+
+TEST(MultiMedia, ReadTwo) {
+    auto& buffer_map = create_buffer_map();
+    auto buffer_list = core::split_buffer_sequence(buffer_map[0]);
+    buffer_list.splice(buffer_list.end(), core::split_buffer_sequence(buffer_map[1]));
+    media::component::frame_segmentor frame_segmentor;
+    auto count1 = 0, count2 = 0;
+    frame_segmentor.parse_context(std::move(buffer_list));
+    while (frame_segmentor.try_read()) {
+        count1 += 1;
+    }
+    frame_segmentor.reset_buffer_list(core::split_buffer_sequence(buffer_map[2]));
+    while (frame_segmentor.try_read()) {
+        count2 += 1;
+    }
+}
+
+TEST(MultiMedia, ReadThree) {
+    auto& buffer_map = create_buffer_map();
+    auto buffer_list = core::split_buffer_sequence(buffer_map[0], buffer_map[3], buffer_map[5], buffer_map[7]);
+    media::component::frame_segmentor frame_segmentor;
+    auto count1 = 0;
+    frame_segmentor.parse_context(std::move(buffer_list));
+    while (frame_segmentor.try_read()) {
+        count1 += 1;
+    }
+    auto buffer_list2 = core::split_buffer_sequence(buffer_map[0], buffer_map[2], buffer_map[4], buffer_map[6]);
+    media::component::frame_segmentor frame_segmentor2;
+    auto count2 = 0;
+    frame_segmentor2.parse_context(std::move(buffer_list2));
+    while (frame_segmentor2.try_read()) {
+        count2 += 1;
+    }
+}
+
+TEST(MultiMedia, TryConsume) {
+    auto& buffer_map = create_buffer_map();
+    media::component::frame_segmentor frame_segmentor{
+        core::split_buffer_sequence(buffer_map[0],buffer_map[2],buffer_map[4],buffer_map[6],buffer_map[7],buffer_map[10])
+    };
+    auto count = 0;
+    auto increment = 0;
+    do {
+        increment = frame_segmentor.try_consume();
+        count += increment > 0 ? increment : 0;
+    } while (increment >= 0);
+    EXPECT_EQ(count, 125);
+}
+
+TEST(MultiMedia, TryConsumeOnce) {
+    auto& buffer_map = create_buffer_map();
+    media::component::frame_segmentor frame_segmentor{
+        core::split_buffer_sequence(buffer_map[0],buffer_map[2],buffer_map[4],buffer_map[6],buffer_map[7],buffer_map[10])
+    };
+    auto count = 0;
+    while (frame_segmentor.try_consume_once() && ++count) {
+    }
+    EXPECT_EQ(count, 125);
+}
+
+TEST(Cpp, WeakPtr) {
+    std::weak_ptr<int> w;
+    EXPECT_TRUE(w.expired());
+    w = std::make_shared<int>(1);
+    EXPECT_TRUE(w.expired());
+    auto&& s = std::make_shared<int>(1);
+    w = s;
+    EXPECT_TRUE(!w.expired());
+    w = std::make_shared<int>();
+    EXPECT_TRUE(w.expired());
 }

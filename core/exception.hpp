@@ -2,7 +2,7 @@
 
 namespace core
 {
-    using errinfo_stacktrace = boost::error_info<as_stacktrace_t, boost::stacktrace::stacktrace>;
+    using errinfo_stacktrace = boost::error_info<as_stacktrace_tag, boost::stacktrace::stacktrace>;
 
     template<typename Exception>
     [[noreturn]] void throw_with_stacktrace(Exception const& exp) {
@@ -118,4 +118,8 @@ namespace core
             return detail::message_otherwise_typename(what(), this);
         }
     };
+
+    [[noreturn]] inline void throw_unimplemented(std::string message) {
+        throw not_implemented_error{ message };
+    }
 }

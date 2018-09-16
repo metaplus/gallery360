@@ -3,6 +3,11 @@
 
 namespace media
 {
+    using namespace detail;
+
+    //-- io_handle
+
+
     //-- cursor
     cursor::cursor(const multi_buffer& buffer)
         : buffer_begin(boost::asio::buffer_sequence_begin(buffer.data()))
@@ -50,18 +55,6 @@ namespace media
 
     int64_t generic_cursor::seek(const int64_t offset, const int whence) {
         return seekable() ? seeker(offset, whence) : std::numeric_limits<int64_t>::min();
-    }
-
-    bool generic_cursor::readable() {
-        return reader != nullptr;
-    }
-
-    bool generic_cursor::writable() {
-        return writer != nullptr;
-    }
-
-    bool generic_cursor::seekable() {
-        return seeker != nullptr;
     }
 
     std::shared_ptr<generic_cursor> generic_cursor::create(read_context&& rfunc, write_context&& wfunc, seek_context&& sfunc) {
@@ -116,18 +109,6 @@ namespace media
         return seek_sequence(seek_offset);
     }
 
-    bool random_access_cursor::readable() {
-        return true;
-    }
-
-    bool random_access_cursor::writable() {
-        return false;
-    }
-
-    bool random_access_cursor::seekable() {
-        return true;
-    }
-
     std::shared_ptr<random_access_cursor> random_access_cursor::create(const multi_buffer& buffer) {
         return std::make_shared<random_access_cursor>(buffer);
     }
@@ -138,6 +119,7 @@ namespace media
             bufs.begin(), bufs.end(), 0i64,
             [](int64_t sum, const_buffer& buffer) { return sum + buffer.size(); });
         buffer_list_ = std::move(bufs);
+        buffer_iter_ = buffer_list_.begin();
     }
 
     int buffer_list_cursor::read(uint8_t* buffer, int expect_size) {
@@ -149,15 +131,18 @@ namespace media
                 assert(increment > 0);
                 std::copy_n(pointer + offset_, increment, buffer + read_size);
                 offset_ += increment;
-                full_offset_ += increment;
                 if (offset_ == buffer_iter_->size()) {
-                    buffer_iter_.operator++();
+                    if (buffer_iter_.operator++() == buffer_list_.end()) {
+                        eof_ = true;
+                    }
                     offset_ = 0;
                 }
                 read_size += increment;
             }
             fmt::print("read_size {}, expect_size {}, sequence{}/{}\n",
                        read_size, expect_size, full_offset_, full_size_);
+            full_offset_ += read_size;
+            full_read_size_ += read_size;
             return boost::numeric_cast<int>(read_size);
         }
         return AVERROR_EOF;
@@ -178,7 +163,7 @@ namespace media
             seek_offset += full_offset_;
             break;
         case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
-            return full_size_;       // TODO: return -1 for streaming
+            return -1;       // TODO: return -1 for streaming
         default:
             throw core::unreachable_execution_branch{ __FUNCSIG__ };
         }
@@ -205,32 +190,24 @@ namespace media
         return seek_offset;
     }
 
-    bool buffer_list_cursor::readable() {
-        return true;
-    }
-
-    bool buffer_list_cursor::writable() {
-        return false;
-    }
-
-    bool buffer_list_cursor::seekable() {
-        return true;
-    }
-
-    bool buffer_list_cursor::available() {
+    bool buffer_list_cursor::available() const {
         return buffer_iter_ != buffer_list_.end();
     }
 
-    int64_t buffer_list_cursor::consume_size() {
+    int64_t buffer_list_cursor::consume_size() const {
         return full_offset_;
     }
 
-    int64_t buffer_list_cursor::remain_size() {
+    int64_t buffer_list_cursor::remain_size() const {
         return full_size_ - full_offset_;
     }
 
     std::shared_ptr<buffer_list_cursor> buffer_list_cursor::create(const multi_buffer& buffer) {
         return std::make_shared<buffer_list_cursor>(core::split_buffer_sequence(buffer));
+    }
+
+    std::shared_ptr<buffer_list_cursor> buffer_list_cursor::create(std::list<const_buffer>&& buffer_list) {
+        return std::make_shared<buffer_list_cursor>(std::move(buffer_list));
     }
 
     //-- forward_stream_cursor

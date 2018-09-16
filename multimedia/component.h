@@ -2,8 +2,10 @@
 
 namespace media::component
 {
-    using boost::beast::multi_buffer;
-    using boost::asio::const_buffer;
+    namespace detail
+    {
+        using boost::asio::const_buffer;
+    }
 
     class frame_segmentor
     {
@@ -20,11 +22,15 @@ namespace media::component
         frame_segmentor& operator=(frame_segmentor&&) noexcept = default;
         ~frame_segmentor() = default;
 
-        void parse_context(std::list<const_buffer> buffer_list);
+        explicit frame_segmentor(std::list<detail::const_buffer> buffer_list);
+
+        void parse_context(std::list<detail::const_buffer> buffer_list);
         bool context_valid() const noexcept;
         bool buffer_available() const;
-        void reset_buffer(multi_buffer&& buffer);
-        bool consume_one();
+        void reset_buffer_list(std::list<detail::const_buffer> buffer_list);
+        bool try_read();
+        int try_consume();
+        bool try_consume_once();
     };
 
 }

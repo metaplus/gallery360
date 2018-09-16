@@ -14,17 +14,20 @@ namespace media
         static constexpr inline size_t default_cache_page_size = 4096;
         static constexpr inline bool default_buffer_writable = false;
 
-        explicit io_context(std::shared_ptr<io_base> io_cursor);
-        explicit io_context(const multi_buffer& buffer);
-        io_context(read_context&& read, write_context&& write, seek_context&& seek);
-
         io_context() = default;
         io_context(io_context const&) = default;
-        io_context(io_context &&) noexcept = default;
+        io_context(io_context&&) noexcept = default;
         io_context& operator=(io_context const&) = default;
-        io_context& operator=(io_context &&) noexcept = default;
+        io_context& operator=(io_context&&) noexcept = default;
+
+        explicit io_context(std::shared_ptr<io_base> io_cursor);
+        io_context(read_context&& read, write_context&& write, seek_context&& seek);
+
         pointer operator->() const;
         explicit operator bool() const;
+
+        bool available() const noexcept;
+        std::shared_ptr<io_base> exchange_cursor(std::shared_ptr<io_base> cursor);
 
     private:
         static int on_read_buffer(void* opaque, uint8_t* buffer, int size);
@@ -49,9 +52,9 @@ namespace media
 
         format_context() = default;
         format_context(format_context const&) = default;
-        format_context(format_context &&) noexcept = default;
+        format_context(format_context&&) noexcept = default;
         format_context& operator=(format_context const&) = default;
-        format_context& operator=(format_context &&) noexcept = default;
+        format_context& operator=(format_context&&) noexcept = default;
         pointer operator->() const;
         explicit operator bool() const;
 
@@ -61,12 +64,18 @@ namespace media
         std::vector<packet> read(size_t count, media::type media_type) const;
     };
 
+    namespace detail
+    {
+        template<typename T>
+        using vector = boost::container::small_vector<T, 1>;
+    }
+
     class codec_context final
     {
         std::shared_ptr<AVCodecContext> codec_handle_;
         stream format_stream_;
-        int64_t mutable dispose_count_ = 0;
-        bool mutable flushed_ = false;
+        mutable int64_t dispose_count_ = 0;
+        mutable bool flushed_ = false;
 
     public:
         using value_type = AVCodecContext;
@@ -87,6 +96,6 @@ namespace media
         bool valid() const;
         int64_t dispose_count() const;
         int64_t frame_count() const;
-        std::vector<frame> decode(const packet& compressed) const;
+        detail::vector<frame> decode(const packet& compressed) const;
     };
 }
