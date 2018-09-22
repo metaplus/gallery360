@@ -1,7 +1,9 @@
 #include "pch.h"
-
+#include "multimedia/component.h"
+#include <boost/beast/core/buffers_prefix.hpp>
 #include <boost/beast/core/buffers_cat.hpp>
 #include <boost/beast/core/ostream.hpp>
+
 
 using boost::beast::multi_buffer;
 using boost::beast::buffers_cat;
@@ -62,7 +64,7 @@ auto sequence_size2 = [](auto itbegin, auto itend) {
     return size;
 };
 
-TEST(Boost, BeastBuffer) {
+TEST(Beast, MultiBuffer) {
     multi_buffer buf_init;
     multi_buffer buf1;
     multi_buffer buf2;
@@ -83,6 +85,16 @@ TEST(Boost, BeastBuffer) {
     auto dist = std::distance(begin, end);
     EXPECT_EQ(sequence_size(begin, end), 5800);
     EXPECT_EQ(sequence_size2(begin, end), 5800);
+}
+
+TEST(Asio, BufferSize) {
+    auto& buffer_map = create_buffer_map();
+    auto size = 0i64;
+    for (auto&[index, buffer] : buffer_map) {
+        size += buffer_size(buffer.data());
+        EXPECT_EQ(&buffer, &buffer_map[index]);
+    }
+    EXPECT_EQ(size, 11'457'930);
 }
 
 template<typename BufferSequence, typename ...TailSequence>
@@ -109,7 +121,7 @@ int64_t total_size(Container<const_buffer>& container) {
     return size;
 }
 
-TEST(Core, MultiBuffer2List) {
+TEST(Core, Split2Sequence) {
     multi_buffer buf_int = create_buffer("init");
     multi_buffer buf1 = create_buffer("1");
     auto list = split_buffer_sequence(buf1);
@@ -120,19 +132,10 @@ TEST(Core, MultiBuffer2List) {
     EXPECT_EQ(total_size<std::list>(list3), 2966);
 }
 
-TEST(MultiMedia, Iterate) {
-    auto& buffer_map = create_buffer_map();
-    auto size = 0i64;
-    for (auto&[index, buffer] : buffer_map) {
-        size += buffer_size(buffer.data());
-        EXPECT_EQ(&buffer, &buffer_map[index]);
-    }
-    EXPECT_EQ(size, 11'457'930);
-}
 
 #pragma comment(lib,"multimedia")
 
-TEST(MultiMedia, Base) {
+TEST(FrameSegmentor, Base) {
     auto& buffer_map = create_buffer_map();
     for (auto&[index, buffer] : buffer_map) {
         media::component::frame_segmentor frame_segmentor;
@@ -142,7 +145,7 @@ TEST(MultiMedia, Base) {
     }
 }
 
-TEST(MultiMedia, ReadTwo) {
+TEST(FrameSegmentor, ReadTwo) {
     auto& buffer_map = create_buffer_map();
     auto buffer_list = core::split_buffer_sequence(buffer_map[0]);
     buffer_list.splice(buffer_list.end(), core::split_buffer_sequence(buffer_map[1]));
@@ -158,7 +161,7 @@ TEST(MultiMedia, ReadTwo) {
     }
 }
 
-TEST(MultiMedia, ReadThree) {
+TEST(FrameSegmentor, ReadThree) {
     auto& buffer_map = create_buffer_map();
     auto buffer_list = core::split_buffer_sequence(buffer_map[0], buffer_map[3], buffer_map[5], buffer_map[7]);
     media::component::frame_segmentor frame_segmentor;
@@ -176,7 +179,7 @@ TEST(MultiMedia, ReadThree) {
     }
 }
 
-TEST(MultiMedia, TryConsume) {
+TEST(FrameSegmentor, TryConsume) {
     auto& buffer_map = create_buffer_map();
     media::component::frame_segmentor frame_segmentor{
         core::split_buffer_sequence(buffer_map[0],buffer_map[2],buffer_map[4],buffer_map[6],buffer_map[7],buffer_map[10])
@@ -190,7 +193,7 @@ TEST(MultiMedia, TryConsume) {
     EXPECT_EQ(count, 125);
 }
 
-TEST(MultiMedia, TryConsumeOnce) {
+TEST(FrameSegmentor, TryConsumeOnce) {
     auto& buffer_map = create_buffer_map();
     media::component::frame_segmentor frame_segmentor{
         core::split_buffer_sequence(buffer_map[0],buffer_map[2],buffer_map[4],buffer_map[6],buffer_map[7],buffer_map[10])
@@ -201,7 +204,7 @@ TEST(MultiMedia, TryConsumeOnce) {
     EXPECT_EQ(count, 125);
 }
 
-TEST(Cpp, WeakPtr) {
+TEST(Std, WeakPtr) {
     std::weak_ptr<int> w;
     EXPECT_TRUE(w.expired());
     w = std::make_shared<int>(1);

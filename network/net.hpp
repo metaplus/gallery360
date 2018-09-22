@@ -66,7 +66,7 @@ namespace net
 
             struct represent
             {
-                int16_t id = 0;
+                int id = 0;
                 int bandwidth = 0;
                 std::string media;
                 std::string initialization;
@@ -81,12 +81,12 @@ namespace net
 
             struct video_adaptation_set : adaptation_set
             {
-                int16_t x = 0;
-                int16_t y = 0;
-                int16_t width = 0;
-                int16_t height = 0;
+                int x = 0;
+                int y = 0;
+                int width = 0;
+                int height = 0;
                 int64_t index = 0;
-                std::optional<folly::Function<void()>> consumer;
+                folly::Function<bool()> consumer;
             };
 
             struct audio_adaptation_set : adaptation_set
@@ -108,8 +108,8 @@ namespace net
                 ~parser() = default;
 
                 std::string_view title() const;
-                std::pair<int16_t, int16_t> grid_size() const;
-                std::pair<int16_t, int16_t> scale_size() const;
+                std::pair<int, int> grid_size() const;
+                std::pair<int, int> scale_size() const;
 
                 std::vector<video_adaptation_set>& video_set() const;
                 video_adaptation_set& video_set(int column, int row) const;

@@ -10,11 +10,16 @@ namespace net::client
         static std::shared_ptr<spdlog::logger> create_logger(int16_t index);
     };
 
-    template<typename Protocal, typename Policy = default_policy>
+    template<typename Protocal>
     class session;
 
+    template<typename Protocal>
+    using session_ptr = std::unique_ptr<session<Protocal>>;
+    using http_session = session<protocal::http>;
+    using http_session_ptr = std::unique_ptr<session<protocal::http>>;
+
     template<>
-    class session<protocal::http, policy<dynamic_body>>
+    class session<protocal::http>
         : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>
         , protocal::http::protocal_base
     {
@@ -22,7 +27,20 @@ namespace net::client
         using response = response_type<response_body>;
         using response_parser = response_parser_type<response_body>;
 
-        boost::promise<response> promise_response_;
+        struct detail
+        {
+            template<typename ...Policy>
+            using future_response_of = std::conditional_t<
+                meta::is_within<core::folly_tag, Policy...>::value,
+                folly::SemiFuture<response>,
+                boost::future<response>
+            >;
+        };
+
+        std::variant<
+            boost::promise<response>,
+            folly::Promise<response>
+        > response_;
         std::optional<response_parser> response_parser_;
         const int16_t index_ = info::net_session_index();
         const std::shared_ptr<spdlog::logger> logger_ = info::create_logger(index_);
@@ -38,34 +56,41 @@ namespace net::client
         using session_base::local_endpoint;
         using session_base::remote_endpoint;
 
-        template<typename RequestBody>
-        boost::future<response> async_send_request(request_type<RequestBody>&& request) {
+        template<typename RequestBody, typename ...Policy>
+        detail::future_response_of<Policy...>
+            async_send_request(request_type<RequestBody>&& request, Policy ...policy) {
             static_assert(boost::beast::http::is_body<RequestBody>::value);
             logger_->info("async_send_request via message");
-            promise_response_ = prepare_response_parser();
-            auto request_ptr = std::make_unique<request_type<RequestBody>>(std::move(request));
-            auto& request_ref = *request_ptr;
+            auto[promise_response, future_response] = core::promise_contract_of<response>(policy...);
+            response_ = std::move(promise_response);
+            config_response_parser();
+            auto request_ptr = folly::makeMoveWrapper(std::make_unique<request_type<RequestBody>>(std::move(request)));
+            auto& request_ref = **request_ptr;
             boost::beast::http::async_write(
-                socket_, request_ref, on_send_request(std::move(request_ptr)));
+                socket_, request_ref,
+                [this, request_ptr](boost::system::error_code errc, std::size_t transfer_size) {
+                    logger_->info("on_send_request errc {} transfer {}", errc, transfer_size);
+                    if (errc) {
+                        logger_->error("on_send_request failure");
+                        return close_promise_and_socket(response_, errc, boost::asio::socket_base::shutdown_send);
+                    }
+                    if (is_chunked())
+                        throw core::not_implemented_error{ __FUNCSIG__ };
+                    boost::beast::http::async_read(socket_, recvbuf_, *response_parser_, on_recv_response());
+                });
             core::check[false] << is_active(true);
-            std::atomic_fetch_add(&round_trip_index_, 1);
-            return promise_response_.get_future();
+            ++round_trip_index_;
+            return std::move(future_response);
         }
 
         folly::Function<multi_buffer()>
             transform_buffer_stream(folly::Function<std::string()> url_supplier);
 
+        static http_session_ptr create(socket_type&& socket, boost::asio::io_context& context);
+
     private:
-        boost::promise<response> prepare_response_parser();
+        void config_response_parser();
 
-        folly::Function<void(boost::system::error_code, std::size_t)>
-            on_send_request(request_ptr<empty_body> request);
-
-        folly::Function<void(boost::system::error_code, std::size_t)>
-            on_recv_response();
+        folly::Function<void(boost::system::error_code, std::size_t)> on_recv_response();
     };
-
-    template<typename Protocal, typename Policy = default_policy>
-    using session_ptr = std::unique_ptr<session<Protocal, Policy>>;
-    using http_session = session<protocal::http, policy<dynamic_body>>;
 }

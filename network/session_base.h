@@ -17,7 +17,7 @@ namespace detail
         boost::asio::io_context& context_;
         boost::asio::basic_stream_socket<Protocal> socket_;
         buffer_type recvbuf_;
-        mutable std::atomic<int64_t> round_trip_index_ = -1;
+        mutable int64_t round_trip_index_ = -1;
 
         // static_assert(boost::asio::is_mutable_buffer_sequence<buffer_type>::value);
 
@@ -26,8 +26,7 @@ namespace detail
             : context_(context)
             , socket_(std::move(socket)) {}
 
-        bool operator<(const session_base& that) const
-        {
+        bool operator<(const session_base& that) const {
             using basic_socket_type = boost::asio::basic_socket<Protocal>;
             return std::less<basic_socket_type>{}(socket_, that.socket_);
         }
@@ -47,9 +46,20 @@ namespace detail
         }
 
         template<typename U>
-        void close_promise_and_socket(boost::promise<U>& promise, boost::system::error_code errc,
-                                            boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
+        void close_promise_and_socket(boost::promise<U>& promise,
+                                      boost::system::error_code errc,
+                                      boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
             promise.set_exception(std::runtime_error{ errc.message() });
+            close_socket(errc, operation);
+        }
+
+        template<typename U>
+        void close_promise_and_socket(std::variant<boost::promise<U>, folly::Promise<U>>& promise,
+                                      boost::system::error_code errc,
+                                      boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
+            core::visit(promise,
+                        [errc](folly::Promise<U>& promise) { promise.setException(std::runtime_error{ errc.message() }); },
+                        [errc](boost::promise<U>& promise) { promise.set_exception(std::runtime_error{ errc.message() }); });
             close_socket(errc, operation);
         }
 

@@ -21,10 +21,10 @@ namespace net
             std::chrono::milliseconds min_buffer_time;
             std::chrono::milliseconds max_segment_duration;
             std::chrono::milliseconds presentation_time;
-            int16_t grid_width = 0;
-            int16_t grid_height = 0;
-            int16_t scale_width = 0;
-            int16_t scale_height = 0;
+            int grid_width = 0;
+            int grid_height = 0;
+            int scale_width = 0;
+            int scale_height = 0;
 
             struct duration_parse_mismatch : std::runtime_error
             {
@@ -60,12 +60,12 @@ namespace net
                         auto represents = list_next_sibling("Representation", element->FirstChildElement("Representation"));
                         adaptation_set.codecs = represents.front()->Attribute("codecs");
                         adaptation_set.mime_type = represents.front()->Attribute("mimeType");
-                        adaptation_set.width = boost::numeric_cast<int16_t>(std::stoi(element->Attribute("maxWidth")));
-                        adaptation_set.height = boost::numeric_cast<int16_t>(std::stoi(element->Attribute("maxHeight")));
+                        adaptation_set.width = std::stoi(element->Attribute("maxWidth"));
+                        adaptation_set.height = std::stoi(element->Attribute("maxHeight"));
                         auto[x, y, w, h, total_w, total_h] = split_spatial_description(
                             element->FirstChildElement("SupplementalProperty")->Attribute("value"));
-                        adaptation_set.x = boost::numeric_cast<int16_t>(x);
-                        adaptation_set.y = boost::numeric_cast<int16_t>(y);
+                        adaptation_set.x = x;
+                        adaptation_set.y = y;
                         adaptation_set.represents.resize(represents.size());
                         std::transform(
                             std::execution::par, represents.begin(), represents.end(), adaptation_set.represents.begin(),
@@ -75,8 +75,8 @@ namespace net
                                     return std::regex_replace(str, media_regex, "{}");
                                 };
                                 represent represent;
-                                represent.id = boost::numeric_cast<int16_t>(std::stoi(element->Attribute("id")));
-                                represent.bandwidth = boost::numeric_cast<int>(std::stoi(element->Attribute("bandwidth")));
+                                represent.id = std::stoi(element->Attribute("id"));
+                                represent.bandwidth = std::stoi(element->Attribute("bandwidth"));
                                 represent.media = format(element->FirstChildElement("SegmentTemplate")->Attribute("media"));
                                 represent.initialization = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
                                 return represent;
@@ -90,8 +90,8 @@ namespace net
                 audio_adaptation_set.codecs = element->Attribute("codecs");
                 audio_adaptation_set.mime_type = element->Attribute("mimeType");
                 represent represent;
-                represent.id = boost::numeric_cast<int16_t>(std::stoi(element->Attribute("id")));
-                represent.bandwidth = boost::numeric_cast<int>(std::stoi(element->Attribute("bandwidth")));
+                represent.id = std::stoi(element->Attribute("id"));
+                represent.bandwidth = std::stoi(element->Attribute("bandwidth"));
                 represent.media = element->FirstChildElement("SegmentTemplate")->Attribute("media");
                 represent.initialization = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
                 audio_adaptation_set.represents.push_back(std::move(represent));
@@ -150,11 +150,11 @@ namespace net
         std::string_view dash::parser::title() const {
             return impl_->title;
         }
-        std::pair<int16_t, int16_t> dash::parser::grid_size() const {
+        std::pair<int, int> dash::parser::grid_size() const {
             return std::make_pair(impl_->grid_width, impl_->grid_height);
         }
 
-        std::pair<int16_t, int16_t> dash::parser::scale_size() const {
+        std::pair<int, int> dash::parser::scale_size() const {
             return std::make_pair(impl_->scale_width, impl_->scale_height);
         }
 

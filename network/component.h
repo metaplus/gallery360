@@ -1,13 +1,14 @@
 #pragma once
 
-namespace net
-{
-    using boost::beast::multi_buffer;
-}
-
 namespace net::component
 {
     class dash_streamer;
+
+    namespace detail
+    {
+        using boost::asio::const_buffer;
+        using boost::beast::multi_buffer;
+    }
 
     class dash_manager final
     {
@@ -24,28 +25,25 @@ namespace net::component
         dash_manager& operator=(dash_manager&&) = default;
         ~dash_manager() = default;
 
-        using ordinal = std::pair<int16_t, int16_t>;
-        using frame_consumer = folly::Function<void()>;
-        using frame_consumer_builder = folly::Function<frame_consumer(std::vector<multi_buffer>)>;
-        using buffer_supplier = folly::Function<multi_buffer()>;
-        using probability_predictor = folly::Function<double(ordinal)>;
+        using ordinal = std::pair<int, int>;
+        using frame_consumer = folly::Function<bool()>;
+        using frame_consumer_builder = folly::Function<frame_consumer(std::list<detail::const_buffer>)>;
 
-        static boost::future<dash_manager> async_create_parsed(std::string mpd_url);
+        //static boost::future<dash_manager> async_create_parsed(std::string mpd_url);
+        static folly::Future<dash_manager> async_create_parsed(std::string mpd_url);
 
-        std::pair<int16_t, int16_t> scale_size() const;
-        std::pair<int16_t, int16_t> grid_size() const;
+        std::pair<int, int> scale_size() const;
+        std::pair<int, int> grid_size() const;
 
-        folly::Function<multi_buffer()> tile_supplier(
+        folly::Function<detail::multi_buffer()> tile_supplier(
             int row, int column, folly::Function<double()> predictor);
 
-        void register_predictor(probability_predictor predictor);
-        void register_represent_consumer(frame_consumer_builder builder) const;
+        void register_represent_builder(frame_consumer_builder builder) const;
 
         // exception if tile drained
-
-        void wait_all_tile_consumed();
+        void wait_full_frame_consumed();
 
     private:
-        folly::Function<size_t(ordinal)> represent_indexer(folly::Function<double()> probability);
+        folly::Function<size_t(int, int)> represent_indexer(folly::Function<double(int, int)> probability);
     };
 }

@@ -8,6 +8,12 @@ namespace meta
         static_assert(sizeof...(Types) > 1);
     };
 
+    template<typename T>
+    struct is_within<T> : std::false_type {};
+
+    template<typename T, typename U>
+    struct is_within<T, U> : std::is_same<T, U> {};
+
     template<typename T, typename ...Types>
     struct is_within<T, std::variant<Types...>> : is_within<T, Types...> {};
 
@@ -121,4 +127,10 @@ namespace meta
     struct is_exception : std::disjunction<
         std::is_base_of<std::exception, Exception>,
         std::is_base_of<boost::exception, Exception>> {};
+
+    template<typename V>
+    struct is_variant : std::false_type {};
+
+    template<typename ...Types>
+    struct is_variant<std::variant<Types...>> : std::true_type {};
 }

@@ -47,9 +47,9 @@ namespace net::server
                 wlock->clear();
                 return close_acceptor(errc);
             }
-            if (wlock->size() > 1)
+            if (wlock->size() > 1) {
                 boost::asio::post(context_, on_listen_session());
-            else {
+            } else {
                 auto const active = is_active(false);
                 assert(active);
             }
