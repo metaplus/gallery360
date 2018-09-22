@@ -8,8 +8,8 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 #define _SCL_SECURE_NO_WARNINGS
-
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
+#define _ENABLE_EXTENDED_ALIGNED_STORAGE
 
 #define STRING_IMPL(x) #x
 #define STRING(x) STRING_IMPL(x)
@@ -101,6 +101,7 @@ using namespace std::literals;
 //#include <folly/io/IOBuf.h>
 //#include <folly/io/IOBufQueue.h>
 
+#include <folly/executors/GlobalExecutor.h>
 #ifdef CORE_USE_FOLLY_EXECUTOR
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
@@ -109,14 +110,14 @@ using namespace std::literals;
 //#include <folly/executors/task_queue/LifoSemMPMCQueue.h>
 //#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 //#include <folly/executors/thread_factory/NamedThreadFactory.h>
-//#include <folly/executors/ThreadedExecutor.h>
 
 #ifdef CORE_USE_FOLLY_FIBER
 #include <folly/fibers/Fiber.h>
 #endif //CORE_USE_FOLLY_FIBER
 #include <folly/Function.h>
-//#include <folly/futures/Barrier.h>
-//#include <folly/futures/Future.h>
+#include <folly/futures/Barrier.h>
+#include <folly/futures/Future.h>
+#include <folly/MoveWrapper.h>
 //#include <folly/PackedSyncPtr.h>
 //#include <folly/ProducerConsumerQueue.h>
 #include <folly/small_vector.h>
@@ -124,7 +125,6 @@ using namespace std::literals;
 #include <folly/Synchronized.h>
 //#include <folly/SynchronizedPtr.h>
 #include <folly/Uri.h>
-using namespace folly::literals;
 #pragma warning(pop)
 
 //#include <spdlog/spdlog.h>

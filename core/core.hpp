@@ -213,4 +213,9 @@ namespace core
     constexpr bool underlying_same(EnumT const& et, EnumU const& eu) noexcept {
         return std::equal_to<>{}(underlying(et), underlying(eu));
     }
+
+    template<class... Types> struct overloaded : Types... { using Types::operator()...; };
+    template<class... Types> overloaded(Types...)->overloaded<Types...>;
+
+    void set_cpu_executor(int concurrency, int queue_size = 4096, std::string_view pool_name = "CorePool");;
 }

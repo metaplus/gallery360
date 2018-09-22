@@ -8,6 +8,12 @@ namespace meta
         static_assert(sizeof...(Types) > 1);
     };
 
+    template<typename T>
+    struct is_within<T> : std::false_type {};
+
+    template<typename T, typename U>
+    struct is_within<T, U> : std::is_same<T, U> {};
+
     template<typename T, typename ...Types>
     struct is_within<T, std::variant<Types...>> : is_within<T, Types...> {};
 

@@ -14,7 +14,7 @@ namespace detail
     using response_body = boost::beast::http::dynamic_body;
     using recv_buffer = response_body::value_type;
     using response_container = net::protocal::http::protocal_base::response_type<response_body>;
-    using net_session_ptr = net::client::session_ptr<protocal_type, net::policy<response_body>>;
+    using net_session_ptr = net::client::session_ptr<protocal_type>;
     using ordinal = std::pair<int16_t, int16_t>;
     using io_context_ptr = std::invoke_result_t<decltype(&net::create_running_asio_pool), unsigned>;
 }
@@ -66,7 +66,7 @@ namespace net::component
             [dash_manager] {
                 logger->info("async_create_parsed @{} establish session", boost::this_thread::get_id());
                 auto session_ptr = dash_manager.impl_->connector
-                    ->establish_session<detail::protocal_type, detail::response_body>(
+                    ->establish_session<detail::protocal_type>(
                         dash_manager.impl_->mpd_uri->host(), std::to_string(dash_manager.impl_->mpd_uri->port()));
                 return session_ptr.get();
             }

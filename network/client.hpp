@@ -10,11 +10,11 @@ namespace net::client
         static std::shared_ptr<spdlog::logger> create_logger(int16_t index);
     };
 
-    template<typename Protocal, typename Policy = default_policy>
+    template<typename Protocal>
     class session;
 
     template<>
-    class session<protocal::http, policy<dynamic_body>>
+    class session<protocal::http>
         : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>
         , protocal::http::protocal_base
     {
@@ -65,7 +65,8 @@ namespace net::client
             on_recv_response();
     };
 
-    template<typename Protocal, typename Policy = default_policy>
-    using session_ptr = std::unique_ptr<session<Protocal, Policy>>;
-    using http_session = session<protocal::http, policy<dynamic_body>>;
+    template<typename Protocal>
+    using session_ptr = std::unique_ptr<session<Protocal>>;
+    using http_session = session<protocal::http>;
+    using http_session_ptr = std::unique_ptr<session<protocal::http>>;
 }
