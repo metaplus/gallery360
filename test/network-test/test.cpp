@@ -1,5 +1,7 @@
 #include "pch.h"
 #include <boost/beast/core/multi_buffer.hpp>
+#include <boost/circular_buffer.hpp>
+#include <fmt/format.h>
 #include <folly/executors/Async.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/GlobalExecutor.h>
@@ -11,6 +13,7 @@
 #include <folly/MoveWrapper.h>
 #include <folly/stop_watch.h>
 #include <folly/system/ThreadName.h>
+#include <regex>
 #include <variant>
 #include "network/component.h"
 
@@ -23,6 +26,9 @@ TEST(Folly, Function) {
     f = [] {};
     EXPECT_FALSE(f == nullptr);
     EXPECT_TRUE(f);
+    f = nullptr;
+    EXPECT_TRUE(f == nullptr);
+    EXPECT_FALSE(f);
 }
 
 TEST(Folly, MoveWrapper) {
@@ -38,13 +44,13 @@ TEST(Folly, MoveWrapper) {
     z();
 }
 
-TEST(LifoSemMPMCQueue, AddCapacity) {
+TEST(Folly, LifoSemMPMCQueue) {
     folly::LifoSemMPMCQueue<int, folly::QueueBehaviorIfFull::THROW> queue{ 1 };
     queue.add(1); folly::Promise<int> p;
     EXPECT_THROW(queue.add(1), std::runtime_error);
 }
 
-TEST(Promise, GetSemiFuture) {
+TEST(Future, Promise) {
     folly::Promise<int> p;
     auto sf = p.getSemiFuture()
         .deferValue([](int x) { return std::to_string(x) + "123"; });
@@ -52,7 +58,7 @@ TEST(Promise, GetSemiFuture) {
     EXPECT_STREQ(std::move(sf).get().c_str(), "456123");
 }
 
-TEST(Future, CollectAllSemiFuture) {
+TEST(Future, CollectAll) {
     auto c1 = folly::collectAllSemiFuture(
         folly::makeSemiFuture(1),
         folly::makeSemiFutureWith([] { return 2; })
@@ -78,7 +84,16 @@ TEST(Future, MakeSemiFutureWith) {
     EXPECT_EQ(t2, 1s);
 }
 
-TEST(Future, SemiFutureViaExecutor) {
+TEST(Future, MakeEmpty) {
+    auto sf = folly::SemiFuture<int>::makeEmpty();
+    EXPECT_FALSE(sf.valid());
+    EXPECT_THROW(sf.isReady(), folly::FutureInvalid);
+    auto f = folly::Future<int>::makeEmpty();
+    EXPECT_FALSE(sf.valid());
+    EXPECT_THROW(sf.isReady(), folly::FutureInvalid);
+}
+
+TEST(Future, ViaExecutor) {
     std::chrono::seconds t1, t2, t3, t4, t5;
     int y = 0;
     auto executor = std::make_shared<folly::CPUThreadPoolExecutor>(3);
@@ -222,6 +237,11 @@ TEST(Future, SharedPromise) {
     EXPECT_EQ(sf2.value(), 1);
 }
 
+TEST(Beast, MultiBuffer) {
+    boost::beast::multi_buffer b;
+    EXPECT_EQ(b.size(), 0);
+}
+
 TEST(DashManager, ParseMpdConfig) {
     set_cpu_executor(3);
     auto manager = net::component::dash_manager::async_create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
@@ -231,7 +251,31 @@ TEST(DashManager, ParseMpdConfig) {
     EXPECT_EQ(spatial_size, std::make_pair(3840, 1728));
 }
 
-TEST(Beast, MultiBuffer) {
-    boost::beast::multi_buffer b;
-    EXPECT_EQ(b.size(), 0);
+TEST(DashManager, PathRegex) {
+    auto path = "tile9-576p-1500kbps_dash$Number$.m4s"s;
+    auto path_regex = [](std::string& path, auto index) {
+        static const std::regex pattern{ "\\$Number\\$" };
+        return std::regex_replace(path, pattern, fmt::format("{}", index));
+    };
+    EXPECT_EQ(path_regex(path, 1), "tile9-576p-1500kbps_dash1.m4s");
+    EXPECT_EQ(path_regex(path, 10), "tile9-576p-1500kbps_dash10.m4s");
+}
+
+TEST(Boost, CircularBuffer) {
+    boost::circular_buffer<int> cb(2);
+    EXPECT_EQ(cb.size(), 0);
+    EXPECT_NE(cb.max_size(), 2);
+    EXPECT_EQ(cb.capacity(), 2);
+    cb.push_back(2);
+    cb.push_front(1);
+    EXPECT_EQ(cb.front(), 1);
+    EXPECT_EQ(cb.at(0), 1);
+    EXPECT_EQ(cb.at(1), 2);
+    cb.push_front(3);
+    EXPECT_EQ(cb.at(0), 3);
+    EXPECT_EQ(cb.at(1), 1);
+    cb.push_back(4);
+    EXPECT_EQ(cb.at(0), 1);
+    EXPECT_EQ(cb.at(1), 4);
+    EXPECT_TRUE(cb.full());
 }

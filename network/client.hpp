@@ -23,9 +23,8 @@ namespace net::client
         : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>
         , protocal::http::protocal_base
     {
-        using response_body = dynamic_body;
-        using response = response_type<response_body>;
-        using response_parser = response_parser_type<response_body>;
+        using response = response<dynamic_body>;
+        using response_parser = response_parser<dynamic_body>;
 
         struct detail
         {
@@ -35,8 +34,14 @@ namespace net::client
                 folly::SemiFuture<response>,
                 boost::future<response>
             >;
-        };
 
+            template<typename ...Policy>
+            using future_buffer_of = std::conditional_t<
+                meta::is_within<core::folly_tag, Policy...>::value,
+                folly::SemiFuture<multi_buffer>,
+                boost::future<multi_buffer>
+            >;
+        };
         std::variant<
             boost::promise<response>,
             folly::Promise<response>
@@ -56,15 +61,15 @@ namespace net::client
         using session_base::local_endpoint;
         using session_base::remote_endpoint;
 
-        template<typename RequestBody, typename ...Policy>
+        template<typename Body, typename ...Policy>
         detail::future_response_of<Policy...>
-            async_send_request(request_type<RequestBody>&& request, Policy ...policy) {
-            static_assert(boost::beast::http::is_body<RequestBody>::value);
+            async_send_request(request<Body>&& req, Policy ...policy) {
+            static_assert(boost::beast::http::is_body<Body>::value);
             logger_->info("async_send_request via message");
             auto[promise_response, future_response] = core::promise_contract_of<response>(policy...);
             response_ = std::move(promise_response);
             config_response_parser();
-            auto request_ptr = folly::makeMoveWrapper(std::make_unique<request_type<RequestBody>>(std::move(request)));
+            auto request_ptr = folly::makeMoveWrapper(std::make_unique<request<Body>>(std::move(req)));
             auto& request_ref = **request_ptr;
             boost::beast::http::async_write(
                 socket_, request_ref,
@@ -75,12 +80,25 @@ namespace net::client
                         return close_promise_and_socket(response_, errc, boost::asio::socket_base::shutdown_send);
                     }
                     if (is_chunked())
-                        throw core::not_implemented_error{ __FUNCSIG__ };
+                        throw core::not_implemented_error{ "on_request_send" };
                     boost::beast::http::async_read(socket_, recvbuf_, *response_parser_, on_recv_response());
                 });
             core::check[false] << is_active(true);
             ++round_trip_index_;
             return std::move(future_response);
+        }
+
+        template<typename Body, typename ...Policy>
+        detail::future_buffer_of<Policy...>
+            async_send_request_for_buffer(request<Body>&& req, Policy ...policy) {
+            return async_send_request(std::move(req), policy...)
+                .deferValue(
+                    [](response response) {
+                        if (response.result() != boost::beast::http::status::ok) {
+                            throw_bad_request(response.reason().data());
+                        }
+                        return response.body();
+                    });
         }
 
         folly::Function<multi_buffer()>

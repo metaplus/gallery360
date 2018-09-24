@@ -38,9 +38,9 @@ namespace net::server
 
         void async_run() {
             fmt::print("session: async_run\n");
-            request_ptr<request_body> request = std::make_unique<request_type<request_body>>();
-            auto& request_ref = *request;
-            boost::beast::http::async_read(socket_, recvbuf_, request_ref, on_recv_request(std::move(request)));
+            request_ptr<request_body> request_ptr = std::make_unique<request<request_body>>();
+            auto& request_ref = *request_ptr;
+            boost::beast::http::async_read(socket_, recvbuf_, request_ref, on_recv_request(std::move(request_ptr)));
         }
 
     private:

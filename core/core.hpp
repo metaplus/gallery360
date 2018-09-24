@@ -19,6 +19,26 @@ namespace core
         return buffer_list;
     }
 
+    template<typename T, typename ...Args>
+    std::shared_ptr<T>& access(std::shared_ptr<T>& ptr, Args&&... args) {
+        if (!ptr) {
+            ptr = std::make_shared<T>(std::forward<Args>(args)...);
+        }
+        return ptr;
+    }
+
+    template<typename Deleter, typename T, typename ...Args>
+    std::shared_ptr<T>& access(std::shared_ptr<T>& ptr,
+                               std::default_delete<T>&& deleter,
+                               Args&&... args) {
+        if (!ptr) {
+            ptr = std::shared_ptr<T>(
+                new T{ std::forward<Args>(args)... },
+                std::move(dynamic_cast<Deleter&&>(deleter)));
+        }
+        return ptr;
+    }
+
     std::string time_format(std::string format = "%c"s,
                             std::tm*(*timing)(std::time_t const*) = &std::localtime);
 
