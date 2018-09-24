@@ -7,6 +7,7 @@
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/Function.h>
 #include <folly/futures/Future.h>
+#include <folly/futures/SharedPromise.h>
 #include <folly/MoveWrapper.h>
 #include <folly/stop_watch.h>
 #include <folly/system/ThreadName.h>
@@ -99,7 +100,6 @@ TEST(Future, SemiFutureViaExecutor) {
                 y = x;
                 t2 = watch.elapsed();
                 std::this_thread::sleep_for(1s);
-
             });
     t3 = watch.elapsed();
     f.wait();
@@ -117,7 +117,7 @@ TEST(Future, SemiFutureViaExecutor) {
 template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
 template<class... Ts> overload(Ts...)->overload<Ts...>;
 
-#pragma warning(disable:244 267)
+#pragma warning(disable:244 267 101)
 TEST(Core, Overload) {
     using variant = std::variant<int, long, double, std::string>;
     variant v{ 1 };
@@ -166,6 +166,62 @@ TEST(Executor, SetCpuExecutor) {
     EXPECT_EQ(ids->size(), 8);
 }
 
+auto config_executor = [](auto concurrency) {
+    set_cpu_executor(concurrency);
+    auto* executor = folly::getCPUExecutor().get();
+    EXPECT_NO_THROW(dynamic_cast<folly::CPUThreadPoolExecutor&>(*executor));
+    return executor;
+};
+
+TEST(Future, SemiFutureDefer) {
+    auto* executor = config_executor(1);
+    auto[p, sf] = folly::makePromiseContract<int>();
+    auto id0 = folly::getCurrentThreadID();
+    auto id1 = 0;
+    auto id2 = 0;
+    executor->add(
+        [&] {
+            std::this_thread::sleep_for(1s);
+            id1 = folly::getCurrentThreadID();
+            p.setValue(1);
+        });
+    std::this_thread::sleep_for(2s);
+    sf = std::move(sf).deferValue(
+        [&](int i) {
+            id2 = folly::getCurrentThreadID();
+            return i + 1;
+        });
+    EXPECT_EQ(std::move(sf).get(), 2);
+    EXPECT_EQ(id0, id2);
+    EXPECT_NE(id0, id1);
+}
+
+TEST(Future, SemiFutureVariant) {
+    std::chrono::seconds t1, t2, t3, t4, t5;
+    set_cpu_executor(1);
+    auto* executor = folly::getCPUExecutor().get();
+    ///EXPECT_NE(executor, nullptr);
+    using variant = std::variant<
+        folly::SemiFuture<int>,
+        folly::Future<int>>;
+    folly::Promise<int> p1;
+    folly::Promise<int> p2;
+    folly::Promise<int> p3;
+    variant sf1 = p1.getSemiFuture();
+    variant sf2 = p2.getSemiFuture();
+    variant sf3 = p3.getSemiFuture();
+    folly::stop_watch<std::chrono::seconds> watch;
+}
+
+TEST(Future, SharedPromise) {
+    folly::SharedPromise<int> sp;
+    auto sf1 = sp.getSemiFuture();
+    auto sf2 = sp.getSemiFuture();
+    EXPECT_THROW(sf1.value(), folly::FutureNotReady);
+    sp.setValue(1);
+    EXPECT_EQ(sf2.value(), 1);
+}
+
 TEST(DashManager, ParseMpdConfig) {
     set_cpu_executor(3);
     auto manager = net::component::dash_manager::async_create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
@@ -173,4 +229,9 @@ TEST(DashManager, ParseMpdConfig) {
     auto grid_size = manager.grid_size();
     EXPECT_EQ(grid_size, std::make_pair(3, 3));
     EXPECT_EQ(spatial_size, std::make_pair(3840, 1728));
+}
+
+TEST(Beast, MultiBuffer) {
+    boost::beast::multi_buffer b;
+    EXPECT_EQ(b.size(), 0);
 }

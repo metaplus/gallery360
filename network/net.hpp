@@ -69,7 +69,8 @@ namespace net
                 int id = 0;
                 int bandwidth = 0;
                 std::string media;
-                std::string initialization;
+                std::string initial;
+                multi_buffer initial_buffer;
             };
 
             struct adaptation_set

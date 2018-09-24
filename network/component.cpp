@@ -20,28 +20,31 @@ namespace net::component
 {
     const auto logger = spdlog::stdout_color_mt("net.component.dash.manager");
 
-    namespace detail
-    {
-        using protocal_type = protocal::http;
-        using request_body = empty_body;
-        using response_body = dynamic_body;
-        using recv_buffer = response_body::value_type;
-        using response_container = protocal::http::protocal_base::response_type<response_body>;
-        using client::http_session_ptr;
-        using ordinal = std::pair<int16_t, int16_t>;
-        using io_context_ptr = std::invoke_result_t<decltype(&net::create_running_asio_pool), unsigned>;
-    }
+    using protocal::http;
+    using protocal::dash;
+    using request_body = empty_body;
+    using response_body = dynamic_body;
+    using recv_buffer = response_body::value_type;
+    using response = http::protocal_base::response_type<response_body>;
+    using client::http_session_ptr;
+    using ordinal = std::pair<int16_t, int16_t>;
+    using io_context_ptr = std::invoke_result_t<decltype(&create_running_asio_pool), unsigned>;
 
     //-- dash_manager
     struct dash_manager::impl
     {
-        detail::io_context_ptr io_context;
-        detail::http_session_ptr net_client;
+        io_context_ptr io_context;
+        http_session_ptr net_client;
         std::optional<folly::Uri> mpd_uri;
-        std::optional<protocal::dash::parser> mpd_parser;
+        std::optional<dash::parser> mpd_parser;
         std::optional<client::connector<protocal::tcp>> connector;
         folly::Function<double(int, int)> predictor = [](auto, auto) { return 1; };
+        folly::Function<size_t(int, int)> indexer;
         frame_consumer_builder consumer_builder;
+
+        dash::adaptation_set& video_set(int row, int column) {
+            return mpd_parser->video_set(column, row);
+        }
 
         struct deleter : std::default_delete<impl>
         {
@@ -50,6 +53,10 @@ namespace net::component
                 static_cast<default_delete&>(*this)(impl);
             }
         };
+
+        folly::SemiFuture<multi_buffer> request_tile(int x, int y) {
+
+        }
     };
 
     dash_manager::dash_manager(std::string&& mpd_url, unsigned concurrency)
@@ -89,8 +96,8 @@ namespace net::component
                 auto mpd_content = boost::beast::buffers_to_string(response.body().data());
                 dash_manager.impl_->mpd_parser.emplace(mpd_content);
                 return dash_manager;
-            });
-    }
+    });
+}
 #endif
 
     folly::Future<dash_manager> dash_manager::async_create_parsed(std::string mpd_url) {
@@ -100,21 +107,21 @@ namespace net::component
         dash_manager dash_manager{ std::move(mpd_url) };
         logger->info("async_create_parsed @{} establish session", boost::this_thread::get_id());
         return dash_manager.impl_->connector
-            ->establish_session<detail::protocal_type>(
+            ->establish_session<http>(
                 dash_manager.impl_->mpd_uri->host(),
                 std::to_string(dash_manager.impl_->mpd_uri->port()),
                 core::folly)
             .via(&executor).thenValue(
-                [dash_manager](detail::http_session_ptr session) {
+                [dash_manager](http_session_ptr session) {
                     logger->info("async_create_parsed @{} send request", boost::this_thread::get_id());
                     dash_manager.impl_->net_client = std::move(session);
                     return dash_manager.impl_->net_client
-                        ->async_send_request(net::make_http_request<detail::request_body>(
+                        ->async_send_request(net::make_http_request<request_body>(
                             dash_manager.impl_->mpd_uri->host(), dash_manager.impl_->mpd_uri->path()),
                             core::folly);
                 })
             .via(&executor).thenValue(
-                [dash_manager](detail::response_container response) {
+                [dash_manager](response response) {
                     logger->info("async_create_parsed @{} parse mpd", boost::this_thread::get_id());
                     if (response.result() != boost::beast::http::status::ok) {
                         core::throw_with_stacktrace(error::http_bad_request{ __FUNCSIG__ });
@@ -134,9 +141,8 @@ namespace net::component
     }
 
     folly::Function<multi_buffer()>
-        dash_manager::tile_supplier(
-            int row, int column, folly::Function<double()> predictor) {
-        auto& video_set = impl_->mpd_parser->video_set(column, row);
+        dash_manager::tile_supplier(int row, int column, folly::Function<double()> predictor) {
+        auto& video_set = impl_->video_set(column, row);
         auto represent_predictor =
             [&video_set, predictor = std::move(predictor)]()->decltype(auto) {
             auto& video_represents = video_set.represents;
@@ -150,14 +156,23 @@ namespace net::component
         };
     }
 
+    auto builder = [](dash::parser& parser) {
+
+        return [&parser](int row, int col) {
+            auto& video_set = parser.video_set(row, col);
+
+        };
+    };
+
     void dash_manager::register_represent_builder(frame_consumer_builder builder) const {
         impl_->consumer_builder = std::move(builder);
         for (auto& video_set : impl_->mpd_parser->video_set()) {
-            try {
-                assert(!video_set.consumer);
-            } catch (...) {
+            assert(!video_set.consumer);
+            const auto represent_size = video_set.represents.size();
+            const auto predict_index = boost::numeric_cast<size_t>(
+                represent_size*std::invoke(impl_->predictor, video_set.x, video_set.y));
+            const auto& represent = video_set.represents.at(std::max(predict_index, represent_size - 1));
 
-            }
         }
     }
 
@@ -176,7 +191,8 @@ namespace net::component
         }
     }
 
-    folly::Function<size_t(int, int)> dash_manager::represent_indexer(folly::Function<double(int, int)> probability) {
+    folly::Function<size_t(int, int)>
+        dash_manager::represent_indexer(folly::Function<double(int, int)> probability) {
         return[this, probability = std::move(probability)](int x, int y) mutable {
             auto& video_set = impl_->mpd_parser->video_set(x, y);
             const auto represent_size = video_set.represents.size();

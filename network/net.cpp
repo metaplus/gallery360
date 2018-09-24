@@ -78,7 +78,7 @@ namespace net
                                 represent.id = std::stoi(element->Attribute("id"));
                                 represent.bandwidth = std::stoi(element->Attribute("bandwidth"));
                                 represent.media = format(element->FirstChildElement("SegmentTemplate")->Attribute("media"));
-                                represent.initialization = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
+                                represent.initial = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
                                 return represent;
                             });
                         return adaptation_set;
@@ -93,7 +93,7 @@ namespace net
                 represent.id = std::stoi(element->Attribute("id"));
                 represent.bandwidth = std::stoi(element->Attribute("bandwidth"));
                 represent.media = element->FirstChildElement("SegmentTemplate")->Attribute("media");
-                represent.initialization = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
+                represent.initial = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
                 audio_adaptation_set.represents.push_back(std::move(represent));
                 audio_adaptation_set.sample_rate = std::stoi(element->Attribute("audioSamplingRate"));
             }

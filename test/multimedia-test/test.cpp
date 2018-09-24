@@ -215,3 +215,18 @@ TEST(Std, WeakPtr) {
     w = std::make_shared<int>();
     EXPECT_TRUE(w.expired());
 }
+
+TEST(Std, ListIterator) {
+    std::list<int> l{ 1,2,3 };
+    auto iter = l.begin();
+    EXPECT_EQ(*iter, 1);
+    std::advance(iter, 2);
+    EXPECT_EQ(*iter, 3);
+    EXPECT_EQ(std::next(iter), l.end());
+    l.emplace_back(4);
+    l.emplace_front(0);
+    EXPECT_NE(std::next(iter), l.end());
+    std::advance(iter, 1);
+    EXPECT_EQ(*iter, 4);
+    EXPECT_EQ(std::next(iter), l.end());
+}
