@@ -19,12 +19,28 @@ namespace core
         return buffer_list;
     }
 
-    inline std::string time_string(std::string format = "%c"s,
-                                   std::tm*(*timing)(std::time_t const*) = &std::localtime) {
-        // auto const time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        auto const t = std::time(nullptr);
-        return fmt::format("{}", std::put_time(timing(&t), format.data()));
+    template<typename T, typename ...Args>
+    std::shared_ptr<T>& access(std::shared_ptr<T>& ptr, Args&&... args) {
+        if (!ptr) {
+            ptr = std::make_shared<T>(std::forward<Args>(args)...);
+        }
+        return ptr;
     }
+
+    template<typename Deleter, typename T, typename ...Args>
+    std::shared_ptr<T>& access(std::shared_ptr<T>& ptr,
+                               std::default_delete<T>&& deleter,
+                               Args&&... args) {
+        if (!ptr) {
+            ptr = std::shared_ptr<T>(
+                new T{ std::forward<Args>(args)... },
+                std::move(dynamic_cast<Deleter&&>(deleter)));
+        }
+        return ptr;
+    }
+
+    std::string time_format(std::string format = "%c"s,
+                            std::tm*(*timing)(std::time_t const*) = &std::localtime);
 
     template<auto Begin, auto End, auto Span = 1>
     constexpr auto range_sequence() {
@@ -67,11 +83,7 @@ namespace core
         }
     }
 
-    inline size_t count_entry(std::filesystem::path const& directory) {
-        // non-recursive version, regardless of symbolic link
-        const std::filesystem::directory_iterator iterator{ directory };
-        return std::distance(begin(iterator), end(iterator));
-    }
+    size_t count_file_entry(std::filesystem::path const& directory);
 
     template<typename T>
     std::reference_wrapper<T> make_null_reference_wrapper() noexcept {
@@ -106,6 +118,9 @@ namespace core
         inline constexpr struct defer_construct_tag {} defer_construct;
         inline constexpr struct defer_execute_tag {} defer_execute;
         inline constexpr struct defer_destruct_tag {} defer_destruct;
+        inline constexpr struct folly_tag {} folly;
+        inline constexpr struct boost_tag {} boost;
+        inline constexpr struct tbb_tag {} tbb;
     }
 
     namespace v3
@@ -214,8 +229,40 @@ namespace core
         return std::equal_to<>{}(underlying(et), underlying(eu));
     }
 
-    template<class... Types> struct overloaded : Types... { using Types::operator()...; };
-    template<class... Types> overloaded(Types...)->overloaded<Types...>;
+    template<typename ...Types>
+    struct overload : Types... { using Types::operator()...; };
+    template<typename ...Types> overload(Types...)->overload<Types...>;
 
-    void set_cpu_executor(int concurrency, int queue_size = 4096, std::string_view pool_name = "CorePool");;
+    template<typename Variant, typename ...Callable>
+    auto visit(Variant&& variant, Callable&& ...callable) {
+        static_assert(meta::is_variant<std::decay_t<Variant>>::value);
+        return std::visit(
+            overload{ std::forward<Callable>(callable)... },
+            std::forward<Variant>(variant));
+    }
+
+    void set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name = "CorePool");
+
+    void set_cpu_executor(int concurrency, std::string_view pool_name = "CorePool");
+
+    template<typename T, typename ...Policy>
+    static auto promise_contract_of(Policy& ...p) {
+        if constexpr (meta::is_within<folly_tag, Policy...>::value) {
+            return folly::makePromiseContract<T>();
+        } else if constexpr (meta::is_within<folly::Promise<T>, Policy...>::value) {
+            auto tuple = std::forward_as_tuple(p...);
+            folly::Promise<T>& promise = std::get<folly::Promise<T>&>(tuple);
+            auto future = promise.getSemiFuture();
+            return std::make_pair(std::move(promise), std::move(future));
+        } else if constexpr (meta::is_within<boost::promise<T>, Policy...>::value) {
+            auto tuple = std::forward_as_tuple(p...);
+            boost::promise<T>& promise = std::get<boost::promise<T>&>(tuple);
+            auto future = promise.get_future();
+            return std::make_pair(std::move(promise), std::move(future));
+        } else {
+            boost::promise<T> promise;
+            auto future = promise.get_future();
+            return std::make_pair(std::move(promise), std::move(future));
+        }
+    }
 }

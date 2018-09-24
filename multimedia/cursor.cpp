@@ -5,9 +5,6 @@ namespace media
 {
     using namespace detail;
 
-    //-- io_handle
-
-
     //-- cursor
     cursor::cursor(const multi_buffer& buffer)
         : buffer_begin(boost::asio::buffer_sequence_begin(buffer.data()))

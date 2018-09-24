@@ -26,18 +26,20 @@ namespace net::client
         reserve_recvbuf_capacity();
     }
 
+#if 0
     folly::Function<multi_buffer()>
         http_session::transform_buffer_stream(folly::Function<std::string()> url_supplier) {
         struct stream : std::enable_shared_from_this<stream>
         {
-            using future_response = boost::future<response>;
+            using future_response = std::variant<boost::future<response>, folly::SemiFuture<response>>;
 
             int64_t recv_count = 0;
             future_response response;
             folly::Function<future_response()> response_supplier;
 
             [[maybe_unused]] multi_buffer iterate_buffer() {
-                auto available_buffer = response.get().body();
+                //auto available_buffer = response.get().body();
+                multi_buffer available_buffer;
                 ++recv_count;
                 response = response_supplier();
                 return available_buffer;
@@ -67,27 +69,15 @@ namespace net::client
             }
         };
     }
+#endif
 
-    boost::promise<session<protocal::http>::response>
-        http_session::prepare_response_parser() {
-        response_parser_.emplace();
-        response_parser_->body_limit(std::numeric_limits<uint64_t>::max());
-        return boost::promise<response>{};
+    http_session_ptr session<protocal::http>::create(socket_type&& socket, boost::asio::io_context& context) {
+        return std::make_unique<http_session>(std::move(socket), context);
     }
 
-    folly::Function<void(boost::system::error_code, std::size_t)>
-        http_session::on_send_request(request_ptr<empty_body> request) {
-        return[this, request = std::move(request)](boost::system::error_code errc, std::size_t transfer_size)
-        {
-            logger_->info("on_send_request errc {} transfer {}", errc, transfer_size);
-            if (errc) {
-                logger_->error("on_send_request failure");
-                return close_promise_and_socket(promise_response_, errc, boost::asio::socket_base::shutdown_send);
-            }
-            if (is_chunked())
-                throw core::not_implemented_error{ __FUNCSIG__ };
-            http::async_read(socket_, recvbuf_, *response_parser_, on_recv_response());
-        };
+    void http_session::config_response_parser() {
+        response_parser_.emplace();
+        response_parser_->body_limit(std::numeric_limits<uint64_t>::max());
     }
 
     folly::Function<void(boost::system::error_code, std::size_t)>
@@ -95,10 +85,12 @@ namespace net::client
         return [this](boost::system::error_code errc, std::size_t transfer_size) mutable {
             logger_->info("on_recv_response errc {} transfer {}", errc, transfer_size);
             if (errc) {
-                logger_->error("on_recv_response, failure");
-                return close_promise_and_socket(promise_response_, errc, boost::asio::socket_base::shutdown_receive);
+                logger_->error("on_recv_response failure");
+                return close_promise_and_socket(response_, errc, boost::asio::socket_base::shutdown_receive);
             }
-            promise_response_.set_value(response_parser_->release());
+            core::visit(response_,
+                        [this](folly::Promise<response>& promise) { promise.setValue(response_parser_->release()); },
+                        [this](boost::promise<response>& promise) { promise.set_value(response_parser_->release()); });
         };
     }
 }

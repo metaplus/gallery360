@@ -32,7 +32,8 @@ namespace net::server
                     std::tuple<boost::asio::ip::tcp::socket, boost::asio::io_context&, SessionParams&&...>
                         args_tuple = std::tuple_cat(std::make_tuple(future_socket.get(), std::ref(context_)), std::move(args));
                     return std::apply(
-                        [this](boost::asio::ip::tcp::socket& socket, boost::asio::io_context& context,
+                        [this](boost::asio::ip::tcp::socket& socket, 
+                               boost::asio::io_context& context,
                                SessionParams&& ...args) -> session_ptr<Protocal> {
                                    return std::make_unique<session<Protocal>>(std::move(socket), context,
                                                                               std::forward<SessionParams>(args)...);

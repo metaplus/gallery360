@@ -127,4 +127,10 @@ namespace meta
     struct is_exception : std::disjunction<
         std::is_base_of<std::exception, Exception>,
         std::is_base_of<boost::exception, Exception>> {};
+
+    template<typename V>
+    struct is_variant : std::false_type {};
+
+    template<typename ...Types>
+    struct is_variant<std::variant<Types...>> : std::true_type {};
 }

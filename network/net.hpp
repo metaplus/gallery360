@@ -30,21 +30,17 @@ namespace net
             struct protocal_base
             {
                 template<typename Body>
-                using response_type = boost::beast::http::response<Body, boost::beast::http::fields>;
+                using response = boost::beast::http::response<Body, boost::beast::http::fields>;
                 template<typename Body>
-                using request_type = boost::beast::http::request<Body, boost::beast::http::fields>;
+                using request = boost::beast::http::request<Body, boost::beast::http::fields>;
                 template<typename Body>
-                using response_parser_type = boost::beast::http::response_parser<Body>;
+                using response_parser = boost::beast::http::response_parser<Body>;
                 template<typename Body>
-                using request_parser_type = boost::beast::http::request_parser<Body>;
+                using request_parser = boost::beast::http::request_parser<Body>;
                 template<typename Body>
-                using response_ptr = std::unique_ptr<response_type<Body>>;
+                using response_ptr = std::unique_ptr<response<Body>>;
                 template<typename Body>
-                using request_ptr = std::unique_ptr<request_type<Body>>;
-                template<typename Body>
-                using response_promise = std::promise<response_type<Body>>;
-                template<typename Body>
-                using request_promise = std::promise<request_type<Body>>;
+                using request_ptr = std::unique_ptr<request<Body>>;
                 using under_protocal_type = boost::asio::ip::tcp;
                 using socket_type = boost::asio::ip::tcp::socket;
             };
@@ -66,10 +62,11 @@ namespace net
 
             struct represent
             {
-                int16_t id = 0;
+                int id = 0;
                 int bandwidth = 0;
                 std::string media;
-                std::string initialization;
+                std::string initial;
+                multi_buffer initial_buffer;
             };
 
             struct adaptation_set
@@ -81,12 +78,12 @@ namespace net
 
             struct video_adaptation_set : adaptation_set
             {
-                int16_t x = 0;
-                int16_t y = 0;
-                int16_t width = 0;
-                int16_t height = 0;
-                int64_t index = 0;
-                std::optional<folly::Function<void()>> consumer;
+                int x = 0;
+                int y = 0;
+                int width = 0;
+                int height = 0;
+                struct context;
+                std::shared_ptr<context> context;
             };
 
             struct audio_adaptation_set : adaptation_set
@@ -108,8 +105,8 @@ namespace net
                 ~parser() = default;
 
                 std::string_view title() const;
-                std::pair<int16_t, int16_t> grid_size() const;
-                std::pair<int16_t, int16_t> scale_size() const;
+                std::pair<int, int> grid_size() const;
+                std::pair<int, int> scale_size() const;
 
                 std::vector<video_adaptation_set>& video_set() const;
                 video_adaptation_set& video_set(int column, int row) const;
@@ -129,8 +126,11 @@ namespace net
     }
 
     template<typename Body>
-    boost::beast::http::request<Body> make_http_request(std::string_view host, std::string_view target) {
+    boost::beast::http::request<Body> make_http_request(const std::string& host,
+                                                        const std::string& target) {
         static_assert(boost::beast::http::is_body<Body>::value);
+        assert(!std::empty(host));
+        assert(!std::empty(target));
         boost::beast::http::request<Body> request;
         request.version(protocal::http::default_version);
         request.method(protocal::http::default_method);
@@ -172,6 +172,8 @@ namespace net
     struct asio_deleter;
 
     std::shared_ptr<boost::asio::io_context> create_running_asio_pool(unsigned concurrency);
+
+    [[noreturn]] void throw_bad_request(std::string message);
 }
 
 template<typename Protocal>

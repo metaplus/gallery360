@@ -101,6 +101,7 @@ using namespace std::literals;
 //#include <folly/io/IOBuf.h>
 //#include <folly/io/IOBufQueue.h>
 
+#include <folly/executors/Async.h>
 #include <folly/executors/GlobalExecutor.h>
 #ifdef CORE_USE_FOLLY_EXECUTOR
 #include <folly/executors/CPUThreadPoolExecutor.h>
