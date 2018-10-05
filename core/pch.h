@@ -67,6 +67,7 @@ using namespace std::literals;
 #include <boost/exception/all.hpp>
 //#include <boost/hana.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/logic/tribool_fwd.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 //#include <boost/numeric/conversion/converter.hpp>
 //#include <boost/property_tree/ptree.hpp>

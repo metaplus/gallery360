@@ -53,9 +53,8 @@ namespace core
         }
     }
 
-    class aborted_error : protected std::runtime_error
+    struct aborted_error : std::runtime_error
     {
-    public:
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
@@ -64,9 +63,8 @@ namespace core
         }
     };
 
-    class null_pointer_error : protected std::runtime_error
+    struct null_pointer_error : std::runtime_error
     {
-    public:
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
@@ -75,9 +73,8 @@ namespace core
         }
     };
 
-    class dangling_pointer_error : protected std::runtime_error
+    struct dangling_pointer_error : std::runtime_error
     {
-    public:
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
@@ -86,9 +83,8 @@ namespace core
         }
     };
 
-    class not_implemented_error : protected std::logic_error
+    struct not_implemented_error : std::logic_error
     {
-    public:
         using logic_error::logic_error;
         using logic_error::operator=;
 
@@ -97,9 +93,8 @@ namespace core
         }
     };
 
-    class already_exist_error : protected std::logic_error
+    struct already_exist_error : std::logic_error
     {
-    public:
         using logic_error::logic_error;
         using logic_error::operator=;
 
@@ -108,9 +103,8 @@ namespace core
         }
     };
 
-    class unreachable_execution_branch : protected std::logic_error
+    struct unreachable_execution_error : std::logic_error
     {
-    public:
         using logic_error::logic_error;
         using logic_error::operator=;
 
@@ -119,7 +113,39 @@ namespace core
         }
     };
 
-    [[noreturn]] inline void throw_unimplemented(std::string message) {
+    struct stream_drained_error : std::runtime_error
+    {
+        using runtime_error::runtime_error;
+        using runtime_error::operator=;
+
+        char const* what() const override {
+            return detail::message_otherwise_typename(what(), this);
+        }
+    };
+
+    struct bad_request_error : std::runtime_error
+    {
+        using runtime_error::runtime_error;
+        using runtime_error::operator=;
+
+        char const* what() const override {
+            return detail::message_otherwise_typename(what(), this);
+        }
+    };
+
+    [[noreturn]] inline void throw_unimplemented(std::string message = ""s) {
         throw not_implemented_error{ message };
+    }
+
+    [[noreturn]] inline void throw_unreachable(std::string message = ""s) {
+        throw unreachable_execution_error{ message };
+    }
+
+    [[noreturn]] inline void throw_drained(std::string message = ""s) {
+        throw stream_drained_error{ message };
+    }
+
+    [[noreturn]] inline void throw_bad_request(std::string message = ""s) {
+        throw bad_request_error{ message };
     }
 }

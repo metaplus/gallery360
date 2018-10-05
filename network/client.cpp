@@ -88,9 +88,7 @@ namespace net::client
                 logger_->error("on_recv_response failure");
                 return close_promise_and_socket(response_, errc, boost::asio::socket_base::shutdown_receive);
             }
-            core::visit(response_,
-                        [this](folly::Promise<response>& promise) { promise.setValue(response_parser_->release()); },
-                        [this](boost::promise<response>& promise) { promise.set_value(response_parser_->release()); });
+            response_.setValue(response_parser_->release());
         };
     }
 }

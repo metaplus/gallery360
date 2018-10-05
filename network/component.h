@@ -40,8 +40,8 @@ namespace net::component
 
         void register_represent_builder(frame_consumer_builder builder) const;
 
-        // exception if tile drained
-        void wait_full_frame_consumed();
+        bool wait_tile_consumed(int col, int row);
+        int wait_full_frame_consumed();
 
     private:
         folly::Function<size_t(int, int)> represent_indexer(folly::Function<double(int, int)> probability);

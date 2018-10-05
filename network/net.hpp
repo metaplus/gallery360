@@ -172,8 +172,6 @@ namespace net
     struct asio_deleter;
 
     std::shared_ptr<boost::asio::io_context> create_running_asio_pool(unsigned concurrency);
-
-    [[noreturn]] void throw_bad_request(std::string message);
 }
 
 template<typename Protocal>

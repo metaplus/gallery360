@@ -38,6 +38,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "multimedia-test", "..\test\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "network-test", "..\test\network-test\network-test.vcxproj", "{28F4FB6A-A643-43A9-9E8A-063B7450575B}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gallery-test", "..\test\gallery-test\gallery-test.vcxproj", "{B01AAF39-CB3D-48DB-A717-56B56B81A86C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -110,6 +112,14 @@ Global
 		{28F4FB6A-A643-43A9-9E8A-063B7450575B}.Release|x64.Build.0 = Release|x64
 		{28F4FB6A-A643-43A9-9E8A-063B7450575B}.Release|x86.ActiveCfg = Release|Win32
 		{28F4FB6A-A643-43A9-9E8A-063B7450575B}.Release|x86.Build.0 = Release|Win32
+		{B01AAF39-CB3D-48DB-A717-56B56B81A86C}.Debug|x64.ActiveCfg = Debug|x64
+		{B01AAF39-CB3D-48DB-A717-56B56B81A86C}.Debug|x64.Build.0 = Debug|x64
+		{B01AAF39-CB3D-48DB-A717-56B56B81A86C}.Debug|x86.ActiveCfg = Debug|Win32
+		{B01AAF39-CB3D-48DB-A717-56B56B81A86C}.Debug|x86.Build.0 = Debug|Win32
+		{B01AAF39-CB3D-48DB-A717-56B56B81A86C}.Release|x64.ActiveCfg = Release|x64
+		{B01AAF39-CB3D-48DB-A717-56B56B81A86C}.Release|x64.Build.0 = Release|x64
+		{B01AAF39-CB3D-48DB-A717-56B56B81A86C}.Release|x86.ActiveCfg = Release|Win32
+		{B01AAF39-CB3D-48DB-A717-56B56B81A86C}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
