@@ -6,8 +6,8 @@
 namespace core
 {
     std::string time_format(std::string format, std::tm *(*timing)(std::time_t const *)) {
-        // auto const time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        auto const t = std::time(nullptr);
+        // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        const auto t = std::time(nullptr);
         return fmt::format("{}", std::put_time(timing(&t), format.data()));
     }
 

@@ -134,21 +134,15 @@ TEST(Core, Split2Sequence) {
 
 
 #pragma comment(lib,"multimedia")
-
 TEST(FrameSegmentor, Base) {
     auto& buffer_map = create_buffer_map();
     for (auto&[index, buffer] : buffer_map) {
         media::component::frame_segmentor frame_segmentor;
-        auto count1 = 0, count2 = 0;
-        frame_segmentor.parse_context(std::move(buffer_list));
-        while (frame_segmentor.try_read()) {
-            count1 += 1;
-        }
-        frame_segmentor.reset_buffer_list(core::split_buffer_sequence(buffer_map[2]));
-        while (frame_segmentor.try_read()) {
-            count2 += 1;
-        }
+        frame_segmentor.parse_context(core::split_buffer_sequence(buffer));
+        EXPECT_FALSE(frame_segmentor.buffer_available());
+        break;
     }
+}
 
 TEST(FrameSegmentor, ReadTwo) {
     auto& buffer_map = create_buffer_map();
@@ -160,20 +154,11 @@ TEST(FrameSegmentor, ReadTwo) {
     while (frame_segmentor.try_read()) {
         count1 += 1;
     }
-
-    TEST(FrameSegmentor, TryConsume) {
-        auto& buffer_map = create_buffer_map();
-        media::component::frame_segmentor frame_segmentor{
-            core::split_buffer_sequence(buffer_map[0],buffer_map[2],buffer_map[4],buffer_map[6],buffer_map[7],buffer_map[10])
-        };
-        auto count = 0;
-        auto increment = 0;
-        do {
-            increment = frame_segmentor.try_consume();
-            count += increment > 0 ? increment : 0;
-        } while (increment >= 0);
-        EXPECT_EQ(count, 125);
+    frame_segmentor.reset_buffer_list(core::split_buffer_sequence(buffer_map[2]));
+    while (frame_segmentor.try_read()) {
+        count2 += 1;
     }
+}
 
 TEST(FrameSegmentor, ReadThree) {
     auto& buffer_map = create_buffer_map();
@@ -183,6 +168,13 @@ TEST(FrameSegmentor, ReadThree) {
     frame_segmentor.parse_context(std::move(buffer_list));
     while (frame_segmentor.try_read()) {
         count1 += 1;
+    }
+    auto buffer_list2 = core::split_buffer_sequence(buffer_map[0], buffer_map[2], buffer_map[4], buffer_map[6]);
+    media::component::frame_segmentor frame_segmentor2;
+    auto count2 = 0;
+    frame_segmentor2.parse_context(std::move(buffer_list2));
+    while (frame_segmentor2.try_read()) {
+        count2 += 1;
     }
 }
 
@@ -208,6 +200,7 @@ TEST(FrameSegmentor, TryConsumeOnce) {
     auto count = 0;
     while (frame_segmentor.try_consume_once() && ++count) {
     }
+    EXPECT_EQ(count, 125);
 }
 
 TEST(Std, WeakPtr) {

@@ -59,7 +59,7 @@ namespace core
                 } else {
                     static_assert(!std::is_null_pointer<native_type>::value);
                     static_assert(!std::is_floating_point<native_type>::value);
-                    throw core::unreachable_execution_branch{ __PRETTY_FUNCTION__ };
+                    throw unreachable_execution_error{ __PRETTY_FUNCTION__ };
                 }
             }
         }

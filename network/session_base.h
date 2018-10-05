@@ -54,6 +54,14 @@ namespace detail
         }
 
         template<typename U>
+        void close_promise_and_socket(folly::Promise<U>& promise,
+                                      boost::system::error_code errc,
+                                      boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
+            promise.setException(std::runtime_error{ errc.message() });
+            close_socket(errc, operation);
+        }
+
+        template<typename U>
         void close_promise_and_socket(std::variant<boost::promise<U>, folly::Promise<U>>& promise,
                                       boost::system::error_code errc,
                                       boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {

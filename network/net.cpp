@@ -296,17 +296,4 @@ namespace net
             io_context, asio_deleter{ io_context,concurrency }
         };
     }
-
-    namespace error
-    {
-        struct bad_request : std::runtime_error
-        {
-            using runtime_error::runtime_error;
-            using runtime_error::operator=;
-        };
-    }
-
-    void throw_bad_request(std::string message) {
-        core::throw_with_stacktrace(error::bad_request{ message });
-    }
 }

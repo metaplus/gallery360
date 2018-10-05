@@ -101,7 +101,7 @@ namespace media
         case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
             return sequence_size();
         default:
-            throw core::unreachable_execution_branch{ __FUNCSIG__ };
+            throw core::unreachable_execution_error{ __FUNCSIG__ };
         }
         return seek_sequence(seek_offset);
     }
@@ -162,7 +162,7 @@ namespace media
         case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
             return -1;       // TODO: return -1 for streaming
         default:
-            throw core::unreachable_execution_branch{ __FUNCSIG__ };
+            throw core::unreachable_execution_error{ __FUNCSIG__ };
         }
         if (seek_offset >= full_size_) {
             buffer_iter_ = buffer_list_.end();

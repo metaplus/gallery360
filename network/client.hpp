@@ -2,8 +2,6 @@
 
 namespace net::client
 {
-    using default_policy = policy<dynamic_body>;
-
     struct info
     {
         static int16_t net_session_index();
@@ -26,26 +24,7 @@ namespace net::client
         using response = response<dynamic_body>;
         using response_parser = response_parser<dynamic_body>;
 
-        struct detail
-        {
-            template<typename ...Policy>
-            using future_response_of = std::conditional_t<
-                meta::is_within<core::folly_tag, Policy...>::value,
-                folly::SemiFuture<response>,
-                boost::future<response>
-            >;
-
-            template<typename ...Policy>
-            using future_buffer_of = std::conditional_t<
-                meta::is_within<core::folly_tag, Policy...>::value,
-                folly::SemiFuture<multi_buffer>,
-                boost::future<multi_buffer>
-            >;
-        };
-        std::variant<
-            boost::promise<response>,
-            folly::Promise<response>
-        > response_;
+        folly::Promise<response> response_;
         std::optional<response_parser> response_parser_;
         const int16_t index_ = info::net_session_index();
         const std::shared_ptr<spdlog::logger> logger_ = info::create_logger(index_);
@@ -61,12 +40,11 @@ namespace net::client
         using session_base::local_endpoint;
         using session_base::remote_endpoint;
 
-        template<typename Body, typename ...Policy>
-        detail::future_response_of<Policy...>
-            async_send_request(request<Body>&& req, Policy ...policy) {
+        template<typename Body>
+        folly::SemiFuture<response> async_send_request(request<Body>&& req) {
             static_assert(boost::beast::http::is_body<Body>::value);
             logger_->info("async_send_request via message");
-            auto[promise_response, future_response] = core::promise_contract_of<response>(policy...);
+            auto[promise_response, future_response] = folly::makePromiseContract<response>();
             response_ = std::move(promise_response);
             config_response_parser();
             auto request_ptr = folly::makeMoveWrapper(std::make_unique<request<Body>>(std::move(req)));
@@ -79,25 +57,26 @@ namespace net::client
                         logger_->error("on_send_request failure");
                         return close_promise_and_socket(response_, errc, boost::asio::socket_base::shutdown_send);
                     }
-                    if (is_chunked())
-                        throw core::not_implemented_error{ "on_request_send" };
                     boost::beast::http::async_read(socket_, recvbuf_, *response_parser_, on_recv_response());
                 });
             core::check[false] << is_active(true);
-            ++round_trip_index_;
+            round_trip_index_++;
             return std::move(future_response);
         }
 
-        template<typename Body, typename ...Policy>
-        detail::future_buffer_of<Policy...>
-            async_send_request_for_buffer(request<Body>&& req, Policy ...policy) {
-            return async_send_request(std::move(req), policy...)
+        template<typename Target, typename Body>
+        folly::SemiFuture<Target> async_send_request_for(request<Body>&& req) {
+            static_assert(!std::is_reference<Target>::value);
+            return async_send_request(std::move(req))
                 .deferValue(
-                    [](response response) {
+                    [](response&& response) -> Target {
                         if (response.result() != boost::beast::http::status::ok) {
-                            throw_bad_request(response.reason().data());
+                            core::throw_bad_request(response.reason().data());
                         }
-                        return response.body();
+                        if constexpr (std::is_same<multi_buffer, Target>::value) {
+                            return std::move(response).body();
+                        }
+                        core::throw_unreachable("wrong type");
                     });
         }
 
