@@ -136,8 +136,8 @@ namespace media
                 }
                 read_size += increment;
             }
-            fmt::print("read_size {}, expect_size {}, sequence{}/{}\n",
-                       read_size, expect_size, full_offset_, full_size_);
+            //fmt::print("read_size {}, expect_size {}, sequence{}/{}\n",
+            //           read_size, expect_size, full_offset_, full_size_);
             full_offset_ += read_size;
             full_read_size_ += read_size;
             return boost::numeric_cast<int>(read_size);
@@ -151,15 +151,15 @@ namespace media
 
     int64_t buffer_list_cursor::seek(int64_t seek_offset, int whence) {
         switch (whence) {
-        case SEEK_SET: fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
+        case SEEK_SET: //fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
             break;
-        case SEEK_END: fmt::print("SEEK_END OFFSET {}\n", seek_offset);
+        case SEEK_END: //fmt::print("SEEK_END OFFSET {}\n", seek_offset);
             seek_offset += full_size_;
             break;
-        case SEEK_CUR: fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
+        case SEEK_CUR: //fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
             seek_offset += full_offset_;
             break;
-        case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
+        case AVSEEK_SIZE: //fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
             return -1;       // TODO: return -1 for streaming
         default:
             throw core::unreachable_execution_error{ __FUNCSIG__ };

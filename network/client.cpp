@@ -81,14 +81,42 @@ namespace net::client
     }
 
     folly::Function<void(boost::system::error_code, std::size_t)>
-        http_session::on_recv_response() {
+        session<protocal::http>::on_send_request(folly::MoveWrapper<std::any> request) {
+        return [this, request](boost::system::error_code errc, std::size_t transfer_size) mutable {
+            auto& test = std::any_cast<std::shared_ptr<boost::beast::http::request<empty_body>>&>(*request);
+            auto target = test->target();
+            logger_->info("on_send_request errc {} transfer {}", errc, transfer_size);
+            if (errc) {
+                logger_->error("on_send_request failure");
+                return clear_request_then_close(core::bad_request_error{ errc.message() },
+                                                errc, boost::asio::socket_base::shutdown_send);
+            }
+            boost::beast::http::async_read(socket_, recvbuf_, *response_parser_, on_recv_response());
+        };
+    }
+
+    folly::Function<void(boost::system::error_code, std::size_t)>
+        session<protocal::http>::on_recv_response() {
         return [this](boost::system::error_code errc, std::size_t transfer_size) mutable {
             logger_->info("on_recv_response errc {} transfer {}", errc, transfer_size);
             if (errc) {
                 logger_->error("on_recv_response failure");
-                return close_promise_and_socket(response_, errc, boost::asio::socket_base::shutdown_receive);
+                return clear_request_then_close(core::bad_response_error{ errc.message() },
+                                                errc, boost::asio::socket_base::shutdown_receive);
             }
-            response_.setValue(response_parser_->release());
+            if (response_parser_->get().result() != http::status::ok) {
+                logger_->error("on_recv_response bad response");
+                return clear_request_then_close(core::bad_response_error{ response_parser_->get().reason().data() },
+                                                errc, boost::asio::socket_base::shutdown_receive);
+            }
+            request_list_.withWLock(
+                [this, &errc](request_list& response_list) {
+                    response_list.front()(response_parser_->release());
+                    response_list.pop_front();
+                    if (std::size(response_list)) {
+                        response_list.front()({});
+                    }
+                });
         };
     }
 }

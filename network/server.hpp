@@ -2,7 +2,7 @@
 
 namespace net::server
 {
-    using default_policy = policy<boost::beast::http::string_body>;
+    using default_policy = policy<string_body>;
 
     template<typename Protocal, typename Policy = default_policy>
     class session;
@@ -14,8 +14,8 @@ namespace net::server
     {
         using request_body = RequestBody;
 
-        std::filesystem::path const root_path_;
-        boost::asio::io_context::strand mutable strand_;
+        const std::filesystem::path root_path_;
+        mutable boost::asio::io_context::strand strand_;
 
     public:
         session(boost::asio::ip::tcp::socket&& socket, boost::asio::io_context& context,
@@ -54,23 +54,32 @@ namespace net::server
                 fmt::print("session: on_recv_request, errc {}, transfer {}\n", errc, transfer_size);
                 fmt::print("session: on_recv_request, request head\n\t{}", request->base());
                 fmt::print("session: on_recv_request, request body\n\t{}", request->body());
-                if (errc || request->need_eof())
+                if (errc || request->need_eof()) {
                     return close_socket(boost::asio::socket_base::shutdown_receive);
+                }
                 auto const target_path = concat_target_path(request->target());
                 fmt::print(std::cout, "target file path {}, exists {}\n", target_path, exists(target_path));
-                assert(std::filesystem::exists(target_path));
-                boost::system::error_code file_errc;
-                http::file_body::value_type response_body;
-                response_body.open(target_path.generic_string().c_str(), boost::beast::file_mode::scan, file_errc);
-                assert(!file_errc);
-                auto response = std::make_unique<http::response<http::file_body>>(http::status::ok, request->version(), std::move(response_body));
-                response->set(http::field::server, "MetaPlus");
-                //response->set(http::field::content_type, "video/mp4");
-                response->content_length(response_body.size());
-                response->keep_alive(request->keep_alive());
-                auto& response_ref = *response;
-                fmt::print("session: on_recv_request, response head {}", response->base());
-                http::async_write(socket_, response_ref, on_send_response(std::move(response)));
+                if (std::filesystem::exists(target_path)) {
+                    boost::system::error_code file_errc;
+                    file_body::value_type response_body;
+                    response_body.open(target_path.generic_string().c_str(), boost::beast::file_mode::scan, file_errc);
+                    assert(!file_errc);
+                    auto response = std::make_unique<http::response<file_body>>(http::status::ok,
+                                                                                request->version(),
+                                                                                std::move(response_body));
+                    response->set(http::field::server, "MetaPlus");
+                    //response->set(http::field::content_type, "video/mp4");
+                    response->content_length(response_body.size());
+                    response->keep_alive(request->keep_alive());
+                    auto& response_ref = *response;
+                    fmt::print("session: on_recv_request, response head {}", response->base());
+                    http::async_write(socket_, response_ref, on_send_response(std::move(response)));
+                } else {
+                    auto response = std::make_unique<http::response<empty_body>>(http::status::bad_request,
+                                                                                 request->version());
+                    auto& response_ref = *response;
+                    http::async_write(socket_, response_ref, on_send_response(std::move(response)));
+                }
             };
         }
 
@@ -80,8 +89,10 @@ namespace net::server
             return[this, response = std::move(response)](boost::system::error_code errc, std::size_t transfer_size) mutable
             {
                 fmt::print("session: on_send_response, errc {}, last {}, transfer {}\n", errc, response->need_eof(), transfer_size);
-                if (errc || response->need_eof())
+                if (errc || response->need_eof()) {
+                    fmt::print("session: on_send_response, message {}\n", errc.message());
                     return close_socket(boost::asio::socket_base::shutdown_send);
+                }
                 async_run();
             };
         }

@@ -401,6 +401,19 @@ TEST(Future, Filter) {
             return std::make_unique<std::string>("234");
         });
     EXPECT_STREQ(f1.value()->c_str(), "234");
+    auto ff2 = folly::makeFuture("123"s);
+    auto* pp2 = &ff2.value();
+    const std::string* pp3 = nullptr;
+    auto* cc2 = ff2.value().c_str();
+    std::move(ff2).filter(
+        [&](const std::string& s) {
+            pp3 = &s;
+            return true;
+        });
+    EXPECT_NE(pp2, pp3);
+    EXPECT_EQ(pp2, &ff2.value());
+    EXPECT_EQ(cc2, ff2.value().c_str());
+    EXPECT_THROW(std::move(ff2).filter([&](const std::string& s) { return false; }), folly::FutureAlreadyContinued);
 }
 
 TEST(Future, Reduce) {

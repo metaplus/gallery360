@@ -1,6 +1,109 @@
 #include "pch.h"
+#include "core/pch.h"
+#include "network/component.h"
+#include "multimedia/component.h"
+#include <folly/futures/Future.h>
 
-TEST(TestCaseName, TestName) {
-  EXPECT_EQ(1, 1);
-  EXPECT_TRUE(true);
+using boost::asio::const_buffer;
+using boost::beast::multi_buffer;
+using net::component::dash_manager;
+using net::component::frame_consumer;
+using net::component::frame_builder;
+using net::component::ordinal;
+using media::component::frame_segmentor;
+using media::component::pixel_array;
+using media::component::pixel_consume;
+
+TEST(Future, DeferError) {
+    static_assert(std::is_base_of<std::exception, core::bad_request_error>::value);
+    static_assert(std::is_base_of<std::exception, core::not_implemented_error>::value);
+    auto sf = folly::makeSemiFutureWith([] { throw core::bad_request_error{ "123" }; return 1; });
+    EXPECT_TRUE(sf.hasException());
+    EXPECT_FALSE(sf.hasValue());
+    EXPECT_THROW(sf.value(), core::bad_request_error);
+    sf = std::move(sf).deferError([](auto&) { throw core::not_implemented_error{ "123" }; return 2; });
+    EXPECT_THROW(sf.value(), folly::FutureNotReady);
+    EXPECT_THROW(std::move(sf).get(), core::not_implemented_error);
+    auto[p1, sf1] = folly::makePromiseContract<int>();
+    p1.setException(core::bad_request_error{ "123" });
+    EXPECT_TRUE(sf1.hasException());
+    sf1 = std::move(sf1).deferError([](auto&) { return 2; });
+    EXPECT_THROW(sf1.value(), folly::FutureNotReady);
+    EXPECT_EQ(std::move(sf1).get(), 2);
+}
+
+folly::Future<bool> async_consume(frame_segmentor& segmentor,
+                                  pixel_consume& consume,
+                                  bool copy = false) {
+    if (copy) {
+        return folly::async([segmentor, &consume]() mutable { return segmentor.try_consume_once(consume); });
+    }
+    return folly::async([&segmentor, &consume] { return segmentor.try_consume_once(consume); });
+}
+
+frame_builder create_async_frame_builder(pixel_consume& consume) {
+    return [&consume](multi_buffer& head_buffer, multi_buffer&& tail_buffer)-> frame_consumer {
+        auto segmentor = folly::makeMoveWrapper(frame_segmentor{ core::split_buffer_sequence(head_buffer,tail_buffer) });
+        auto tail_buffer_wrapper = folly::makeMoveWrapper(tail_buffer);
+        auto decode = folly::makeMoveWrapper(async_consume(*segmentor, consume, true));
+        return [segmentor, decode, tail_buffer_wrapper, &consume]() mutable {
+            const auto result = std::move(*decode).get();
+            *decode = async_consume(*segmentor, consume);
+            return result;
+        };
+    };
+}
+
+TEST(DashManager, StreamTile) {
+    core::set_cpu_executor(3);
+    auto manager = dash_manager::async_create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
+    EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
+    EXPECT_EQ(manager.grid_size(), std::make_pair(3, 3));
+    auto count = 0;
+    pixel_consume consume = [&count](pixel_array) { count++; };
+    manager.register_represent_builder(create_async_frame_builder(consume));
+    while (manager.available()) {
+        if (!manager.poll_tile_consumed(0, 0)) {
+            if (!manager.wait_tile_consumed(0, 0)) {
+                EXPECT_FALSE(manager.available());
+            }
+        }
+    }
+    EXPECT_EQ(count, 250);
+}
+
+TEST(Std, StringInsert) {
+    std::string x = "";
+    x.insert(x.begin(), '/');
+    EXPECT_STREQ(x.c_str(), "/");
+    x = "123";
+    x.insert(x.begin(), '/');
+    EXPECT_STREQ(x.c_str(), "/123");
+}
+
+TEST(Std, StringReplace) {
+    auto replace = [](std::string& s) {
+        auto suffix = "123";
+        if (s.empty()) {
+            return s.assign(fmt::format("/{}", suffix));
+        }
+        assert(s.front() == '/');
+        return s.replace(s.rfind('/') + 1, s.size(), suffix);
+    };
+    std::string x = "/dash/init.mp4";
+    EXPECT_STREQ(replace(x).c_str(), "/dash/123");
+    x = "/init.mp4";
+    EXPECT_STREQ(replace(x).c_str(), "/123");
+    x.clear();
+    EXPECT_STREQ(replace(x).c_str(), "/123");
+}
+
+TEST(Std, Variant) {
+    std::variant<std::monostate, int> v;
+    EXPECT_FALSE(v.valueless_by_exception());
+    EXPECT_EQ(v.index(), 0);
+    EXPECT_TRUE(std::get_if<std::monostate>(&v) != nullptr);
+    EXPECT_TRUE(std::get_if<int>(&v) == nullptr);
+    EXPECT_TRUE(&std::get<std::monostate>(v) != nullptr);
+    EXPECT_TRUE(&std::get<std::monostate>(v) == std::get_if<std::monostate>(&v));
 }
