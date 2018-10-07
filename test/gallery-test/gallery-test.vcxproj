@@ -47,6 +47,14 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\multimedia\multimedia.vcxproj">
+      <Project>{ed7175d4-b639-4ff1-b130-48b879dbdd3c}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\network\network.vcxproj">
+      <Project>{900de24f-834c-4095-b20e-0b1785f1913b}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -24,12 +24,12 @@ namespace media::component
         std::list<frame> remain_frames;
     };
 
-    frame_segmentor::frame_segmentor(std::list<const_buffer> buffer_list)
+    frame_segmentor::frame_segmentor(std::list<const_buffer> buffer_list, unsigned concurrency)
         : impl_(std::make_shared<impl>()) {
-        parse_context(std::move(buffer_list));
+        parse_context(std::move(buffer_list), concurrency);
     }
 
-    void frame_segmentor::parse_context(std::list<const_buffer> buffer_list) {
+    void frame_segmentor::parse_context(std::list<const_buffer> buffer_list, unsigned concurrency) {
         if (!impl_) {
             impl_ = std::make_shared<impl>();
         }
@@ -37,7 +37,8 @@ namespace media::component
         impl_->codec_context.emplace(
             impl_->format_context.emplace(
                 impl_->io_context.emplace(impl_->cursor)),
-            media::type::video);
+            media::type::video,
+            concurrency);
     }
 
     bool frame_segmentor::context_valid() const noexcept {
@@ -71,7 +72,7 @@ namespace media::component
         return -1;
     }
 
-    bool frame_segmentor::try_consume_once() {
+    bool frame_segmentor::try_consume_once(const pixel_consume& consume) {
         frame frame{ nullptr };
         if (impl_->remain_frames.size()) {
             frame = std::move(impl_->remain_frames.front());
@@ -93,6 +94,12 @@ namespace media::component
                 }
             } while (frame_size == 0 && !packet_empty);
         }
-        return !frame.empty();
+        if (frame.empty()) {
+            return false;
+        }
+        if (consume) {
+            const_cast<pixel_consume&>(consume)(pixel_array{ frame->data[0],frame->data[1],frame->data[2] });
+        }
+        return true;
     }
 }

@@ -15,6 +15,7 @@ namespace net
     inline constexpr size_t default_max_chunk_quantity = 1024;
 
     using boost::beast::http::empty_body;
+    using boost::beast::http::file_body;
     using boost::beast::http::string_body;
     using boost::beast::http::dynamic_body;
     using boost::beast::multi_buffer;

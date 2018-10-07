@@ -45,12 +45,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\multimedia.vcxproj">
-      <Project>{ed7175d4-b639-4ff1-b130-48b879dbdd3c}</Project>
-    </ProjectReference>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
+    <ProjectReference Include="..\..\multimedia\multimedia.vcxproj">
+      <Project>{ed7175d4-b639-4ff1-b130-48b879dbdd3c}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -39,6 +39,11 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "network-test", "..\test\network-test\network-test.vcxproj", "{28F4FB6A-A643-43A9-9E8A-063B7450575B}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gallery-test", "..\test\gallery-test\gallery-test.vcxproj", "{B01AAF39-CB3D-48DB-A717-56B56B81A86C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{900DE24F-834C-4095-B20E-0B1785F1913B} = {900DE24F-834C-4095-B20E-0B1785F1913B}
+		{9057A59A-B55F-42E0-9121-072432C0826D} = {9057A59A-B55F-42E0-9121-072432C0826D}
+		{ED7175D4-B639-4FF1-B130-48B879DBDD3C} = {ED7175D4-B639-4FF1-B130-48B879DBDD3C}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

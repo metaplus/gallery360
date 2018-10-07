@@ -10,6 +10,11 @@ namespace net::component
         using boost::beast::multi_buffer;
     }
 
+    using ordinal = std::pair<int, int>;
+    using frame_consumer = folly::Function<bool()>;
+    using frame_builder = folly::Function<frame_consumer(detail::multi_buffer&,
+                                                         detail::multi_buffer&&)>;
+
     class dash_manager final
     {
         struct impl;
@@ -25,22 +30,19 @@ namespace net::component
         dash_manager& operator=(dash_manager&&) = default;
         ~dash_manager() = default;
 
-        using ordinal = std::pair<int, int>;
-        using frame_consumer = folly::Function<bool()>;
-        using frame_consumer_builder = folly::Function<frame_consumer(std::list<detail::const_buffer>)>;
-
         //static boost::future<dash_manager> async_create_parsed(std::string mpd_url);
         static folly::Future<dash_manager> async_create_parsed(std::string mpd_url);
 
         std::pair<int, int> scale_size() const;
         std::pair<int, int> grid_size() const;
 
-        folly::Function<detail::multi_buffer()> tile_supplier(
-            int row, int column, folly::Function<double()> predictor);
+        void register_represent_builder(frame_builder builder) const;
+        void register_predictor(folly::Function<double(int, int)> predictor);
 
-        void register_represent_builder(frame_consumer_builder builder) const;
+        bool available() const;
 
-        bool wait_tile_consumed(int col, int row);
+        bool poll_tile_consumed(int col, int row) const;
+        bool wait_tile_consumed(int col, int row) const;
         int wait_full_frame_consumed();
 
     private:

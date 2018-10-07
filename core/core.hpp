@@ -31,6 +31,7 @@ namespace core
     std::shared_ptr<T>& access(std::shared_ptr<T>& ptr,
                                std::default_delete<T>&& deleter,
                                Args&&... args) {
+        static_assert(std::is_base_of<std::default_delete<T>, Deleter>::value);
         if (!ptr) {
             ptr = std::shared_ptr<T>(
                 new T{ std::forward<Args>(args)... },

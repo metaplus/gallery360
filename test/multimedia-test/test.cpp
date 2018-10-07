@@ -1,11 +1,16 @@
 #include "pch.h"
+#include "core/pch.h"
 #include "multimedia/component.h"
 #include <boost/beast/core/buffers_prefix.hpp>
 #include <boost/beast/core/buffers_cat.hpp>
 #include <boost/beast/core/ostream.hpp>
+#include <folly/executors/thread_factory/NamedThreadFactory.h>
+#include <folly/executors/CPUThreadPoolExecutor.h>
+#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 
 
 using boost::beast::multi_buffer;
+using boost::beast::flat_buffer;
 using boost::beast::buffers_cat;
 using boost::beast::buffers_prefix;
 using boost::beast::ostream;
@@ -121,6 +126,14 @@ int64_t total_size(Container<const_buffer>& container) {
     return size;
 }
 
+void set_cpu_executor(int concurrency) {
+    static auto executor = std::make_shared<folly::CPUThreadPoolExecutor>(
+        std::make_pair(concurrency, 1),
+        std::make_unique<folly::UnboundedBlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>>(),
+        std::make_shared<folly::NamedThreadFactory>("TestPool"));
+    folly::setCPUExecutor(executor);
+}
+
 TEST(Core, Split2Sequence) {
     multi_buffer buf_int = create_buffer("init");
     multi_buffer buf1 = create_buffer("1");
@@ -133,7 +146,6 @@ TEST(Core, Split2Sequence) {
 }
 
 
-#pragma comment(lib,"multimedia")
 TEST(FrameSegmentor, Base) {
     auto& buffer_map = create_buffer_map();
     for (auto&[index, buffer] : buffer_map) {
@@ -203,6 +215,87 @@ TEST(FrameSegmentor, TryConsumeOnce) {
     EXPECT_EQ(count, 125);
 }
 
+auto create_buffer_from_path = [](std::string path) {
+    EXPECT_TRUE(std::filesystem::is_regular_file(path));
+    multi_buffer buffer;
+    ostream(buffer) << std::ifstream{ path,std::ios::binary }.rdbuf();
+    return buffer;
+};
+
+TEST(FrameSegmentor, TryConsumeOnceForLargeFile) {
+    auto init_buffer = create_buffer_from_path("D:/Media/dash/full/tile1-576p-5000kbps_dashinit.mp4");
+    auto tail_buffer = create_buffer_from_path("D:/Media/dash/full/tile1-576p-5000kbps_dash9.m4s");
+    media::component::frame_segmentor fs1{ core::split_buffer_sequence(init_buffer,tail_buffer) };
+    std::any a1{ std::move(init_buffer) };
+    std::any a2{ std::move(tail_buffer) };
+    EXPECT_EQ(init_buffer.size(), 0);
+    EXPECT_EQ(tail_buffer.size(), 0);
+    auto count = 0;
+    while (fs1.try_consume_once() && ++count) {
+    }
+    EXPECT_EQ(count, 25);
+}
+
+using frame_consumer = folly::Function<bool()>;
+using frame_builder = folly::Function<frame_consumer(std::list<const_buffer>)>;
+using media::component::frame_segmentor;
+using media::component::pixel_array;
+using media::component::pixel_consume;
+
+frame_builder create_frame_builder() {
+    return [](std::list<const_buffer> buffer_list) -> frame_consumer {
+        auto segmentor = folly::makeMoveWrapper(frame_segmentor{ std::move(buffer_list) });
+        return [segmentor]() mutable {
+            return segmentor->try_consume_once();
+        };
+    };
+}
+
+TEST(FrameSegmentor, TransformBuilder) {
+    auto& buffer_map = create_buffer_map();
+    auto frame_builder = create_frame_builder();
+    auto frame_consumer = frame_builder(core::split_buffer_sequence(buffer_map[0], buffer_map[2], buffer_map[4],
+                                                                    buffer_map[6], buffer_map[7], buffer_map[10]));
+    auto count = 0;
+    while (frame_consumer() && ++count) {
+    }
+    EXPECT_EQ(count, 125);
+}
+
+folly::Future<bool> async_consume(frame_segmentor& segmentor,
+                                  pixel_consume& consume,
+                                  bool copy = false) {
+    if (copy) {
+        return folly::async([segmentor, &consume]() mutable { return segmentor.try_consume_once(consume); });
+    }
+    return folly::async([&segmentor, &consume] { return segmentor.try_consume_once(consume); });
+}
+
+frame_builder create_async_frame_builder(pixel_consume& consume) {
+    return [&consume](std::list<const_buffer> buffer_list) -> frame_consumer {
+        auto segmentor = folly::makeMoveWrapper(frame_segmentor{ std::move(buffer_list) });
+        auto decode = folly::makeMoveWrapper(async_consume(*segmentor, consume, true));
+        return[segmentor, decode, &consume]() mutable {
+            const auto result = std::move(*decode).get();
+            *decode = async_consume(*segmentor, consume);
+            return result;
+        };
+    };
+}
+
+TEST(FrameSegmentor, TransformAsyncBuilder) {
+    set_cpu_executor(4);
+    auto& buffer_map = create_buffer_map();
+    auto count = 0;
+    pixel_consume consume = [&count](pixel_array) { count++; };
+    auto frame_builder = create_async_frame_builder(consume);
+    auto frame_consumer = frame_builder(core::split_buffer_sequence(buffer_map[0], buffer_map[2], buffer_map[4],
+                                                                    buffer_map[6], buffer_map[7], buffer_map[10]));
+    while (frame_consumer()) {
+    }
+    EXPECT_EQ(count, 125);
+}
+
 TEST(Std, WeakPtr) {
     std::weak_ptr<int> w;
     EXPECT_TRUE(w.expired());
@@ -228,4 +321,13 @@ TEST(Std, ListIterator) {
     std::advance(iter, 1);
     EXPECT_EQ(*iter, 4);
     EXPECT_EQ(std::next(iter), l.end());
+}
+
+TEST(Future, Exchange) {
+    auto f = folly::makeFuture(1);
+    auto i = std::exchange(f, folly::makeFuture(2)).value();
+    EXPECT_EQ(i, 1);
+    auto i2 = std::exchange(f, folly::makeFuture(3)).get();
+    EXPECT_EQ(i2, 2);
+    EXPECT_EQ(f.value(), 3);
 }

@@ -133,6 +133,27 @@ namespace core
         }
     };
 
+    struct bad_response_error : std::runtime_error
+    {
+        using runtime_error::runtime_error;
+        using runtime_error::operator=;
+
+        char const* what() const override {
+            return detail::message_otherwise_typename(what(), this);
+        }
+    };
+
+    struct session_closed_error : std::runtime_error
+    {
+        using runtime_error::runtime_error;
+        using runtime_error::operator=;
+
+        char const* what() const override {
+            return detail::message_otherwise_typename(what(), this);
+        }
+    };
+
+
     [[noreturn]] inline void throw_unimplemented(std::string message = ""s) {
         throw not_implemented_error{ message };
     }

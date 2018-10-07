@@ -76,7 +76,7 @@ namespace media
         format_handle_.reset(format_ptr, [](pointer p) { avformat_close_input(&p); });
         core::verify(avformat_find_stream_info(format_ptr, nullptr));
     #ifdef _DEBUG
-        av_dump_format(format_ptr, 0, format_ptr->url, 0);
+        //av_dump_format(format_ptr, 0, format_ptr->url, 0);
     #endif
     }
 

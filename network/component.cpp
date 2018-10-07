@@ -1,31 +1,30 @@
 #include "stdafx.h"
 #include "component.h"
 #include <boost/circular_buffer.hpp>
+#include <boost/logic/tribool.hpp>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
-namespace net
-{
-    using protocal::http;
-    using protocal::dash;
-    using request_body = empty_body;
-    using response_body = dynamic_body;
-    using recv_buffer = response_body::value_type;
-    using response = http::protocal_base::response<response_body>;
-    using client::http_session_ptr;
-    using ordinal = std::pair<int16_t, int16_t>;
-    using io_context_ptr = std::invoke_result_t<decltype(&create_running_asio_pool), unsigned>;
-    using component::dash_manager;
-    using frame_consumer = dash_manager::frame_consumer;
-    using frame_consumer_builder = dash_manager::frame_consumer_builder;
-}
+using boost::logic::tribool;
+using boost::logic::indeterminate;
+using net::protocal::http;
+using net::protocal::dash;
+using request_body = boost::beast::http::empty_body;
+using response_body = boost::beast::http::dynamic_body;
+using recv_buffer = response_body::value_type;
+using response = http::protocal_base::response<response_body>;
+using net::client::http_session_ptr;
+using ordinal = std::pair<int16_t, int16_t>;
+using io_context_ptr = std::invoke_result_t<decltype(&net::create_running_asio_pool), unsigned>;
+using net::component::dash_manager;
+using net::component::frame_consumer;
+using net::component::frame_builder;
 
 namespace net::protocal
 {
     struct dash::video_adaptation_set::context
     {
         std::vector<size_t> trace;
-        frame_consumer consumer;
         folly::SemiFuture<multi_buffer> initial_consumer = folly::SemiFuture<multi_buffer>::makeEmpty();
         boost::circular_buffer<folly::Future<frame_consumer>> consumer_cycle{ 2 };
         bool drain = false;
@@ -47,7 +46,8 @@ namespace net::component
         folly::Function<double(int, int)> predictor = [](auto, auto) { return 1; };
         folly::Function<size_t(int, int)> indexer;
         folly::Executor& executor = *folly::getCPUExecutor();
-        frame_consumer_builder consumer_builder;
+        frame_builder consumer_builder;
+        int drain_count = 0;
 
         struct deleter : std::default_delete<impl>
         {
@@ -57,9 +57,16 @@ namespace net::component
             }
         };
 
+        void mark_drained(dash::video_adaptation_set& video_set) {
+            if (!std::exchange(video_set.context->drain, true)) {
+                logger->warn("video_set drained[x:{}, y:{}]", video_set.x, video_set.y);
+            }
+            drain_count++;
+        }
+
         size_t predict_represent(dash::video_adaptation_set& video_set) {
-            auto represent_size = video_set.represents.size();
-            return std::max(boost::numeric_cast<size_t>(
+            const auto represent_size = video_set.represents.size();
+            return std::min(boost::numeric_cast<size_t>(
                 represent_size*std::invoke(predictor, video_set.x, video_set.y)),
                 represent_size - 1);
         }
@@ -73,25 +80,28 @@ namespace net::component
             auto& represent = video_set.represents.at(represent_index);
             auto& context = *core::access(video_set.context);
             context.trace.push_back(represent_index);
-            auto path_regex = [](std::string& path, auto index) {
-                static const std::regex pattern{ "\\$Number\\$" };
-                return std::regex_replace(path, pattern, fmt::to_string(index));
-            };
             if (!context.initial_consumer.valid()) {
                 context.initial_consumer = request_initial(represent);
             }
-            return request_send(path_regex(represent.media, std::size(context.trace)))
-                .via(&executor).then(
-                    [this, &context](multi_buffer tile_buffer) {
+            return request_send(fmt::format(represent.media, std::size(context.trace)))
+                .via(&executor).thenValue(
+                    [this, &context](multi_buffer&& tile_buffer) {
                         context.initial_consumer.wait();
-                        return consumer_builder(
-                            core::split_buffer_sequence(
-                                context.initial_consumer.value(),
-                                tile_buffer));
+                        return consumer_builder(context.initial_consumer.value(),
+                                                std::move(tile_buffer));
                     });
         }
 
-        folly::SemiFuture<multi_buffer> request_send(std::string path) {
+        folly::SemiFuture<multi_buffer> request_send(std::string suffix) {
+            assert(!suffix.empty() && suffix.front() != '/');
+            auto replace_suffix = [](std::string path, std::string& suffix) {
+                if (path.empty()) {
+                    return path.assign(std::move(suffix));
+                }
+                assert(path.front() == '/');
+                return path.replace(path.rfind('/') + 1, path.size(), suffix);
+            };
+            auto path = replace_suffix(mpd_uri->path(), suffix);
             return net_client
                 ->async_send_request_for<multi_buffer>(
                     net::make_http_request<empty_body>(mpd_uri->host(), path));
@@ -101,48 +111,51 @@ namespace net::component
             return request_send(represent.initial);
         }
 
-        int consume_tile(dash::video_adaptation_set& video_set) {
+        enum consume_result
+        {
+            fail = false,
+            success = true,
+            exception,
+            pending,
+        };
+
+        consume_result consume_tile(dash::video_adaptation_set& video_set,
+                                    bool poll,
+                                    bool reset = false) {
             auto& context = *video_set.context;
-            auto try_count = 1;
-            const auto rotate_async_consumer = [this, &video_set, &context] {
-                context.consumer = std::move(context.consumer_cycle.front()).get();
-                context.consumer_cycle.pop_front();
-                context.consumer_cycle.push_back(request_tile(video_set));
-            };
             try {
                 assert(context.consumer_cycle.full());
                 if (context.drain) {
                     core::throw_drained("consume_tile");
                 }
-                if (!context.consumer) {
-                    rotate_async_consumer();
+                auto& consumer = context.consumer_cycle.front();
+                if (poll) {
+                    if (!consumer.isReady()) {
+                        return pending;
+                    }
+                } else {
+                    consumer.wait();
                 }
-                while (!context.consumer()) {
-                    try_count++;
-                    assert(try_count <= 2);
-                    context.consumer = nullptr;
-                    rotate_async_consumer();
+                if (!consumer.value()()) {
+                    assert(!reset);
+                    context.consumer_cycle.pop_front();
+                    context.consumer_cycle.push_back(request_tile(video_set));
+                    return consume_tile(video_set, poll, true);
                 }
+                return success;
             } catch (...) {
-                context.drain = true;
-                logger->warn("video_adaptation_set[{},{}] eof", video_set.x, video_set.y);
-                return -1;
+                mark_drained(video_set);
+                return exception;
             }
-            return try_count;
         }
 
         bool consume_until_complete(dash::video_adaptation_set& video_set,
                                     folly::QueuedImmediateExecutor& executor,
-                                    int& exception_count, bool poll = true) {
-            enum result
-            {
-                fail = false,
-                success = true,
-                exception,
-                pending,
-            };
+                                    int& exception_count,
+                                    bool poll = true) {
+
             auto& context = *video_set.context;
-            auto try_consume = [this, &context](bool poll) -> result {
+            auto try_consume = [this, &context](bool poll) -> consume_result {
                 assert(context.consumer_cycle.full());
                 if (context.drain) {
                     core::throw_drained("context.drain");
@@ -156,7 +169,7 @@ namespace net::component
                     consumer_front.wait();
                 }
                 return consumer_front.hasValue() ?
-                    static_cast<result>(consumer_front.value()()) : exception;
+                    static_cast<consume_result>(consumer_front.value()()) : exception;
             };
             auto next_poll = false;
             switch (try_consume(poll)) {
@@ -166,14 +179,12 @@ namespace net::component
                 next_poll = true;
             case pending:
                 executor.add(
-                    [this, &video_set, &executor, &exception_count] {
-                        consume_until_complete(video_set, executor, exception_count, false);
+                    [this, next_poll, &video_set, &executor, &exception_count] {
+                        consume_until_complete(video_set, executor, exception_count, next_poll);
                     });
                 break;
             case exception:
-                if (!std::exchange(context.drain, true)) {
-                    logger->warn("video_set drained[x:{}, y:{}]", video_set.x, video_set.y);
-                }
+                mark_drained(video_set);
                 exception_count++;
                 break;
             case success:
@@ -263,40 +274,47 @@ namespace net::component
         return impl_->mpd_parser->grid_size();
     }
 
-    void dash_manager::register_represent_builder(frame_consumer_builder builder) const {
+    void dash_manager::register_represent_builder(frame_builder builder) const {
+        assert(!impl_->consumer_builder);
         impl_->consumer_builder = std::move(builder);
         auto iteration = 0;
         auto loop = true;
-        while (loop && ++iteration) {
+        while (loop) {
             for (auto& video_set : impl_->mpd_parser->video_set()) {
-                auto& consumer_cycle = video_set.context->consumer_cycle;
-                assert(iteration > 1 || consumer_cycle.empty());
+                auto& consumer_cycle = core::access(video_set.context)->consumer_cycle;
                 if (consumer_cycle.full()) {
                     loop = false;
                     break;
                 }
                 consumer_cycle.push_back(impl_->request_tile(video_set));
+                iteration++;
+                break;
             }
         }
         logger->info("register_represent_builder[iteration:{}]", iteration);
     }
 
-    bool dash_manager::wait_tile_consumed(int col, int row) {
-        auto& video_set = impl_->mpd_parser->video_set(col, row);
+    bool dash_manager::available() const {
+        return impl_->drain_count == 0;
+    }
 
-        return false;
+    bool dash_manager::poll_tile_consumed(int col, int row) const {
+        auto& video_set = impl_->mpd_parser->video_set(col, row);
+        const auto result = impl_->consume_tile(video_set, true);
+        assert(result == impl::success || result == impl::pending || result == impl::exception);
+        return result == impl::success;
+    }
+
+    bool dash_manager::wait_tile_consumed(int col, int row) const {
+        auto& video_set = impl_->mpd_parser->video_set(col, row);
+        const auto result = impl_->consume_tile(video_set, false);
+        assert(result == impl::success || result == impl::exception);
+        return result == impl::success;
     }
 
     int dash_manager::wait_full_frame_consumed() {
         auto poll_count = 0;
         auto exception_count = 0;
-        enum result
-        {
-            fail = false,
-            success = true,
-            exception,
-            pending,
-        };
         folly::QueuedImmediateExecutor executor;
         executor.add(
             [this, &executor, &poll_count, &exception_count] {

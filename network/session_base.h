@@ -8,9 +8,6 @@ namespace detail
     template<typename Protocal, typename Buffer>
     class session_base<boost::asio::basic_stream_socket<Protocal>, Buffer>
     {
-        enum state_index { active, serialize, chunked, state_size };
-        folly::AtomicBitSet<state_size> state_;
-
     protected:
         using buffer_type = Buffer;
 
@@ -33,6 +30,20 @@ namespace detail
 
         void reserve_recvbuf_capacity(size_t size = boost::asio::detail::default_max_transfer_size) {
             recvbuf_.prepare(size);
+        }
+
+        template<
+            template<typename> typename Container,
+            typename Message,
+            typename Exception
+        > void clear_promise_list(folly::Synchronized<Container<folly::Promise<Message>>>& promise_list,
+                                  const Exception& exception) {
+            promise_list.withWLock(
+                [this, &exception](Container<folly::Promise<Message>>& promise_list) {
+                    for (folly::Promise<Message>& promise : promise_list) {
+                        promise.setException(exception);
+                    }
+                });
         }
 
         void close_socket(boost::asio::socket_base::shutdown_type operation) {
@@ -79,31 +90,6 @@ namespace detail
             close_socket(errc, operation);
         }
     #endif
-
-        bool is_active() const {
-            return state_.test(active, std::memory_order_acquire);
-        }
-
-        bool is_active(bool active) {
-            return state_.set(state_index::active, active, std::memory_order_release);
-        }
-
-        bool is_serialize() const {
-            return state_.test(serialize, std::memory_order_acquire);
-        }
-
-        bool is_serialize(bool active) {
-            return state_.set(state_index::serialize, serialize, std::memory_order_release);
-        }
-
-        bool is_chunked() const {
-            return state_.test(chunked, std::memory_order_acquire);
-        }
-
-        bool is_chunked(bool active) {
-            is_serialize(active);
-            return state_.set(state_index::chunked, chunked, std::memory_order_release);
-        }
 
         boost::asio::ip::tcp::endpoint local_endpoint() const {
             return socket_.local_endpoint();
