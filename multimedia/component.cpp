@@ -24,12 +24,12 @@ namespace media::component
         std::list<frame> remain_frames;
     };
 
-    frame_segmentor::frame_segmentor(std::list<const_buffer> buffer_list)
+    frame_segmentor::frame_segmentor(std::list<const_buffer> buffer_list, unsigned concurrency)
         : impl_(std::make_shared<impl>()) {
-        parse_context(std::move(buffer_list));
+        parse_context(std::move(buffer_list), concurrency);
     }
 
-    void frame_segmentor::parse_context(std::list<const_buffer> buffer_list) {
+    void frame_segmentor::parse_context(std::list<const_buffer> buffer_list, unsigned concurrency) {
         if (!impl_) {
             impl_ = std::make_shared<impl>();
         }
@@ -38,7 +38,7 @@ namespace media::component
             impl_->format_context.emplace(
                 impl_->io_context.emplace(impl_->cursor)),
             media::type::video,
-            std::thread::hardware_concurrency());
+            concurrency);
     }
 
     bool frame_segmentor::context_valid() const noexcept {

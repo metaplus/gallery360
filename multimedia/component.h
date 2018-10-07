@@ -25,9 +25,10 @@ namespace media::component
         frame_segmentor& operator=(frame_segmentor&&) noexcept = default;
         ~frame_segmentor() = default;
 
-        explicit frame_segmentor(std::list<detail::const_buffer> buffer_list);
+        frame_segmentor(std::list<detail::const_buffer> buffer_list,
+                        unsigned concurrency = std::thread::hardware_concurrency());
 
-        void parse_context(std::list<detail::const_buffer> buffer_list);
+        void parse_context(std::list<detail::const_buffer> buffer_list, unsigned concurrency);
         bool context_valid() const noexcept;
         bool buffer_available() const;
         void reset_buffer_list(std::list<detail::const_buffer> buffer_list);

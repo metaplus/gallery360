@@ -3,7 +3,10 @@
 #include "network/component.h"
 #include "multimedia/component.h"
 #include <folly/futures/Future.h>
+#include <folly/stop_watch.h>
 
+using std::chrono::milliseconds;
+using std::chrono::seconds;
 using boost::asio::const_buffer;
 using boost::beast::multi_buffer;
 using net::component::dash_manager;
@@ -13,6 +16,8 @@ using net::component::ordinal;
 using media::component::frame_segmentor;
 using media::component::pixel_array;
 using media::component::pixel_consume;
+
+using namespace std::literals;
 
 TEST(Future, DeferError) {
     static_assert(std::is_base_of<std::exception, core::bad_request_error>::value);
@@ -41,9 +46,11 @@ folly::Future<bool> async_consume(frame_segmentor& segmentor,
     return folly::async([&segmentor, &consume] { return segmentor.try_consume_once(consume); });
 }
 
-frame_builder create_async_frame_builder(pixel_consume& consume) {
-    return [&consume](multi_buffer& head_buffer, multi_buffer&& tail_buffer)-> frame_consumer {
-        auto segmentor = folly::makeMoveWrapper(frame_segmentor{ core::split_buffer_sequence(head_buffer,tail_buffer) });
+frame_builder create_async_frame_builder(pixel_consume& consume,
+                                         unsigned concurrency = std::thread::hardware_concurrency()) {
+    return [&consume, concurrency](multi_buffer& head_buffer, multi_buffer&& tail_buffer)-> frame_consumer {
+        auto segmentor = folly::makeMoveWrapper(
+            frame_segmentor{ core::split_buffer_sequence(head_buffer,tail_buffer),concurrency });
         auto tail_buffer_wrapper = folly::makeMoveWrapper(tail_buffer);
         auto decode = folly::makeMoveWrapper(async_consume(*segmentor, consume, true));
         return [segmentor, decode, tail_buffer_wrapper, &consume]() mutable {
@@ -70,6 +77,47 @@ TEST(DashManager, StreamTile) {
         }
     }
     EXPECT_EQ(count, 250);
+}
+
+folly::Future<int> loop_tile_consume(unsigned concurrency,
+                                     folly::Executor& executor,
+                                     std::string path = "http://localhost:8900/dash/full/tos_srd_4K.mpd"s) {
+    return dash_manager::async_create_parsed(path)
+        .then(std::addressof(executor),
+              [concurrency](dash_manager manager) {
+                  EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
+                  EXPECT_EQ(manager.grid_size(), std::make_pair(3, 3));
+                  auto count = 0i64;
+                  pixel_consume consume = [&count](pixel_array) { count++; };
+                  manager.register_represent_builder(create_async_frame_builder(consume, concurrency));
+                  while (manager.available()) {
+                      if (!manager.poll_tile_consumed(0, 0)) {
+                          if (!manager.wait_tile_consumed(0, 0)) {
+                              EXPECT_FALSE(manager.available());
+                          }
+                      }
+                  }
+                  return count;
+              });
+}
+
+TEST(DashManager, StreamTileProfile) {
+    core::set_cpu_executor(4);
+    auto executor = folly::getCPUExecutor();
+    seconds t0, t1, t2, t3, t4, t5;
+    auto profile_by_concurrency = [executor](unsigned concurrency) {
+        folly::stop_watch<seconds> watch;
+        auto async_count = loop_tile_consume(concurrency, *executor);
+        EXPECT_EQ(std::move(async_count).get(), 17616);
+        return watch.elapsed();
+    };
+    t0 = profile_by_concurrency(1);
+    t1 = profile_by_concurrency(1);     //59s
+    t2 = profile_by_concurrency(2);     //42s
+    t3 = profile_by_concurrency(3);     //38s   
+    t4 = profile_by_concurrency(4);     //37s
+    t5 = profile_by_concurrency(8);     //38s
+    fmt::print("t0:{}\n,t1:{}\n,t2:{}\n,t3:{}\n,t4:{}\n,t5:{}\n", t0, t1, t2, t3, t4, t5);
 }
 
 TEST(Std, StringInsert) {
