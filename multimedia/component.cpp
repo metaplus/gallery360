@@ -22,6 +22,31 @@ namespace media::component
         std::optional<format_context> format_context;
         std::optional<codec_context> codec_context;
         std::list<frame> remain_frames;
+
+        frame try_consume_once() {
+            frame frame{ nullptr };
+            if (remain_frames.size()) {
+                frame = std::move(remain_frames.front());
+                remain_frames.pop_front();
+            } else if (codec_context->valid()) {
+                auto packet_empty = false;
+                auto frame_size = 0i64;
+                do {
+                    auto packet = format_context->read(media::type::video);
+                    auto frames = codec_context->decode(packet);
+                    frame_size = frames.size();
+                    packet_empty = packet.empty();
+                    if (frame_size) {
+                        frame = std::move(frames.front());
+                        if (frame_size > 1) {
+                            std::move(frames.begin() + 1, frames.end(),
+                                      std::back_inserter(remain_frames));
+                        }
+                    }
+                } while (frame_size == 0 && !packet_empty);
+            }
+            return frame;
+        }
     };
 
     frame_segmentor::frame_segmentor(std::list<const_buffer> buffer_list, unsigned concurrency)
@@ -72,34 +97,27 @@ namespace media::component
         return -1;
     }
 
-    bool frame_segmentor::try_consume_once(const pixel_consume& consume) {
-        frame frame{ nullptr };
-        if (impl_->remain_frames.size()) {
-            frame = std::move(impl_->remain_frames.front());
-            impl_->remain_frames.pop_front();
-        } else if (impl_->codec_context->valid()) {
-            auto packet_empty = false;
-            auto frame_size = 0i64;
-            do {
-                auto packet = impl_->format_context->read(media::type::video);
-                auto frames = impl_->codec_context->decode(packet);
-                frame_size = frames.size();
-                packet_empty = packet.empty();
-                if (frame_size) {
-                    frame = std::move(frames.front());
-                    if (frame_size > 1) {
-                        std::move(frames.begin() + 1, frames.end(),
-                                  std::back_inserter(impl_->remain_frames));
-                    }
-                }
-            } while (frame_size == 0 && !packet_empty);
-        }
-        if (frame.empty()) {
-            return false;
-        }
-        if (consume) {
-            const_cast<pixel_consume&>(consume)(pixel_array{ frame->data[0],frame->data[1],frame->data[2] });
-        }
-        return true;
+    auto frame_consume(const pixel_consume& consume) {
+        return [&consume](frame&& frame) {
+            if (frame.empty()) {
+                return false;
+            }
+            if (consume) {
+                const_cast<pixel_consume&>(consume)(pixel_array{ frame->data[0],frame->data[1],frame->data[2] });
+            }
+            return true;
+        };
+    }
+
+    bool frame_segmentor::try_consume_once(const pixel_consume& pixel_consume) {
+        auto frame = impl_->try_consume_once();
+        return frame_consume(pixel_consume)(std::move(frame));
+    }
+
+    folly::SemiFuture<bool> frame_segmentor::defer_consume_once(const pixel_consume& pixel_consume) {
+        auto impl = impl_.get();
+        return folly::async([impl] { return impl->try_consume_once(); })
+            .semi()
+            .deferValue(frame_consume(pixel_consume));
     }
 }

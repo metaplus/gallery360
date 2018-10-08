@@ -25,8 +25,8 @@ namespace media::component
         frame_segmentor& operator=(frame_segmentor&&) noexcept = default;
         ~frame_segmentor() = default;
 
-        frame_segmentor(std::list<detail::const_buffer> buffer_list,
-                        unsigned concurrency = std::thread::hardware_concurrency());
+        explicit frame_segmentor(std::list<detail::const_buffer> buffer_list,
+                                 unsigned concurrency = std::thread::hardware_concurrency());
 
         void parse_context(std::list<detail::const_buffer> buffer_list, unsigned concurrency);
         bool context_valid() const noexcept;
@@ -35,5 +35,6 @@ namespace media::component
         bool try_read();
         int try_consume();
         bool try_consume_once(const pixel_consume& pixel_consume = nullptr);
+        folly::SemiFuture<bool> defer_consume_once(const pixel_consume& pixel_consume = nullptr);
     };
 }

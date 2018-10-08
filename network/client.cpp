@@ -83,8 +83,6 @@ namespace net::client
     folly::Function<void(boost::system::error_code, std::size_t)>
         session<protocal::http>::on_send_request(folly::MoveWrapper<std::any> request) {
         return [this, request](boost::system::error_code errc, std::size_t transfer_size) mutable {
-            auto& test = std::any_cast<std::shared_ptr<boost::beast::http::request<empty_body>>&>(*request);
-            auto target = test->target();
             logger_->info("on_send_request errc {} transfer {}", errc, transfer_size);
             if (errc) {
                 logger_->error("on_send_request failure");

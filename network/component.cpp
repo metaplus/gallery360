@@ -288,7 +288,6 @@ namespace net::component
                 }
                 consumer_cycle.push_back(impl_->request_tile(video_set));
                 iteration++;
-                break;
             }
         }
         logger->info("register_represent_builder[iteration:{}]", iteration);

@@ -163,10 +163,8 @@ namespace net
         }
 
         dash::video_adaptation_set& dash::parser::video_set(int column, int row) const {
-            boost::multi_array_ref<video_adaptation_set, 2>
-                matrix_view{ impl_->video_adaptation_sets.data(), boost::extents[impl_->grid_width][impl_->grid_height] };
-            using matrix_index = decltype(matrix_view)::index;
-            return matrix_view(boost::array<matrix_index, 2>{ column, row });		//!dimension order
+            const auto index = column + row * grid_size().first;
+            return impl_->video_adaptation_sets.at(index);
         }
 
         dash::audio_adaptation_set& dash::parser::audio_set() const {
