@@ -5,6 +5,9 @@
 #include <folly/futures/Future.h>
 #include <folly/stop_watch.h>
 
+#define STATIC_LIBRARY
+#include "unity/gallery/pch.h"
+
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 using boost::asio::const_buffer;
@@ -254,4 +257,51 @@ TEST(Std, Variant) {
     EXPECT_TRUE(std::get_if<int>(&v) == nullptr);
     EXPECT_TRUE(&std::get<std::monostate>(v) != nullptr);
     EXPECT_TRUE(&std::get<std::monostate>(v) == std::get_if<std::monostate>(&v));
+}
+
+using namespace unity;
+
+TEST(Galley, Plugin) {
+    folly::stop_watch<seconds> watch;
+    _nativeConfigExecutor();
+    _nativeDashCreate("http://localhost:8900/dash/full/tos_srd_4K.mpd");
+    int col = 0, row = 0, width = 0, height = 0;
+    EXPECT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
+    EXPECT_EQ(col, 3);
+    EXPECT_EQ(row, 3);
+    EXPECT_EQ(width, 3840);
+    EXPECT_EQ(height, 1728);
+    _nativeGraphicSetTextures(nullptr, nullptr, nullptr);
+    _nativeDashPrefetch();
+    auto iteration = 0;
+    auto wait_tile_consume = [](int col, int row) {
+        return [col, row]() {
+            if (!_nativeDashTileWaitUpdate(col, row)) {
+                EXPECT_FALSE(_nativeDashAvailable());
+            }
+        };
+    };
+    while (_nativeDashAvailable()) {
+        std::vector<std::invoke_result_t<decltype(wait_tile_consume), int, int>> pending;
+        auto poll_count = 0;
+        for (auto c = 0; c < col; ++c) {
+            for (auto r = 0; r < row; ++r) {
+                auto index = r * col + c + 1;
+                if (!_nativeDashTilePollUpdate(c, r)) {
+                    pending.push_back(wait_tile_consume(c, r));
+                } else {
+                    poll_count++;
+                }
+            }
+        }
+        EXPECT_EQ(pending.size() + poll_count, 9);
+        for (auto& task : pending) {
+            task();
+        }
+        iteration++;
+
+    }
+    auto t1 = watch.elapsed();
+    fmt::print("t1:{}\n", t1);
+    EXPECT_EQ(iteration, 17617);
 }

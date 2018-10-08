@@ -72,13 +72,16 @@ namespace net::component
         }
 
         folly::Future<frame_consumer> request_tile(dash::video_adaptation_set& video_set) {
-            if (video_set.context->drain) {
+            if (!video_set.context) {
+                core::access(video_set.context)->trace.reserve(1024);
+            }
+            auto& context = *video_set.context;
+            if (context.drain) {
                 return folly::makeFuture<frame_consumer>(
                     core::bad_request_error{ "dummy placeholder" });
             }
             auto represent_index = predict_represent(video_set);
             auto& represent = video_set.represents.at(represent_index);
-            auto& context = *core::access(video_set.context);
             context.trace.push_back(represent_index);
             if (!context.initial_consumer.valid()) {
                 context.initial_consumer = request_initial(represent);
@@ -233,14 +236,14 @@ namespace net::component
                 dash_manager.impl_->mpd_parser.emplace(mpd_content);
                 return dash_manager;
             });
-    }
+}
 #endif
 
-    folly::Future<dash_manager> dash_manager::async_create_parsed(std::string mpd_url) {
+    folly::Future<dash_manager> dash_manager::async_create_parsed(std::string mpd_url, unsigned concurrency) {
         static_assert(std::is_move_assignable<dash_manager>::value);
         auto& executor = *folly::getCPUExecutor();
         logger->info("async_create_parsed @{} chain start", folly::getCurrentThreadID());
-        dash_manager dash_manager{ std::move(mpd_url) };
+        dash_manager dash_manager{ std::move(mpd_url),concurrency };
         logger->info("async_create_parsed @{} establish session", boost::this_thread::get_id());
         return dash_manager.impl_->connector
             ->establish_session<http>(

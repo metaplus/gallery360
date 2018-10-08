@@ -48,11 +48,17 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\core\core.vcxproj">
+      <Project>{9057a59a-b55f-42e0-9121-072432c0826d}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\multimedia\multimedia.vcxproj">
       <Project>{ed7175d4-b639-4ff1-b130-48b879dbdd3c}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\network\network.vcxproj">
       <Project>{900de24f-834c-4095-b20e-0b1785f1913b}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\unity\gallery\gallery.vcxproj">
+      <Project>{42b147aa-0f5d-4479-af8a-5861d7b6ca07}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemDefinitionGroup />

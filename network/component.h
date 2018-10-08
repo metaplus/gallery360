@@ -20,7 +20,7 @@ namespace net::component
         struct impl;
         std::shared_ptr<impl> impl_;
 
-        explicit dash_manager(std::string&& mpd_url, unsigned concurrency = 2);
+        dash_manager(std::string&& mpd_url, unsigned concurrency);
 
     public:
         dash_manager() = delete;
@@ -30,8 +30,8 @@ namespace net::component
         dash_manager& operator=(dash_manager&&) = default;
         ~dash_manager() = default;
 
-        //static boost::future<dash_manager> async_create_parsed(std::string mpd_url);
-        static folly::Future<dash_manager> async_create_parsed(std::string mpd_url);
+        static folly::Future<dash_manager> async_create_parsed(std::string mpd_url,
+                                                               unsigned concurrency = std::thread::hardware_concurrency() / 2);
 
         std::pair<int, int> scale_size() const;
         std::pair<int, int> grid_size() const;
