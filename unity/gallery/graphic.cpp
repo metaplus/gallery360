@@ -50,15 +50,18 @@ namespace dll
         update_textures(frame, alphas_);
     }
 
-    void graphic::update_textures(media::frame& frame, std::array<ID3D11Texture2D*, 3> alphas) const {
+    void graphic::update_textures(media::frame& frame,
+                                  std::array<ID3D11Texture2D*, 3> alphas) const {
         auto context = this->context();
-        assert(context != nullptr);
-        for (auto index : std::array<int, 3>{ 0, 1, 2 }) {
-            D3D11_TEXTURE2D_DESC desc;
-            auto* texture = alphas[index];
-            auto* pixels = frame->data[index];
-            texture->GetDesc(&desc);
-            context->UpdateSubresource(texture, 0, nullptr, pixels, desc.Width, 0);
+        if (context) {
+            for (auto index : std::array<int, 3>{ 0, 1, 2 }) {
+                D3D11_TEXTURE2D_DESC desc;
+                auto* texture = alphas[index];
+                auto* pixels = frame->data[index];
+                assert(pixels != nullptr);
+                texture->GetDesc(&desc);
+                context->UpdateSubresource(texture, 0, nullptr, pixels, desc.Width, 0);
+            }
         }
     }
 
@@ -70,7 +73,8 @@ namespace dll
         cleanup_.clear();
     }
 
-    std::unique_ptr<ID3D11DeviceContext, graphic::deleter> graphic::context() const {
+    std::unique_ptr<ID3D11DeviceContext, graphic::deleter>
+        graphic::context() const {
         if (device_) {
             ID3D11DeviceContext* ctx = nullptr;
             const_cast<ID3D11Device*&>(device_)->GetImmediateContext(&ctx);

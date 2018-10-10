@@ -98,26 +98,47 @@ namespace media::component
     }
 
     auto frame_consume(const pixel_consume& consume) {
-        return [&consume](frame&& frame) {
-            if (frame.empty()) {
-                return false;
-            }
-            if (consume) {
-                const_cast<pixel_consume&>(consume)(pixel_array{ frame->data[0],frame->data[1],frame->data[2] });
-            }
-            return true;
+        return [&consume](frame frame) {
+            pixel_array pixel_array;
+            pixel_array.fill(nullptr);
+            return[&consume, frame = std::move(frame), pixel_array]() mutable {
+                if (!frame.empty()) {
+                    pixel_array[0] = frame->data[0];
+                    pixel_array[1] = frame->data[1];
+                    pixel_array[2] = frame->data[2];
+                    const_cast<pixel_consume&>(consume)(pixel_array);
+                } else {
+                    assert(false);
+                }
+            };
         };
     }
 
-    bool frame_segmentor::try_consume_once(const pixel_consume& pixel_consume) {
+    bool frame_segmentor::try_consume_once(const pixel_consume& pixel_consume) const {
         auto frame = impl_->try_consume_once();
-        return frame_consume(pixel_consume)(std::move(frame));
+        if (frame.empty()) {
+            return false;
+        }
+        frame_consume(pixel_consume)(std::move(frame))();
+        return true;
     }
 
-    folly::SemiFuture<bool> frame_segmentor::defer_consume_once(const pixel_consume& pixel_consume) {
+    media::frame frame_segmentor::try_consume_once() const {
+        return impl_->try_consume_once();
+    }
+
+    folly::Future<folly::Function<void()>>
+        frame_segmentor::defer_consume_once(const pixel_consume& pixel_consume) const {
         auto impl = impl_.get();
         return folly::async([impl] { return impl->try_consume_once(); })
-            .semi()
-            .deferValue(frame_consume(pixel_consume));
+            .filter([](const frame& frame) { return !frame.empty(); })
+            .thenValue(frame_consume(pixel_consume));
+    }
+
+    folly::Future<media::frame>
+        frame_segmentor::defer_consume_once() const {
+        auto impl = impl_.get();
+        return folly::async([impl] { return impl->try_consume_once(); })
+            .filter([](const frame& frame) { return !frame.empty(); });
     }
 }

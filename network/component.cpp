@@ -26,7 +26,7 @@ namespace net::protocal
     {
         std::vector<size_t> trace;
         folly::SemiFuture<multi_buffer> initial_consumer = folly::SemiFuture<multi_buffer>::makeEmpty();
-        boost::circular_buffer<folly::Future<frame_consumer>> consumer_cycle{ 2 };
+        boost::circular_buffer<folly::Future<frame_consumer>> consumer_cycle{ 3 };
         bool drain = false;
     };
 }

@@ -142,7 +142,11 @@ namespace net
                     boost::async([&] { impl_->parse_video_adaptation_set(adaptation_sets.begin(), audio_set_iter); }),
                     boost::async([&] { impl_->parse_grid_size(adaptation_sets.front()); })
                 ).then([&](auto&&) { impl_->parse_scale_size(); }),
-                boost::async([&] { impl_->parse_audio_adaptation_set(*audio_set_iter); })
+                boost::async([&] {
+                    if (audio_set_iter != adaptation_sets.end()) {
+                        impl_->parse_audio_adaptation_set(*audio_set_iter);
+                    }
+                })
             };
             boost::wait_for_all(futures.begin(), futures.end());
         }

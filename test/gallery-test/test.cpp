@@ -57,9 +57,14 @@ frame_builder create_frame_builder(pixel_consume& consume,
         auto tail_buffer_wrapper = folly::makeMoveWrapper(tail_buffer);
         auto decode = folly::makeMoveWrapper(segmentor->defer_consume_once(consume));
         return [segmentor, decode, tail_buffer_wrapper, &consume]() mutable {
-            const auto result = std::move(*decode).get();
-            *decode = segmentor->defer_consume_once(consume);
-            return result;
+            decode->wait();
+            if (decode->hasValue()) {
+                auto defer_execute = decode.move().get();
+                *decode = segmentor->defer_consume_once(consume);
+                defer_execute();
+                return false;
+            }
+            return true;
         };
     };
 }
@@ -261,47 +266,103 @@ TEST(Std, Variant) {
 
 using namespace unity;
 
+
 TEST(Galley, Plugin) {
+    auto* render_event_func = _nativeGraphicGetRenderEventFunc();
+    EXPECT_TRUE(render_event_func != nullptr);
     folly::stop_watch<seconds> watch;
     _nativeConfigExecutor();
-    _nativeDashCreate("http://localhost:8900/dash/full/tos_srd_4K.mpd");
+    _nativeDashCreate("http://localhost:8900/dash/NewYork/5k/NewYork_5k.mpd");
     int col = 0, row = 0, width = 0, height = 0;
     EXPECT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
     EXPECT_EQ(col, 3);
     EXPECT_EQ(row, 3);
     EXPECT_EQ(width, 3840);
-    EXPECT_EQ(height, 1728);
+    EXPECT_EQ(height, 1920);
     _nativeGraphicSetTextures(nullptr, nullptr, nullptr);
     _nativeDashPrefetch();
     auto iteration = 0;
-    auto wait_tile_consume = [](int col, int row) {
-        return [col, row]() {
-            if (!_nativeDashTileWaitUpdate(col, row)) {
-                EXPECT_FALSE(_nativeDashAvailable());
-            }
-        };
-    };
     while (_nativeDashAvailable()) {
-        std::vector<std::invoke_result_t<decltype(wait_tile_consume), int, int>> pending;
+        std::vector<folly::Function<void()>> pending;
         auto poll_count = 0;
-        for (auto c = 0; c < col; ++c) {
-            for (auto r = 0; r < row; ++r) {
+        for (auto r = 0; r < row; ++r) {
+            for (auto c = 0; c < col; ++c) {
                 auto index = r * col + c + 1;
-                if (!_nativeDashTilePollUpdate(c, r)) {
-                    pending.push_back(wait_tile_consume(c, r));
-                } else {
+                if (_nativeDashTilePollUpdate(c, r)) {
                     poll_count++;
+                    render_event_func(-1);
+                } else {
+                    pending.push_back(
+                        [c, r, render_event_func, index] {
+                            if (_nativeDashTileWaitUpdate(c, r)) {
+                                render_event_func(-1);
+                            } else {
+                                EXPECT_FALSE(_nativeDashAvailable());
+                            }
+                        });
                 }
             }
         }
-        EXPECT_EQ(pending.size() + poll_count, 9);
+        //EXPECT_EQ(pending.size() + poll_count, 9);
         for (auto& task : pending) {
             task();
         }
         iteration++;
-
     }
+    render_event_func(-1);
     auto t1 = watch.elapsed();
     fmt::print("t1:{}\n", t1);
-    EXPECT_EQ(iteration, 17617);
+    EXPECT_EQ(iteration, 3715);
+}
+
+auto loop_poll_frame = []() {
+    folly::stop_watch<seconds> watch;
+    _nativeConfigExecutor();
+    _nativeDashCreate("http://localhost:8900/dash/NewYork/5k/NewYork_5k.mpd");
+    int col = 0, row = 0, width = 0, height = 0;
+    EXPECT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
+    EXPECT_EQ(col, 3);
+    EXPECT_EQ(row, 3);
+    EXPECT_EQ(width, 3840);
+    EXPECT_EQ(height, 1920);
+    _nativeDashPrefetch();
+    auto iteration = 0;
+    std::vector<int> ref_index_range;
+    for (auto r = 0; r < row; ++r) {
+            for (auto c = 0; c < col; ++c) {
+            ref_index_range.push_back(r * col + c + 1);
+        }
+    }
+    auto index_range = ref_index_range;
+    auto remove_iter = index_range.end();
+    auto count = 0;
+    while (_nativeDashAvailable()) {
+        remove_iter = std::remove_if(
+            index_range.begin(), remove_iter,
+            [&](int index) {
+                const auto r = (index - 1) / col;
+                const auto c = (index - 1) % col;
+                const auto success = _nativeDashTilePollUpdate(c, r);
+                if (success) {
+                    _nativeGraphicSetTextures(nullptr, nullptr, nullptr);
+                    _nativeGraphicGetRenderEventFunc()(index);
+                    count++;
+                }
+                return success;
+            });
+        if (0 == std::distance(index_range.begin(), remove_iter)) {
+            iteration++;
+            EXPECT_EQ(std::exchange(count, 0), 9);
+            index_range = ref_index_range;
+            remove_iter = index_range.end();
+        }
+    }
+    const auto t1 = watch.elapsed();
+    fmt::print("t1:{}\n", t1);
+    EXPECT_EQ(iteration, 3714);
+    return t1;
+};
+
+TEST(Galley, PluginPoll) {
+    loop_poll_frame();
 }

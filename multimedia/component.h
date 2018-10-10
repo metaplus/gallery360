@@ -1,5 +1,10 @@
 #pragma once                    
 
+namespace media
+{
+    class frame;
+}
+
 namespace media::component
 {
     namespace detail
@@ -8,7 +13,7 @@ namespace media::component
     }
 
     using pixel_array = std::array<uint8_t*, 3>;
-    using pixel_consume = folly::Function<void(pixel_array)>;
+    using pixel_consume = folly::Function<void(pixel_array&)>;
 
     class frame_segmentor
     {
@@ -34,7 +39,9 @@ namespace media::component
         void reset_buffer_list(std::list<detail::const_buffer> buffer_list);
         bool try_read();
         int try_consume();
-        bool try_consume_once(const pixel_consume& pixel_consume = nullptr);
-        folly::SemiFuture<bool> defer_consume_once(const pixel_consume& pixel_consume = nullptr);
+        bool try_consume_once(const pixel_consume& pixel_consume) const;
+        media::frame try_consume_once() const;
+        folly::Future<folly::Function<void()>> defer_consume_once(const pixel_consume& pixel_consume) const;
+        folly::Future<media::frame> defer_consume_once() const;
     };
 }

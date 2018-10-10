@@ -18,7 +18,6 @@
 #include <regex>
 #include <variant>
 #include "network/component.h"
-
 using namespace std::literals;
 
 TEST(Folly, Function) {
@@ -494,13 +493,24 @@ TEST(Beast, MultiBuffer) {
     EXPECT_EQ(cb4.data(), cb2.data());
 }
 
+using net::component::dash_manager;
+
 TEST(DashManager, ParseMpdConfig) {
     set_cpu_executor(3);
-    auto manager = net::component::dash_manager::async_create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
-    auto spatial_size = manager.scale_size();
-    auto grid_size = manager.grid_size();
-    EXPECT_EQ(grid_size, std::make_pair(3, 3));
-    EXPECT_EQ(spatial_size, std::make_pair(3840, 1728));
+    {
+        auto manager = dash_manager::async_create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
+        auto spatial_size = manager.scale_size();
+        auto grid_size = manager.grid_size();
+        EXPECT_EQ(grid_size, std::make_pair(3, 3));
+        EXPECT_EQ(spatial_size, std::make_pair(3840, 1728));
+    }
+    {
+        auto manager = dash_manager::async_create_parsed("http://localhost:8900/dash/NewYork/5k/NewYork_5k.mpd").get();
+        auto spatial_size = manager.scale_size();
+        auto grid_size = manager.grid_size();
+        EXPECT_EQ(grid_size, std::make_pair(3, 3));
+        EXPECT_EQ(spatial_size, std::make_pair(3840, 1920));
+    }
 }
 
 TEST(DashManager, PathRegex) {
