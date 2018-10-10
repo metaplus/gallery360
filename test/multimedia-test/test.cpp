@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "core/pch.h"
 #include "multimedia/component.h"
+#include "multimedia/pch.h"
 #include <boost/beast/core/buffers_prefix.hpp>
 #include <boost/beast/core/buffers_cat.hpp>
 #include <boost/beast/core/ostream.hpp>
@@ -150,7 +151,7 @@ TEST(FrameSegmentor, Base) {
     auto& buffer_map = create_buffer_map();
     for (auto&[index, buffer] : buffer_map) {
         media::component::frame_segmentor frame_segmentor;
-        frame_segmentor.parse_context(core::split_buffer_sequence(buffer));
+        frame_segmentor.parse_context(core::split_buffer_sequence(buffer), 8);
         EXPECT_FALSE(frame_segmentor.buffer_available());
         break;
     }
@@ -162,7 +163,7 @@ TEST(FrameSegmentor, ReadTwo) {
     buffer_list.splice(buffer_list.end(), core::split_buffer_sequence(buffer_map[1]));
     media::component::frame_segmentor frame_segmentor;
     auto count1 = 0, count2 = 0;
-    frame_segmentor.parse_context(std::move(buffer_list));
+    frame_segmentor.parse_context(std::move(buffer_list), 8);
     while (frame_segmentor.try_read()) {
         count1 += 1;
     }
@@ -177,14 +178,14 @@ TEST(FrameSegmentor, ReadThree) {
     auto buffer_list = core::split_buffer_sequence(buffer_map[0], buffer_map[3], buffer_map[5], buffer_map[7]);
     media::component::frame_segmentor frame_segmentor;
     auto count1 = 0;
-    frame_segmentor.parse_context(std::move(buffer_list));
+    frame_segmentor.parse_context(std::move(buffer_list), 8);
     while (frame_segmentor.try_read()) {
         count1 += 1;
     }
     auto buffer_list2 = core::split_buffer_sequence(buffer_map[0], buffer_map[2], buffer_map[4], buffer_map[6]);
     media::component::frame_segmentor frame_segmentor2;
     auto count2 = 0;
-    frame_segmentor2.parse_context(std::move(buffer_list2));
+    frame_segmentor2.parse_context(std::move(buffer_list2), 8);
     while (frame_segmentor2.try_read()) {
         count2 += 1;
     }
@@ -210,7 +211,7 @@ TEST(FrameSegmentor, TryConsumeOnce) {
         core::split_buffer_sequence(buffer_map[0],buffer_map[2],buffer_map[4],buffer_map[6],buffer_map[7],buffer_map[10])
     };
     auto count = 0;
-    while (frame_segmentor.try_consume_once() && ++count) {
+    while (!frame_segmentor.try_consume_once().empty() && ++count) {
     }
     EXPECT_EQ(count, 125);
 }
@@ -231,7 +232,7 @@ TEST(FrameSegmentor, TryConsumeOnceForLargeFile) {
     EXPECT_EQ(init_buffer.size(), 0);
     EXPECT_EQ(tail_buffer.size(), 0);
     auto count = 0;
-    while (fs1.try_consume_once() && ++count) {
+    while (!fs1.try_consume_once().empty() && ++count) {
     }
     EXPECT_EQ(count, 25);
 }
@@ -246,7 +247,7 @@ frame_builder create_frame_builder() {
     return [](std::list<const_buffer> buffer_list) -> frame_consumer {
         auto segmentor = folly::makeMoveWrapper(frame_segmentor{ std::move(buffer_list) });
         return [segmentor]() mutable {
-            return segmentor->try_consume_once();
+            return !segmentor->try_consume_once().empty();
         };
     };
 }
@@ -330,4 +331,99 @@ TEST(Future, Exchange) {
     auto i2 = std::exchange(f, folly::makeFuture(3)).get();
     EXPECT_EQ(i2, 2);
     EXPECT_EQ(f.value(), 3);
+}
+
+std::map<int, multi_buffer> create_tile_buffer_map(std::string prefix, int first, int last) {
+
+    std::map<int, multi_buffer> map;
+    ostream(map[0]) << std::ifstream{ fmt::format("{}_init.mp4",prefix),std::ios::binary }.rdbuf();
+    auto index = first;
+    while (index <= last) {
+        ostream(map[index]) << std::ifstream{ fmt::format("{}_{}.m4s",prefix,index),std::ios::binary }.rdbuf();
+        index++;
+    }
+    EXPECT_EQ(map.size(), last - first + 2);
+    for (auto&[index, buffer] : map) {
+        fmt::print("{}: {}\n", index, buffer.size());
+        EXPECT_TRUE(buffer.size() > 0);
+    }
+    return map;
+}
+
+TEST(Util, CreateTileBufferMap) {
+    //auto map = create_tile_buffer_map("F:/Gpac/NY5000_Margin_dash_track3", 1, 3);
+    auto map = create_tile_buffer_map("F:/Gpac/x264/segment", 10, 20);
+    std::ofstream fout{ "F:/debug/test.mp4",std::ios::out | std::ios::binary | std::ios::trunc };
+    for (auto&[index, buffer] : map) {
+        if (index > 0) {
+            auto count = 0;
+            for (auto sub_buf : buffer.data()) {
+                fout.write(static_cast<const char*>(sub_buf.data()), sub_buf.size());
+                EXPECT_TRUE(fout.good());
+            }
+            frame_segmentor segmentor{ core::split_buffer_sequence(map.at(0),map.at(index)) };
+            while (!segmentor.try_consume_once().empty() && ++count) {
+            }
+            fmt::print("{}: count {}\n", index, count);
+            EXPECT_EQ(count, 24);
+        }
+    }
+}
+
+
+inline int make_even(int num) {
+    return num % 2 != 0 ? num + 1 : num;
+}
+
+inline void scale_partial(const std::string_view input,
+                          unsigned wcrop, unsigned hcrop,
+                          const unsigned wscale, const unsigned hscale,
+                          const unsigned stride = 16, const unsigned offset = 0) {
+    if (offset >= wcrop * hcrop) {
+        return;
+    }
+    auto kbyte = 0;
+    auto mbit = kbyte * 8 / 1000;
+    create_directories(std::filesystem::path{ "F:/Gpac/debug" } / std::filesystem::path{ std::string{ input } }.stem());
+    auto cmd = fmt::format("ffmpeg -i {} -filter_complex \"", input);
+    const auto[width, height] = media::format_context{ media::source::path{ input.data() } }.demux(media::type::video).scale();
+    const auto scale = fmt::format("scale={}:{}", make_even(width / wcrop / wscale), make_even(height / hcrop / hscale));
+    for (auto i = 0; i != wcrop; ++i) {
+        for (auto j = 0; j != hcrop; ++j) {
+            if (i * hcrop + j < offset || i * hcrop + j >= offset + stride)
+                continue;
+            const auto crop = fmt::format("crop={}:{}:{}:{}",
+                                          width / wcrop, height / hcrop,
+                                          width*i / wcrop, height*j / hcrop);
+            //cmd.append(fmt::format("[0:v]{}, {}[v{}:{}] ", scale, crop, i, j));
+            cmd.append(fmt::format("[0:v]{},{}[v{}:{}];", crop, scale, i, j));
+        }
+    }
+    cmd.pop_back();
+    cmd.append("\" ");
+    auto filename = std::filesystem::path{ std::string{ input } }.stem().generic_string();
+    for (auto i = 0; i != wcrop; ++i) {
+        for (auto j = 0; j != hcrop; ++j) {
+            if (i * hcrop + j < offset || i * hcrop + j >= offset + stride)
+                continue;
+            if (wscale > 1 || hscale > 1) {
+                cmd.append(fmt::format("-map \"[v{}:{}]\" -c:v h264 E:/Tile/{}/t{}_{}_{}_{}.mp4 ", i, j,
+                                       std::filesystem::path{ std::string{ input } }.stem().generic_string(), wcrop*hcrop, wscale*hscale, j, i));
+            } else {
+                //ffmpeg -i NewYork_0_0.mp4 -c:v libx264 -preset slow -x264-params keyint=30:min-keyint=30 -b:v 1M -maxrate 1M -minrate 1M -buf size 2M -framerate 30 NewYork_0_0.h264
+                cmd.append(fmt::format("-map \"[v{}:{}]\" -c:v libx264  -preset slow "
+                                       "-x264-params keyint=30:min-keyint=30:bitrate=5000:vbv-maxrate=10000:vbv-bufsize=20000:fps=30:scenecut=0:no-scenecut:pass=1 "
+                                       "F:/Gpac/debug/{}/{}_{}_{}_5K.mp4 ", 
+                                       i, j,
+                                       filename, filename, j, i));
+            }
+        }
+    }
+    cmd.append(" -y");
+    std::system(cmd.data());
+    scale_partial(input, wcrop, hcrop, wscale, hscale, stride, offset + stride);
+}
+
+TEST(Util, Scale) {
+    scale_partial("F:/Gpac/NewYork.mp4", 3, 3, 1, 1);
 }

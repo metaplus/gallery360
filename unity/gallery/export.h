@@ -22,6 +22,15 @@ namespace unity
         EXTERN_C BOOL DLLAPI _nativeMediaSessionDropFrame(INT64 id);
     }
 
+    EXTERN_C void DLLAPI _nativeConfigExecutor();
+    EXTERN_C void DLLAPI _nativeDashCreate(LPCSTR mpd_url);
+    EXTERN_C BOOL DLLAPI _nativeDashGraphicInfo(INT& col, INT& row, INT& width, INT& height);
+    EXTERN_C void DLLAPI _nativeDashSetTexture(INT x, INT y, HANDLE textureY, HANDLE textureU, HANDLE textureV);
+    EXTERN_C void DLLAPI _nativeDashPrefetch();
+    EXTERN_C BOOL DLLAPI _nativeDashAvailable();
+    EXTERN_C BOOL DLLAPI _nativeDashTilePollUpdate(INT x, INT y);
+    EXTERN_C BOOL DLLAPI _nativeDashTileWaitUpdate(INT x, INT y);
+
     EXTERN_C void DLLAPI _nativeGraphicSetTextures(HANDLE textureY, HANDLE textureU, HANDLE textureV);
     EXTERN_C BOOL DLLAPI _nativeGraphicUpdateTextures(INT64 id, HANDLE textureY, HANDLE textureU, HANDLE textureV);
     EXTERN_C void DLLAPI _nativeGraphicRelease();

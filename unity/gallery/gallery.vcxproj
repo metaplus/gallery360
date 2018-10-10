@@ -158,19 +158,17 @@
     <ClInclude Include="..\detail\IUnityGraphicsD3D11.h" />
     <ClInclude Include="..\detail\IUnityInterface.h" />
     <ClInclude Include="..\detail\PlatformBase.h" />
-    <ClInclude Include="dll.h" />
     <ClInclude Include="export.h" />
+    <ClInclude Include="graphic.h" />
     <ClInclude Include="openvr.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dll.cpp" />
     <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="graphic_module.cpp" />
-    <ClCompile Include="media_module.cpp" />
-    <ClCompile Include="net_module.cpp" />
+    <ClCompile Include="graphic.cpp" />
+    <ClCompile Include="plugin.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -180,6 +178,17 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\core\core.vcxproj">
+      <Project>{9057a59a-b55f-42e0-9121-072432c0826d}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\multimedia\multimedia.vcxproj">
+      <Project>{ed7175d4-b639-4ff1-b130-48b879dbdd3c}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\network\network.vcxproj">
+      <Project>{900de24f-834c-4095-b20e-0b1785f1913b}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -17,19 +17,21 @@ namespace core
         return std::distance(begin(iterator), end(iterator));
     }
 
-    void set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name) {
+    std::shared_ptr<folly::Executor> set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name) {
         static auto executor = std::make_shared<folly::CPUThreadPoolExecutor>(
             std::make_pair(concurrency, 1),
             std::make_unique<folly::LifoSemMPMCQueue<folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::BLOCK>>(queue_size),
             std::make_shared<folly::NamedThreadFactory>(pool_name.data()));
         folly::setCPUExecutor(executor);
+        return executor;
     }
 
-    void set_cpu_executor(int concurrency, std::string_view pool_name) {
+    std::shared_ptr<folly::Executor> set_cpu_executor(int concurrency, std::string_view pool_name) {
         static auto executor = std::make_shared<folly::CPUThreadPoolExecutor>(
             std::make_pair(concurrency, 1),
             std::make_unique<folly::UnboundedBlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>>(),
             std::make_shared<folly::NamedThreadFactory>(pool_name.data()));
         folly::setCPUExecutor(executor);
+        return executor;
     }
 }

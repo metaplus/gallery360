@@ -242,9 +242,9 @@ namespace core
             std::forward<Variant>(variant));
     }
 
-    void set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name = "CorePool");
+    std::shared_ptr<folly::Executor> set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name = "CorePool");
 
-    void set_cpu_executor(int concurrency, std::string_view pool_name = "CorePool");
+    std::shared_ptr<folly::Executor> set_cpu_executor(int concurrency, std::string_view pool_name = "CorePool");
 
     template<typename T, typename ...Policy>
     static auto promise_contract_of(Policy& ...p) {

@@ -10,5 +10,3 @@
 #include "gtest/gtest.h"
 #pragma comment(lib, "Ws2_32")
 #pragma comment(lib, "folly")
-#pragma comment(lib, "core")
-

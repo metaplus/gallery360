@@ -130,7 +130,10 @@ namespace media
         codec::pointer cdc = nullptr;
         const auto format_ptr = format_handle_.get();
         const auto index = av_find_best_stream(format_ptr, static_cast<AVMediaType>(media_type), -1, -1, &cdc, 0);
-        return std::make_pair(codec{ cdc }, stream{ format_ptr->streams[index] });
+        if (index >= 0) {
+            return std::make_pair(codec{ cdc }, stream{ format_ptr->streams[index] });
+        }
+        return std::make_pair(codec{ cdc }, stream{ format_ptr->streams[0] });
     }
 
     packet format_context::read(type media_type) const {
