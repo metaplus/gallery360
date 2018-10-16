@@ -2,19 +2,27 @@
 #include "core/pch.h"
 #include "network/component.h"
 #include "multimedia/component.h"
+#include <filesystem>
+#include <fstream>
+#include <folly/concurrency/UnboundedQueue.h>
+#include <folly/executors/ThreadedExecutor.h>
 #include <folly/futures/Future.h>
+#include <folly/futures/FutureSplitter.h>
 #include <folly/stop_watch.h>
-
 #define STATIC_LIBRARY
 #include "unity/gallery/pch.h"
+#include <boost/beast/core/ostream.hpp>
 
+using std::chrono::microseconds;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
+using std::chrono::steady_clock;
 using boost::asio::const_buffer;
 using boost::beast::multi_buffer;
 using net::component::dash_manager;
 using net::component::frame_consumer;
 using net::component::frame_builder;
+using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
 using media::component::pixel_array;
@@ -49,9 +57,12 @@ folly::Future<bool> async_consume(frame_segmentor& segmentor,
     return folly::async([&segmentor, &consume] { return segmentor.try_consume_once(consume); });
 }
 
-frame_builder create_frame_builder(pixel_consume& consume,
-                                   unsigned concurrency = std::thread::hardware_concurrency()) {
-    return [&consume, concurrency](multi_buffer& head_buffer, multi_buffer&& tail_buffer)-> frame_consumer {
+frame_indexed_builder create_frame_builder(pixel_consume& consume,
+                                           unsigned concurrency = std::thread::hardware_concurrency()) {
+    return [&consume, concurrency](auto ordinal,
+                                   multi_buffer& head_buffer,
+                                   multi_buffer&& tail_buffer)
+        -> frame_consumer {
         auto segmentor = folly::makeMoveWrapper(
             frame_segmentor{ core::split_buffer_sequence(head_buffer,tail_buffer),concurrency });
         auto tail_buffer_wrapper = folly::makeMoveWrapper(tail_buffer);
@@ -228,7 +239,7 @@ TEST(DashManager, StreamFrameProfile) {
     fmt::print("t1:{}\n,t2:{}\n,t3:{}\n,t4:{}\n,t5:{}\n", t1, t2, t3, t4, t5);
 }
 
-TEST(Std, StringInsert) {
+TEST(String, Insert) {
     std::string x = "";
     x.insert(x.begin(), '/');
     EXPECT_STREQ(x.c_str(), "/");
@@ -237,7 +248,7 @@ TEST(Std, StringInsert) {
     EXPECT_STREQ(x.c_str(), "/123");
 }
 
-TEST(Std, StringReplace) {
+TEST(String, Replace) {
     auto replace = [](std::string& s) {
         auto suffix = "123";
         if (s.empty()) {
@@ -254,7 +265,7 @@ TEST(Std, StringReplace) {
     EXPECT_STREQ(replace(x).c_str(), "/123");
 }
 
-TEST(Std, Variant) {
+TEST(Variant, GetIf) {
     std::variant<std::monostate, int> v;
     EXPECT_FALSE(v.valueless_by_exception());
     EXPECT_EQ(v.index(), 0);
@@ -329,10 +340,12 @@ auto loop_poll_frame = []() {
     auto iteration = 0;
     std::vector<int> ref_index_range;
     for (auto r = 0; r < row; ++r) {
-            for (auto c = 0; c < col; ++c) {
+        for (auto c = 0; c < col; ++c) {
             ref_index_range.push_back(r * col + c + 1);
+            _nativeDashSetTexture(c, r, nullptr, nullptr, nullptr);
         }
     }
+    debug::_nativeMockGraphic();
     auto index_range = ref_index_range;
     auto remove_iter = index_range.end();
     auto count = 0;
@@ -342,13 +355,12 @@ auto loop_poll_frame = []() {
             [&](int index) {
                 const auto r = (index - 1) / col;
                 const auto c = (index - 1) % col;
-                const auto success = _nativeDashTilePollUpdate(c, r);
-                if (success) {
-                    _nativeGraphicSetTextures(nullptr, nullptr, nullptr);
+                const auto poll_success = _nativeDashTilePollUpdate(c, r);
+                if (poll_success) {
                     _nativeGraphicGetRenderEventFunc()(index);
                     count++;
                 }
-                return success;
+                return poll_success;
             });
         if (0 == std::distance(index_range.begin(), remove_iter)) {
             iteration++;
@@ -358,11 +370,212 @@ auto loop_poll_frame = []() {
         }
     }
     const auto t1 = watch.elapsed();
-    fmt::print("t1:{}\n", t1);
+    fmt::print("time:{} fps:{}\n", t1, iteration / t1.count());
     EXPECT_EQ(iteration, 3714);
     return t1;
 };
 
 TEST(Galley, PluginPoll) {
-    loop_poll_frame();
+    loop_poll_frame();  // fps 53
+
 }
+
+TEST(Executor, ThreadedExecutor) {
+    uint64_t i1 = 0, i2 = 0, i3 = 0;
+    auto i0 = folly::getCurrentThreadID();
+    folly::stop_watch<milliseconds> watch;
+    {
+        auto executor = core::make_threaded_executor("Test");
+        watch.reset();
+        executor->add([&] { std::this_thread::sleep_for(200ms); i1 = folly::getCurrentThreadID(); });
+        executor->add([&] { std::this_thread::sleep_for(150ms); i2 = folly::getCurrentThreadID(); });
+        executor->add([&] { std::this_thread::sleep_for(100ms); i3 = folly::getCurrentThreadID(); });
+    }
+    auto elapsed = watch.elapsed();
+    EXPECT_GE(elapsed, 200ms);
+    EXPECT_LT(elapsed, 250ms);
+    EXPECT_NE(i0, i1);
+    EXPECT_NE(i0, i2);
+    EXPECT_NE(i0, i3);
+    EXPECT_NE(i1, i2);
+    EXPECT_NE(i1, i3);
+    EXPECT_NE(i2, i3);
+}
+
+TEST(Future, PreFullfill) {
+    folly::Promise<int> p;
+    EXPECT_NO_THROW(p.setValue(1));
+    {
+        auto f = p.getSemiFuture();
+        EXPECT_TRUE(f.hasValue());
+        EXPECT_EQ(std::move(f).get(), 1);
+    }
+    EXPECT_THROW(p.getSemiFuture(), folly::FutureAlreadyRetrieved);
+}
+
+TEST(Future, FutureSplitterProfile) {
+    {
+        folly::FutureSplitter<int> fs{ folly::makeSemiFuture(1).via(&folly::InlineExecutor::instance()) };
+        EXPECT_TRUE(fs.getSemiFuture().hasValue());
+        EXPECT_TRUE(fs.getFuture().hasValue());
+    }
+    {
+        using std::chrono::microseconds;
+        multi_buffer buffer;
+        boost::beast::ostream(buffer) << std::ifstream{ "F:/Gpac/debug/NewYork/5k/segment_2_2_5k_init.mp4",std::ios::binary }.rdbuf();
+        EXPECT_EQ(buffer.size(), 925);                      // ~ 1kB
+        folly::FutureSplitter<multi_buffer> fs{ folly::makeFuture(buffer) };
+        folly::FutureSplitter<std::shared_ptr<multi_buffer>> fs2{ folly::makeFuture(std::make_shared<multi_buffer>(buffer)) };
+        std::vector<microseconds> time_trace(20);
+        {
+            folly::stop_watch<microseconds> watch;
+            const void* last = nullptr;
+            for (auto& t : time_trace) {
+                {
+                    watch.reset();
+                    auto fss = fs.getSemiFuture();
+                    t = watch.elapsed();                    // ~ 10us
+                    auto* data = (*fss.value().data().begin()).data();
+                    auto fss2 = fs.getSemiFuture();
+                    auto* data2 = (*fss2.value().data().begin()).data();
+                    EXPECT_EQ(fss.value().size(), 925);
+                    EXPECT_NE(data, data2);
+                    if (std::exchange(last, data)) {
+                        EXPECT_EQ(data, last);
+                        EXPECT_NE(data, (*buffer.data().begin()).data());
+                    }
+                    fmt::print("elapsed: {}\n", t);
+                }
+                {
+                    watch.reset();
+                    auto fss = fs2.getSemiFuture();
+                    auto t2 = watch.elapsed();              // ~ 2us
+                    EXPECT_GT(t, t2);
+                    fmt::print("elapsed-ptr: {}\n", t2);
+                }
+            }
+        }
+    }
+}
+
+TEST(Container, UnboundedQueue) {
+    {
+        folly::USPSCQueue<int, true> q;
+        EXPECT_TRUE(q.empty());
+        EXPECT_TRUE(q.try_peek() == nullptr);
+        EXPECT_FALSE(q.try_dequeue_for(50ms).hasValue());
+        q.enqueue(1);
+        q.enqueue(2);
+        q.enqueue(3);
+        EXPECT_EQ(*q.try_peek(), 1);
+        auto x = 0;
+        q.dequeue(x);
+        EXPECT_EQ(x, 1);
+    }
+    {
+        std::vector<int> v{ 1,2,3,4,5 };
+        auto* p = v.data();
+        folly::USPSCQueue<std::vector<int>, true> q;
+        q.enqueue(std::move(v));
+        EXPECT_TRUE(v.empty());
+        EXPECT_EQ(q.size(), 1);
+        q.dequeue(v);
+        EXPECT_EQ(v.data(), p);
+        EXPECT_EQ(v.size(), 5);
+        EXPECT_TRUE(q.empty());
+        q.enqueue(std::move(v));
+        EXPECT_EQ(q.size(), 1);
+        decltype(v) v2;
+        EXPECT_TRUE(q.try_dequeue(v2));
+        EXPECT_TRUE(q.empty());
+        EXPECT_EQ(v2.data(), p);
+    }
+}
+
+TEST(Container, MPMCQueue) {
+    folly::MPMCQueue<int> q{ 2 };
+    EXPECT_EQ(q.capacity(), 2);
+    EXPECT_TRUE(q.isEmpty());
+    folly::Baton<> b;
+    decltype(steady_clock::now()) t1, t2, t3, t4;
+    std::thread{ [&] {
+        q.blockingWrite(1);
+        EXPECT_TRUE(q.write(2));
+        EXPECT_FALSE(q.writeIfNotFull(3));
+        EXPECT_TRUE(q.isFull());
+        t1 = steady_clock::now();
+        b.post();
+        std::this_thread::sleep_for(100ms);
+        q.blockingWrite(3);
+    } }.detach();
+    b.wait();
+    t2 = steady_clock::now();
+    int i;
+    EXPECT_TRUE(q.read(i));
+    EXPECT_EQ(i, 1);
+    EXPECT_TRUE(q.readIfNotEmpty(i));
+    EXPECT_EQ(i, 2);
+    t3 = steady_clock::now();
+    q.blockingRead(i);
+    t4 = steady_clock::now();
+    EXPECT_EQ(i, 3);
+    EXPECT_LT(t1, t2);
+    EXPECT_GT(t4 - t3, 90ms);
+}
+
+TEST(FileSystem, CurrentPath) {
+    auto p = std::filesystem::current_path();
+    EXPECT_TRUE(std::filesystem::is_directory(p));
+    EXPECT_STREQ(p.generic_string().data(), "D:/Project/gallery360/test/gallery-test");
+    auto fp = std::filesystem::current_path() / "test.cpp";
+    EXPECT_STREQ(fp.generic_string().data(), "D:/Project/gallery360/test/gallery-test/test.cpp");
+    auto fp2 = std::filesystem::current_path().parent_path() / "test.cpp";
+    EXPECT_STREQ(fp2.generic_string().data(), "D:/Project/gallery360/test/test.cpp");
+    EXPECT_TRUE(std::filesystem::is_regular_file(fp));
+    std::ifstream fin{ fp, std::ios::binary };
+    EXPECT_TRUE(fin.is_open());
+    std::string str{ std::istreambuf_iterator<char>{fin},std::istreambuf_iterator<char>{} };
+    EXPECT_EQ(std::size(str), std::filesystem::file_size(fp));
+}
+
+TEST(Executor, MakePool) {
+    auto executor = core::make_pool_executor(10);
+    EXPECT_EQ(executor->numActiveThreads(), 1);
+    EXPECT_EQ(executor->numThreads(), 10);
+    EXPECT_EQ(executor->getPendingTaskCount(), 0);
+    EXPECT_STREQ(executor->getName().data(), "CorePool");
+    EXPECT_EQ(executor->getPoolStats().idleThreadCount, 10);
+    EXPECT_EQ(executor->getPoolStats().activeThreadCount, 0);
+}
+
+TEST(Wrapper, Try) {
+    {
+        folly::Try<int> t;
+        EXPECT_FALSE(t.hasValue());
+        EXPECT_FALSE(t.hasException());
+        t.emplace(1);
+        EXPECT_TRUE(t.hasValue());
+        EXPECT_EQ(t.value(), 1);
+        t.emplaceException(std::logic_error{ "123" });
+        EXPECT_TRUE(t.hasException());
+        EXPECT_TRUE(t.exception().is_compatible_with<std::exception>());
+        EXPECT_STREQ(t.exception().class_name().c_str(), "class std::logic_error");
+        EXPECT_THROW(t.throwIfFailed(), std::exception);
+        EXPECT_THROW(t.throwIfFailed(), std::logic_error);
+        EXPECT_NO_THROW(dynamic_cast<std::logic_error&>(*t.tryGetExceptionObject()));
+        t.emplace();
+        EXPECT_TRUE(t.hasValue());
+        EXPECT_EQ(t.value(), 0);
+    }
+    {
+        folly::Try<std::unique_ptr<int>> t;
+        EXPECT_FALSE(t.hasValue());
+        t.emplace(std::make_unique<int>(2));
+        auto t2 = std::move(t);
+        EXPECT_TRUE(t.hasValue());              //! default constructed state after moved out, not empty
+        EXPECT_FALSE(t.value() != nullptr);
+        EXPECT_TRUE(t2.hasValue());
+        EXPECT_EQ(*t2.value(), 2);
+    }
+}
+

@@ -8,16 +8,19 @@
 using net::component::dash_manager;
 using net::component::frame_consumer;
 using net::component::frame_builder;
+using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
 using media::component::pixel_array;
 using media::component::pixel_consume;
 using boost::beast::multi_buffer;
 
-struct texture_bundle;
+struct texture_context;
 
-std::shared_ptr<folly::Executor> executor;
+std::shared_ptr<folly::ThreadPoolExecutor> event_executor;
+std::shared_ptr<folly::ThreadPoolExecutor> decode_executor;
 folly::Future<dash_manager> manager = folly::Future<dash_manager>::makeEmpty();
+
 pixel_consume pixel_update;
 pixel_array pixels;
 media::frame tile_frame{ nullptr };
@@ -31,25 +34,67 @@ std::shared_ptr<dll::graphic> dll_graphic;
 UnityGfxRenderer unity_device = kUnityGfxRendererNull;
 IUnityInterfaces* unity_interface = nullptr;
 IUnityGraphics* unity_graphics = nullptr;
-std::map<int, texture_bundle> tile_textures;
+std::map<std::pair<int, int>, texture_context> tile_textures;
 
-struct texture_bundle
+namespace state
 {
-    std::array<ID3D11Texture2D*, 3> texture;
+    auto tile_col = 0;
+    auto tile_row = 0;
+    decltype(tile_textures)::iterator texture_iterator;
+}
+
+struct texture_context
+{
+    std::array<ID3D11Texture2D*, 3> texture{};
+    folly::USPSCQueue<media::frame, true> frame_queue{};
     int x = 0;
     int y = 0;
+};
+
+struct tile_media_context
+{
+    frame_segmentor segmentor;
+    multi_buffer tile_buffer;
+};
+
+auto texture_at = [](int col, int row, bool construct = false) -> decltype(auto) {
+    if (construct) {
+        return tile_textures[std::make_pair(col, row)];
+    }
+    auto iterator = tile_textures.find(std::make_pair(col, row));
+    assert(iterator != tile_textures.end());
+    std::swap(iterator, state::texture_iterator);
+    return (state::texture_iterator->second);
+};
+
+std::pair<int, int> frame_grid;
+std::pair<int, int> frame_scale;
+int tile_width = 0;
+int tile_height = 0;
+
+auto tile_index = [](int x, int y) constexpr {
+    return x + y * frame_grid.first + 1;
+};
+
+auto tile_ordinal = [](int index) constexpr {
+    const auto x = (index - 1) % frame_grid.first;
+    const auto y = (index - 1) / frame_grid.first;
+    return std::make_pair(x, y);
 };
 
 namespace unity
 {
     void DLLAPI unity::_nativeConfigExecutor() {
-        if (!executor) {
-            executor = core::set_cpu_executor(executor_concurrency, "GalleryPool");
+        if (!event_executor) {
+            event_executor = core::set_cpu_executor(executor_concurrency, "PluginPool");
         }
+        assert(!decode_executor);
     }
 
-    frame_builder create_frame_builder(unsigned concurrency = decoder_concurrency) {
-        return [concurrency](multi_buffer& head_buffer, multi_buffer&& tail_buffer)-> frame_consumer {
+    frame_builder gradual_frame_builder(unsigned concurrency) {
+        return [concurrency](multi_buffer& head_buffer,
+                             multi_buffer&& tail_buffer)
+            -> frame_consumer {
             frame_segmentor segmentor{ core::split_buffer_sequence(head_buffer,tail_buffer),concurrency };
             return[segmentor = std::move(segmentor), tail_buffer = std::move(tail_buffer)]{
                 if (auto frame = segmentor.try_consume_once(); !frame.empty()) {
@@ -61,14 +106,45 @@ namespace unity
         };
     }
 
+    frame_indexed_builder queued_frame_builder(unsigned concurrency) {
+        return [concurrency](std::pair<int, int> ordinal,
+                             multi_buffer& initial_buffer,
+                             multi_buffer&& tile_buffer)
+            -> frame_consumer {
+            static_assert(std::is_move_assignable<frame_segmentor>::value);
+            static_assert(std::is_move_assignable<multi_buffer>::value);
+            auto tile_decode_task = folly::Future<int64_t>::makeEmpty();
+            {
+                auto tile_context = std::make_unique<tile_media_context>();
+                tile_context->segmentor = frame_segmentor{ core::split_buffer_sequence(initial_buffer,tile_buffer),concurrency };
+                tile_context->tile_buffer = std::move(tile_buffer);
+                tile_decode_task = folly::via(
+                    decode_executor.get(),
+                    [ordinal, tile_context = std::move(tile_context)]{
+                        auto decode_count = 0i64;
+                        auto& texture_context = texture_at(ordinal.first, ordinal.second);
+                        try {
+                            while (true) {
+                                for (auto& frame : tile_context->segmentor.try_consume()) {
+                                    texture_context.frame_queue.enqueue(std::move(frame));
+                                    decode_count++;
+                                }
+                            }
+                        } catch (core::stream_drained_error) {
+                            texture_context.frame_queue.enqueue(media::frame{ nullptr });
+                        }
+                        return decode_count;
+                    });
+            }
+            return[tile_task = std::move(tile_decode_task)]{
+                return !tile_task.isReady();
+            };
+        };
+    }
+
     void DLLAPI unity::_nativeDashCreate(LPCSTR mpd_url) {
         manager = dash_manager::async_create_parsed(std::string{ mpd_url }, asio_concurrency);
     }
-
-    std::pair<int, int> frame_grid;
-    std::pair<int, int> frame_scale;
-    int tile_width = 0;
-    int tile_height = 0;
 
     BOOL DLLAPI _nativeDashGraphicInfo(INT & col, INT & row, INT & width, INT & height) {
         manager.wait();
@@ -80,6 +156,7 @@ namespace unity
             tile_width = frame_scale.first / frame_grid.first;
             tile_height = frame_scale.second / frame_grid.second;
             tile_textures.clear();
+            decode_executor = core::make_pool_executor(col*row);
             return true;
         }
         return false;
@@ -89,23 +166,18 @@ namespace unity
                                       HANDLE tex_y, HANDLE tex_u, HANDLE tex_v) {
         assert(manager.isReady());
         assert(manager.hasValue());
-        assert(tex_y != nullptr);
-        assert(tex_u != nullptr);
-        assert(tex_v != nullptr);
-        auto index = x + y * frame_grid.first + 1;
-        assert(!tile_textures.count(index));
-        tile_textures[index].x = x;
-        tile_textures[index].y = y;
-        tile_textures[index].texture[0] = static_cast<ID3D11Texture2D*>(tex_y);
-        tile_textures[index].texture[1] = static_cast<ID3D11Texture2D*>(tex_u);
-        tile_textures[index].texture[2] = static_cast<ID3D11Texture2D*>(tex_v);
+        auto& tile_texture = texture_at(x, y, true);
+        tile_texture.x = x;
+        tile_texture.y = y;
+        tile_texture.texture[0] = static_cast<ID3D11Texture2D*>(tex_y);
+        tile_texture.texture[1] = static_cast<ID3D11Texture2D*>(tex_u);
+        tile_texture.texture[2] = static_cast<ID3D11Texture2D*>(tex_v);
     }
 
     void _nativeDashPrefetch() {
         assert(manager.isReady());
         assert(manager.hasValue());
-        //assert(pixel_update);
-        manager.value().register_represent_builder(create_frame_builder(decoder_concurrency));
+        manager.value().register_represent_builder(queued_frame_builder(decoder_concurrency));
     }
 
     BOOL DLLAPI _nativeDashAvailable() {
@@ -113,23 +185,51 @@ namespace unity
     }
 
     BOOL DLLAPI _nativeDashTilePollUpdate(INT x, INT y) {
-        return manager.value().poll_tile_consumed(x, y);
+        //if (manager.value().poll_tile_consumed(x, y)) {
+        //    static_assert(std::is_nothrow_move_assignable<media::frame>::value);
+        //    tile_textures.at(tile_index(x, y)).frame = std::move(tile_frame);
+        //    assert(tile_frame.operator->() == nullptr);
+        //    return true;
+        //}
+        //return false;
+        if (texture_at(x, y).frame_queue.empty()) {
+            return false;
+        }
+        state::tile_col = x;
+        state::tile_row = y;
+        return true;
     }
 
     BOOL DLLAPI _nativeDashTileWaitUpdate(INT x, INT y) {
         return manager.value().wait_tile_consumed(x, y);
     }
 
-    void _nativeGraphicSetTextures(HANDLE textureY, HANDLE textureU, HANDLE textureV) {
-        //assert(textureY != nullptr);
-        //assert(textureU != nullptr);
-        //assert(textureV != nullptr);
-        core::access(dll_graphic)->store_textures(textureY, textureU, textureV);
+    namespace debug
+    {
+        constexpr auto enable_null_texture = true;
+    }
+
+    void _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v) {
+        if constexpr (!debug::enable_null_texture) {
+            assert(tex_y != nullptr);
+            assert(tex_u != nullptr);
+            assert(tex_v != nullptr);
+        }
+        core::access(dll_graphic)->store_textures(tex_y, tex_u, tex_v);
     }
 
     void _nativeGraphicRelease() {
         if (dll_graphic) {
             dll_graphic->clean_up();
+        }
+    }
+
+    namespace debug
+    {
+        void _nativeMockGraphic() {
+            assert(!dll_graphic);
+            core::access(dll_graphic);
+            assert(dll_graphic);
         }
     }
 }
@@ -161,24 +261,34 @@ EXTERN_C void DLLAPI __stdcall UnityPluginUnload() {
     unity_graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
 }
 
-#if _DEBUG
-#define DEBUG_PIXEL_DUMP_COL 0
-#define DEBUG_PIXEL_DUMP_WIDTH 1280
-#define DEBUG_PIXEL_DUMP_HEIGHT 640
-#endif
+namespace debug
+{
+    constexpr auto enable_dump = false;
+    constexpr auto pixel_dump_col = 3;
+    constexpr auto pixel_dump_width = 1280;
+    constexpr auto pixel_dump_height = 640;
+}
 
 static void __stdcall OnRenderEvent(int eventID) {
     if (eventID > 0) {
-    #if DEBUG_PIXEL_DUMP_COL > 0
-        const auto r = (eventID - 1) / DEBUG_PIXEL_DUMP_COL;
-        const auto c = (eventID - 1) % DEBUG_PIXEL_DUMP_COL;
-        std::ofstream fout{ fmt::format("F:/debug/ny_{}_{}.yuv",c,r),std::ios::out | std::ios::binary | std::ios::app };
-        fout.write((const char*)tile_frame->data[0], DEBUG_PIXEL_DUMP_WIDTH * DEBUG_PIXEL_DUMP_HEIGHT);
-        fout.write((const char*)tile_frame->data[1], DEBUG_PIXEL_DUMP_WIDTH * DEBUG_PIXEL_DUMP_HEIGHT / 4);
-        fout.write((const char*)tile_frame->data[2], DEBUG_PIXEL_DUMP_WIDTH * DEBUG_PIXEL_DUMP_HEIGHT / 4);
-    #endif
+        if constexpr (debug::enable_dump) {
+            const auto r = (eventID - 1) / debug::pixel_dump_col;
+            const auto c = (eventID - 1) % debug::pixel_dump_col;
+            std::ofstream file{ fmt::format("F:/debug/ny_{}_{}.yuv",c,r),std::ios::binary | std::ios::app };
+            file.write(reinterpret_cast<const char*>(tile_frame->data[0]), debug::pixel_dump_width * debug::pixel_dump_height);
+            file.write(reinterpret_cast<const char*>(tile_frame->data[1]), debug::pixel_dump_width * debug::pixel_dump_height / 4);
+            file.write(reinterpret_cast<const char*>(tile_frame->data[2]), debug::pixel_dump_width * debug::pixel_dump_height / 4);
+        }
         assert(!std::empty(tile_textures));
-        dll_graphic->update_textures(tile_frame, tile_textures.at(eventID).texture);
+        auto& tile_texture = state::texture_iterator->second;
+        media::frame tile_frame{ nullptr };
+        if (tile_texture.frame_queue.try_dequeue(tile_frame)) {
+            if (tile_frame.empty()) {
+
+            }
+            return dll_graphic->update_textures(tile_frame, tile_texture.texture);
+        }
+        assert(false);
     } else {
         dll_graphic->update_textures(tile_frame);
     }

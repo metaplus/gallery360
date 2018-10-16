@@ -12,8 +12,12 @@ namespace net::component
 
     using ordinal = std::pair<int, int>;
     using frame_consumer = folly::Function<bool()>;
-    using frame_builder = folly::Function<frame_consumer(detail::multi_buffer&,
-                                                         detail::multi_buffer&&)>;
+    using frame_builder = folly::Function<
+        frame_consumer(detail::multi_buffer&, detail::multi_buffer&&)
+    >;
+    using frame_indexed_builder = folly::Function<
+        frame_consumer(std::pair<int, int>, detail::multi_buffer&, detail::multi_buffer&&)
+    >;
 
     class dash_manager final
     {
@@ -36,7 +40,7 @@ namespace net::component
         std::pair<int, int> scale_size() const;
         std::pair<int, int> grid_size() const;
 
-        void register_represent_builder(frame_builder builder) const;
+        void register_represent_builder(frame_indexed_builder builder) const;
         void register_predictor(folly::Function<double(int, int)> predictor);
 
         bool available() const;
