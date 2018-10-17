@@ -30,6 +30,12 @@ using media::component::pixel_consume;
 
 using namespace std::literals;
 
+namespace debug
+{
+    constexpr auto verbose = false;
+    constexpr auto trace = false;
+}
+
 TEST(Future, DeferError) {
     static_assert(std::is_base_of<std::exception, core::bad_request_error>::value);
     static_assert(std::is_base_of<std::exception, core::not_implemented_error>::value);
@@ -82,7 +88,7 @@ frame_indexed_builder create_frame_builder(pixel_consume& consume,
 
 TEST(DashManager, StreamTile) {
     core::set_cpu_executor(3);
-    auto manager = dash_manager::async_create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
+    auto manager = dash_manager::create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
     EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
     EXPECT_EQ(manager.grid_size(), std::make_pair(3, 3));
     auto count = 0;
@@ -101,7 +107,7 @@ TEST(DashManager, StreamTile) {
 folly::Future<int> loop_tile_consume(unsigned concurrency,
                                      folly::Executor& executor,
                                      std::string path = "http://localhost:8900/dash/full/tos_srd_4K.mpd"s) {
-    return dash_manager::async_create_parsed(path)
+    return dash_manager::create_parsed(path)
         .then(std::addressof(executor),
               [concurrency](dash_manager manager) {
                   EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
@@ -142,7 +148,7 @@ TEST(DashManager, StreamTileProfile) {
 folly::Future<int> loop_frame_consume(unsigned concurrency,
                                       folly::Executor& executor,
                                       std::string path = "http://localhost:8900/dash/full/tos_srd_4K.mpd"s) {
-    return dash_manager::async_create_parsed(path)
+    return dash_manager::create_parsed(path)
         .then(std::addressof(executor),
               [concurrency](dash_manager manager) {
                   EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
@@ -184,7 +190,7 @@ folly::Future<int> loop_frame_consume(unsigned concurrency,
 
 TEST(DashManager, StreamFrame) {
     core::set_cpu_executor(8);
-    auto manager = dash_manager::async_create_parsed("http://localhost:8900/dash/full/tos_srd_4K.mpd").get();
+    auto manager = dash_manager::create_parsed("http://localhost:8900/dash/full/tos_srd_4K.mpd").get();
     EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
     EXPECT_EQ(manager.grid_size(), std::make_pair(3, 3));
     auto count = 0;
@@ -277,7 +283,6 @@ TEST(Variant, GetIf) {
 
 using namespace unity;
 
-
 TEST(Galley, Plugin) {
     auto* render_event_func = _nativeGraphicGetRenderEventFunc();
     EXPECT_TRUE(render_event_func != nullptr);
@@ -314,7 +319,9 @@ TEST(Galley, Plugin) {
                 }
             }
         }
-        //EXPECT_EQ(pending.size() + poll_count, 9);
+        if constexpr (debug::verbose) {
+            EXPECT_EQ(pending.size() + poll_count, 9);
+        }
         for (auto& task : pending) {
             task();
         }
@@ -345,7 +352,7 @@ auto loop_poll_frame = []() {
             _nativeDashSetTexture(c, r, nullptr, nullptr, nullptr);
         }
     }
-    debug::_nativeMockGraphic();
+    test::_nativeMockGraphic();
     auto index_range = ref_index_range;
     auto remove_iter = index_range.end();
     auto count = 0;
@@ -529,8 +536,6 @@ TEST(FileSystem, CurrentPath) {
     EXPECT_STREQ(p.generic_string().data(), "D:/Project/gallery360/test/gallery-test");
     auto fp = std::filesystem::current_path() / "test.cpp";
     EXPECT_STREQ(fp.generic_string().data(), "D:/Project/gallery360/test/gallery-test/test.cpp");
-    auto fp2 = std::filesystem::current_path().parent_path() / "test.cpp";
-    EXPECT_STREQ(fp2.generic_string().data(), "D:/Project/gallery360/test/test.cpp");
     EXPECT_TRUE(std::filesystem::is_regular_file(fp));
     std::ifstream fin{ fp, std::ios::binary };
     EXPECT_TRUE(fin.is_open());

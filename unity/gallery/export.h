@@ -17,7 +17,7 @@ namespace unity
     EXTERN_C void DLLAPI _nativeMediaSessionGetResolution(INT64 id, INT& width, INT& height);
     EXTERN_C BOOL DLLAPI  _nativeMediaSessionHasNextFrame(INT64 id);
 
-    namespace debug
+    namespace test
     {
         EXTERN_C BOOL DLLAPI _nativeMediaSessionDropFrame(INT64 id);
         EXTERN_C void DLLAPI _nativeMockGraphic();

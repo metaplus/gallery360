@@ -67,7 +67,9 @@ namespace net
                 int bandwidth = 0;
                 std::string media;
                 std::string initial;
-                folly::SemiFuture<multi_buffer> initial_buffer = folly::SemiFuture<multi_buffer>::makeEmpty();
+                std::optional<
+                    folly::FutureSplitter<std::shared_ptr<multi_buffer>>
+                > initial_buffer;
             };
 
             struct adaptation_set

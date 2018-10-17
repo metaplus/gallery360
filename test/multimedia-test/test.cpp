@@ -146,6 +146,18 @@ TEST(Buffer, Split2Sequence) {
     EXPECT_EQ(total_size<std::list>(list3), 2966);
 }
 
+TEST(Buffer, Concat) {
+    multi_buffer buf0 = create_buffer("init");
+    multi_buffer buf1 = create_buffer("1");
+    EXPECT_EQ(buf0.size(), 876);
+    EXPECT_EQ(buf1.size(), 2090);
+    auto concat = buffers_cat(buf0.data(), buf1.data());
+    auto s = 0i64;
+    for (const_buffer& b : concat) {
+        s += b.size();
+    }
+    EXPECT_EQ(s, 2966);
+}
 
 TEST(FrameSegmentor, Base) {
     auto& buffer_map = create_buffer_map();

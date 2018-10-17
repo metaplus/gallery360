@@ -2,6 +2,7 @@
 #include "component.h"
 #include <boost/circular_buffer.hpp>
 #include <boost/logic/tribool.hpp>
+#include <folly/futures/FutureSplitter.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
@@ -34,6 +35,18 @@ namespace net::protocal
 namespace debug
 {
     constexpr auto enable_trace = false;
+}
+
+namespace net
+{
+    //-- buffer_context
+    buffer_context::buffer_context(detail::multi_buffer& initial, detail::multi_buffer&& data)
+        : initial(initial)
+        , data(std::move(data)) {}
+
+    buffer_context::buffer_context(buffer_context&& that) noexcept
+        : initial(that.initial)
+        , data(std::move(data)) {}
 }
 
 namespace net::component
@@ -86,7 +99,7 @@ namespace net::component
             return fmt::format(represent.media, std::size(video_set.context->trace));
         }
 
-        folly::Future<frame_consumer> request_tile_consumer(dash::video_adaptation_set& video_set) {
+        /*folly::Future<frame_consumer> request_tile_consumer(dash::video_adaptation_set& video_set) {
             auto& context = *video_set.context;
             if (!video_set.context) {
                 core::access(video_set.context)->trace.reserve(1024);
@@ -107,7 +120,7 @@ namespace net::component
                                                 represent.initial_buffer.value(),
                                                 std::move(tile_buffer));
                     });
-        }
+        }*/
 
         folly::SemiFuture<multi_buffer> request_send(std::string suffix) {
             assert(!suffix.empty() && suffix.front() != '/');
@@ -119,27 +132,19 @@ namespace net::component
                 return path.replace(path.rfind('/') + 1, path.size(), suffix);
             };
             const auto url_path = replace_suffix(mpd_uri->path(), suffix);
-            return net_client->
-                async_send_request_for<multi_buffer>(
-                    net::make_http_request<empty_body>(mpd_uri->host(), url_path));
+            return net_client->async_send_request_for<multi_buffer>(
+                net::make_http_request<empty_body>(mpd_uri->host(), url_path));
         }
 
-        folly::SemiFuture<multi_buffer> request_initial(dash::represent& represent) {
-            return request_send(represent.initial);
-        }
-
-        folly::SemiFuture<multi_buffer> request_tile(dash::video_adaptation_set& video_set) {
-            if (!video_set.context) {
-                core::access(video_set.context)->trace.reserve(1024);
+        folly::SemiFuture<std::shared_ptr<multi_buffer>> request_initial_if_null(dash::represent& represent) {
+            if (!represent.initial_buffer) {
+                represent.initial_buffer.emplace(
+                    request_send(represent.initial).via(&executor).thenValue(
+                        [](multi_buffer&& initial_buffer) {
+                            return std::make_shared<multi_buffer>(std::move(initial_buffer));
+                        }));
             }
-            if (video_set.context->drain) {
-                return folly::makeSemiFuture<multi_buffer>(core::stream_drained_error{ __FUNCTION__ });
-            }
-            auto& represent = predict_represent(video_set);
-            if (!represent.initial_buffer.valid()) {
-                represent.initial_buffer = request_initial(represent);
-            }
-            return request_send(concat_url_suffix(video_set, represent));
+            return represent.initial_buffer->getSemiFuture();
         }
 
         enum consume_result
@@ -170,7 +175,7 @@ namespace net::component
                 if (!consumer.value()()) {
                     assert(!reset);
                     context.consumer_cycle.pop_front();
-                    context.consumer_cycle.push_back(request_tile_consumer(video_set));
+                    //context.consumer_cycle.push_back(request_tile_consumer(video_set));
                     return consume_tile(video_set, poll, true);
                 }
                 return success;
@@ -206,7 +211,7 @@ namespace net::component
             switch (try_consume(poll)) {
             case fail:
                 context.consumer_cycle.pop_front();
-                context.consumer_cycle.push_back(request_tile_consumer(video_set));
+                //context.consumer_cycle.push_back(request_tile_consumer(video_set));
                 next_poll = true;
             case pending:
                 executor.add(
@@ -267,7 +272,7 @@ namespace net::component
     }
 #endif
 
-    folly::Future<dash_manager> dash_manager::async_create_parsed(std::string mpd_url, unsigned concurrency) {
+    folly::Future<dash_manager> dash_manager::create_parsed(std::string mpd_url, unsigned concurrency) {
         static_assert(std::is_move_assignable<dash_manager>::value);
         auto& executor = *folly::getCPUExecutor();
         logger->info("async_create_parsed @{} chain start", folly::getCurrentThreadID());
@@ -306,22 +311,23 @@ namespace net::component
     }
 
     void dash_manager::register_represent_builder(frame_indexed_builder builder) const {
-        assert(!impl_->consumer_builder);
-        impl_->consumer_builder = std::move(builder);
-        auto iteration = 0;
-        auto loop = true;
-        while (loop) {
-            for (auto& video_set : impl_->mpd_parser->video_set()) {
-                auto& consumer_cycle = core::access(video_set.context)->consumer_cycle;
-                if (consumer_cycle.full()) {
-                    loop = false;
-                    break;
-                }
-                consumer_cycle.push_back(impl_->request_tile_consumer(video_set));
-                iteration++;
-            }
-        }
-        logger->info("register_represent_builder[iteration:{}]", iteration);
+        throw core::not_implemented_error{ __FUNCTION__ };
+        //assert(!impl_->consumer_builder);
+        //impl_->consumer_builder = std::move(builder);
+        //auto iteration = 0;
+        //auto loop = true;
+        //while (loop) {
+        //    for (auto& video_set : impl_->mpd_parser->video_set()) {
+        //        auto& consumer_cycle = core::access(video_set.context)->consumer_cycle;
+        //        if (consumer_cycle.full()) {
+        //            loop = false;
+        //            break;
+        //        }
+        //        consumer_cycle.push_back(impl_->request_tile_consumer(video_set));
+        //        iteration++;
+        //    }
+        //}
+        //logger->info("register_represent_builder[iteration:{}]", iteration);
     }
 
     bool dash_manager::available() const {
@@ -353,6 +359,27 @@ namespace net::component
                 }
             });
         return exception_count;
+    }
+
+    folly::SemiFuture<buffer_context>
+        dash_manager::request_tile_context(int col, int row) const {
+        auto& video_set = impl_->mpd_parser->video_set(col, row);
+        if (!video_set.context) {
+            core::access(video_set.context)->trace.reserve(1024);
+        }
+        if (video_set.context->drain) {
+            return folly::makeSemiFuture<buffer_context>(core::stream_drained_error{ __FUNCTION__ });
+        }
+        auto& represent = impl_->predict_represent(video_set);
+        return folly::collectAllSemiFuture(
+            impl_->request_initial_if_null(represent),
+            impl_->request_send(impl_->concat_url_suffix(video_set, represent))
+        ).deferValue(
+            [](std::tuple<folly::Try<std::shared_ptr<multi_buffer>>, folly::Try<multi_buffer>>&& buffer_tuple) {
+                auto&[initial_buffer, data_buffer] = buffer_tuple;
+                data_buffer.throwIfFailed();
+                return buffer_context{ **initial_buffer,std::move(*data_buffer) };
+            });
     }
 
     folly::Function<size_t(int, int)>

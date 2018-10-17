@@ -18,7 +18,7 @@ using boost::beast::multi_buffer;
 struct texture_context;
 
 std::shared_ptr<folly::ThreadPoolExecutor> event_executor;
-std::shared_ptr<folly::ThreadPoolExecutor> decode_executor;
+std::shared_ptr<folly::ThreadPoolExecutor> session_executor;
 folly::Future<dash_manager> manager = folly::Future<dash_manager>::makeEmpty();
 
 pixel_consume pixel_update;
@@ -29,7 +29,7 @@ const auto asio_concurrency = std::thread::hardware_concurrency() / 2;
 const auto executor_concurrency = std::thread::hardware_concurrency();
 const auto decoder_concurrency = 4u;
 
-float unity_time = 0;
+auto unity_time = 0.f;
 std::shared_ptr<dll::graphic> dll_graphic;
 UnityGfxRenderer unity_device = kUnityGfxRendererNull;
 IUnityInterfaces* unity_interface = nullptr;
@@ -49,6 +49,7 @@ struct texture_context
     folly::USPSCQueue<media::frame, true> frame_queue{};
     int x = 0;
     int y = 0;
+    bool stop = false;
 };
 
 struct tile_media_context
@@ -61,16 +62,15 @@ auto texture_at = [](int col, int row, bool construct = false) -> decltype(auto)
     if (construct) {
         return tile_textures[std::make_pair(col, row)];
     }
-    auto iterator = tile_textures.find(std::make_pair(col, row));
-    assert(iterator != tile_textures.end());
-    std::swap(iterator, state::texture_iterator);
+    state::texture_iterator = tile_textures.find(std::make_pair(col, row));
+    assert(state::texture_iterator != tile_textures.end());
     return (state::texture_iterator->second);
 };
 
 std::pair<int, int> frame_grid;
 std::pair<int, int> frame_scale;
-int tile_width = 0;
-int tile_height = 0;
+auto tile_width = 0;
+auto tile_height = 0;
 
 auto tile_index = [](int x, int y) constexpr {
     return x + y * frame_grid.first + 1;
@@ -82,13 +82,23 @@ auto tile_ordinal = [](int index) constexpr {
     return std::make_pair(x, y);
 };
 
+namespace debug
+{
+    constexpr auto enable_null_texture = true;
+    constexpr auto enable_dump = false;
+    constexpr auto enable_legacy = false;
+    constexpr auto pixel_dump_col = 3;
+    constexpr auto pixel_dump_width = 1280;
+    constexpr auto pixel_dump_height = 640;
+}
+
 namespace unity
 {
     void DLLAPI unity::_nativeConfigExecutor() {
         if (!event_executor) {
             event_executor = core::set_cpu_executor(executor_concurrency, "PluginPool");
         }
-        assert(!decode_executor);
+        assert(!session_executor);
     }
 
     frame_builder gradual_frame_builder(unsigned concurrency) {
@@ -119,7 +129,7 @@ namespace unity
                 tile_context->segmentor = frame_segmentor{ core::split_buffer_sequence(initial_buffer,tile_buffer),concurrency };
                 tile_context->tile_buffer = std::move(tile_buffer);
                 tile_decode_task = folly::via(
-                    decode_executor.get(),
+                    session_executor.get(),
                     [ordinal, tile_context = std::move(tile_context)]{
                         auto decode_count = 0i64;
                         auto& texture_context = texture_at(ordinal.first, ordinal.second);
@@ -143,7 +153,7 @@ namespace unity
     }
 
     void DLLAPI unity::_nativeDashCreate(LPCSTR mpd_url) {
-        manager = dash_manager::async_create_parsed(std::string{ mpd_url }, asio_concurrency);
+        manager = dash_manager::create_parsed(std::string{ mpd_url }, asio_concurrency);
     }
 
     BOOL DLLAPI _nativeDashGraphicInfo(INT & col, INT & row, INT & width, INT & height) {
@@ -156,7 +166,9 @@ namespace unity
             tile_width = frame_scale.first / frame_grid.first;
             tile_height = frame_scale.second / frame_grid.second;
             tile_textures.clear();
-            decode_executor = core::make_pool_executor(col*row);
+            if (!session_executor) {
+                session_executor = core::make_pool_executor(col*row);
+            }
             return true;
         }
         return false;
@@ -204,13 +216,8 @@ namespace unity
         return manager.value().wait_tile_consumed(x, y);
     }
 
-    namespace debug
-    {
-        constexpr auto enable_null_texture = true;
-    }
-
     void _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v) {
-        if constexpr (!debug::enable_null_texture) {
+        if constexpr (!::debug::enable_null_texture) {
             assert(tex_y != nullptr);
             assert(tex_u != nullptr);
             assert(tex_v != nullptr);
@@ -224,7 +231,7 @@ namespace unity
         }
     }
 
-    namespace debug
+    namespace test
     {
         void _nativeMockGraphic() {
             assert(!dll_graphic);
@@ -259,14 +266,6 @@ EXTERN_C void DLLAPI __stdcall UnityPluginLoad(IUnityInterfaces* unityInterfaces
 
 EXTERN_C void DLLAPI __stdcall UnityPluginUnload() {
     unity_graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
-}
-
-namespace debug
-{
-    constexpr auto enable_dump = false;
-    constexpr auto pixel_dump_col = 3;
-    constexpr auto pixel_dump_width = 1280;
-    constexpr auto pixel_dump_height = 640;
 }
 
 static void __stdcall OnRenderEvent(int eventID) {
