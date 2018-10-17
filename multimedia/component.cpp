@@ -3,14 +3,8 @@
 
 namespace media::component
 {
-    namespace detail
-    {
-        using boost::beast::multi_buffer;
-        template<typename T>
-        using vector = boost::container::small_vector<T, 2>;
-    }
-
     using namespace detail;
+    using boost::beast::multi_buffer;
 
     struct frame_segmentor::impl
     {
@@ -54,6 +48,10 @@ namespace media::component
         parse_context(std::move(buffer_list), concurrency);
     }
 
+    frame_segmentor::operator bool() const {
+        return impl_.operator bool();
+    }
+
     void frame_segmentor::parse_context(std::list<const_buffer> buffer_list, unsigned concurrency) {
         if (!impl_) {
             impl_ = std::make_shared<impl>();
@@ -88,13 +86,12 @@ namespace media::component
         return !packet.empty();
     }
 
-    int frame_segmentor::try_consume() {
+    detail::vector<media::frame> frame_segmentor::try_consume() {
         if (impl_->codec_context->valid()) {
-            auto packet = impl_->format_context->read(media::type::video);
-            auto frames = impl_->codec_context->decode(packet);
-            return boost::numeric_cast<int>(frames.size());
+            return impl_->codec_context->decode(
+                impl_->format_context->read(media::type::video));
         }
-        return -1;
+        throw core::stream_drained_error{ __FUNCTION__ };
     }
 
     auto frame_consume(const pixel_consume& consume) {
@@ -129,7 +126,7 @@ namespace media::component
 
     folly::Future<folly::Function<void()>>
         frame_segmentor::defer_consume_once(const pixel_consume& pixel_consume) const {
-        auto impl = impl_.get();
+        auto* impl = impl_.get();
         return folly::async([impl] { return impl->try_consume_once(); })
             .filter([](const frame& frame) { return !frame.empty(); })
             .thenValue(frame_consume(pixel_consume));
@@ -137,7 +134,7 @@ namespace media::component
 
     folly::Future<media::frame>
         frame_segmentor::defer_consume_once() const {
-        auto impl = impl_.get();
+        auto* impl = impl_.get();
         return folly::async([impl] { return impl->try_consume_once(); })
             .filter([](const frame& frame) { return !frame.empty(); });
     }

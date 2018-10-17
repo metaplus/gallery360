@@ -67,7 +67,9 @@ namespace net
                 int bandwidth = 0;
                 std::string media;
                 std::string initial;
-                multi_buffer initial_buffer;
+                std::optional<
+                    folly::FutureSplitter<std::shared_ptr<multi_buffer>>
+                > initial_buffer;
             };
 
             struct adaptation_set

@@ -189,15 +189,18 @@ namespace media
     }
 
     detail::vector<frame> codec_context::decode(packet const& packets) const {
-        assert(!std::exchange(flushed_, packets.empty()));
+        const auto flushed = std::exchange(flushed_, packets.empty());
+        assert(!flushed);
         assert(format_stream_.index() == packets->stream_index);
         detail::vector<frame> full_frames;
         if constexpr (std::is_same<decltype(full_frames), std::vector<frame>>::value) {
             full_frames.reserve(packets.empty() ? 10 : 1);
         }
-        core::verify(avcodec_send_packet(core::get_pointer(codec_handle_), core::get_pointer(packets)));
+        core::verify(avcodec_send_packet(core::get_pointer(codec_handle_),
+                                         core::get_pointer(packets)));
         frame temp_frame;
-        while (avcodec_receive_frame(core::get_pointer(codec_handle_), core::get_pointer(temp_frame)) == 0) {
+        while (0 == avcodec_receive_frame(core::get_pointer(codec_handle_),
+                                          core::get_pointer(temp_frame))) {
             full_frames.push_back(std::exchange(temp_frame, frame{}));
         }
         dispose_count_ += full_frames.size();

@@ -104,6 +104,8 @@ using namespace std::literals;
 
 #include <folly/executors/Async.h>
 #include <folly/executors/GlobalExecutor.h>
+#include <folly/executors/ThreadedExecutor.h>
+#include <folly/executors/ThreadPoolExecutor.h>
 #ifdef CORE_USE_FOLLY_EXECUTOR
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
@@ -119,6 +121,7 @@ using namespace std::literals;
 #include <folly/Function.h>
 #include <folly/futures/Barrier.h>
 #include <folly/futures/Future.h>
+#include <folly/futures/FutureSplitter.h>
 #include <folly/MoveWrapper.h>
 //#include <folly/PackedSyncPtr.h>
 //#include <folly/ProducerConsumerQueue.h>

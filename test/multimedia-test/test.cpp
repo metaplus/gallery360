@@ -70,7 +70,7 @@ auto sequence_size2 = [](auto itbegin, auto itend) {
     return size;
 };
 
-TEST(Beast, MultiBuffer) {
+TEST(Buffer, MultiBuffer) {
     multi_buffer buf_init;
     multi_buffer buf1;
     multi_buffer buf2;
@@ -93,7 +93,7 @@ TEST(Beast, MultiBuffer) {
     EXPECT_EQ(sequence_size2(begin, end), 5800);
 }
 
-TEST(Asio, BufferSize) {
+TEST(Buffer, BufferSize) {
     auto& buffer_map = create_buffer_map();
     auto size = 0i64;
     for (auto&[index, buffer] : buffer_map) {
@@ -135,7 +135,7 @@ void set_cpu_executor(int concurrency) {
     folly::setCPUExecutor(executor);
 }
 
-TEST(Core, Split2Sequence) {
+TEST(Buffer, Split2Sequence) {
     multi_buffer buf_int = create_buffer("init");
     multi_buffer buf1 = create_buffer("1");
     auto list = split_buffer_sequence(buf1);
@@ -146,6 +146,18 @@ TEST(Core, Split2Sequence) {
     EXPECT_EQ(total_size<std::list>(list3), 2966);
 }
 
+TEST(Buffer, Concat) {
+    multi_buffer buf0 = create_buffer("init");
+    multi_buffer buf1 = create_buffer("1");
+    EXPECT_EQ(buf0.size(), 876);
+    EXPECT_EQ(buf1.size(), 2090);
+    auto concat = buffers_cat(buf0.data(), buf1.data());
+    auto s = 0i64;
+    for (const_buffer& b : concat) {
+        s += b.size();
+    }
+    EXPECT_EQ(s, 2966);
+}
 
 TEST(FrameSegmentor, Base) {
     auto& buffer_map = create_buffer_map();
@@ -196,12 +208,15 @@ TEST(FrameSegmentor, TryConsume) {
     media::component::frame_segmentor frame_segmentor{
         core::split_buffer_sequence(buffer_map[0],buffer_map[2],buffer_map[4],buffer_map[6],buffer_map[7],buffer_map[10])
     };
-    auto count = 0;
-    auto increment = 0;
-    do {
-        increment = frame_segmentor.try_consume();
-        count += increment > 0 ? increment : 0;
-    } while (increment >= 0);
+    auto count = 0ui64;
+    auto increment = 0ui64;
+    try {
+        do {
+            auto frames = frame_segmentor.try_consume();
+            increment = frames.size();
+            count += increment > 0 ? increment : 0;
+        } while (increment >= 0);
+    } catch (core::stream_drained_error) {}
     EXPECT_EQ(count, 125);
 }
 
@@ -351,7 +366,6 @@ std::map<int, multi_buffer> create_tile_buffer_map(std::string prefix, int first
 }
 
 TEST(Util, CreateTileBufferMap) {
-    //auto map = create_tile_buffer_map("F:/Gpac/NY5000_Margin_dash_track3", 1, 3);
     auto map = create_tile_buffer_map("F:/Gpac/x264/segment", 10, 20);
     std::ofstream fout{ "F:/debug/test.mp4",std::ios::out | std::ios::binary | std::ios::trunc };
     for (auto&[index, buffer] : map) {
@@ -370,15 +384,14 @@ TEST(Util, CreateTileBufferMap) {
     }
 }
 
-
-inline int make_even(int num) {
+auto make_even = [](int num) constexpr {
     return num % 2 != 0 ? num + 1 : num;
-}
+};
 
-inline void scale_partial(const std::string_view input,
-                          unsigned wcrop, unsigned hcrop,
-                          const unsigned wscale, const unsigned hscale,
-                          const unsigned stride = 16, const unsigned offset = 0) {
+void scale_partial(const std::string_view input,
+                   unsigned wcrop, unsigned hcrop,
+                   const unsigned wscale, const unsigned hscale,
+                   const unsigned stride = 16, const unsigned offset = 0) {
     if (offset >= wcrop * hcrop) {
         return;
     }
@@ -413,7 +426,7 @@ inline void scale_partial(const std::string_view input,
                 //ffmpeg -i NewYork_0_0.mp4 -c:v libx264 -preset slow -x264-params keyint=30:min-keyint=30 -b:v 1M -maxrate 1M -minrate 1M -buf size 2M -framerate 30 NewYork_0_0.h264
                 cmd.append(fmt::format("-map \"[v{}:{}]\" -c:v libx264  -preset slow "
                                        "-x264-params keyint=30:min-keyint=30:bitrate=5000:vbv-maxrate=10000:vbv-bufsize=20000:fps=30:scenecut=0:no-scenecut:pass=1 "
-                                       "F:/Gpac/debug/{}/{}_{}_{}_5K.mp4 ", 
+                                       "F:/Gpac/debug/{}/{}_{}_{}_5K.mp4 ",
                                        i, j,
                                        filename, filename, j, i));
             }
@@ -426,4 +439,14 @@ inline void scale_partial(const std::string_view input,
 
 TEST(Util, Scale) {
     scale_partial("F:/Gpac/NewYork.mp4", 3, 3, 1, 1);
+}
+
+TEST(Media, Frame) {
+    media::frame f;
+    EXPECT_TRUE(f.empty());
+    EXPECT_FALSE(f.operator->() == nullptr);
+    auto f2 = std::move(f);
+    EXPECT_TRUE(f.operator->() == nullptr);
+    EXPECT_TRUE(f2.empty());
+    EXPECT_FALSE(f2.operator->() == nullptr);
 }
