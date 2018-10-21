@@ -142,7 +142,7 @@ namespace media
         while ((read_result = av_read_frame(format_handle_.get(), core::get_pointer(packet))) == 0
                && media_type != type::unknown
                && !core::underlying_same(media_type, format_handle_->streams[packet->stream_index]->codecpar->codec_type)) {
-            packet.unref();
+            packet.unreference();
         }
         return packet;
     }

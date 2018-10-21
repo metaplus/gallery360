@@ -7,9 +7,10 @@
 #endif // MULTIMEDIA_USE_MSGPACK
 
 media::frame::frame()
-    : handle_(av_frame_alloc(), [](pointer p) { av_frame_free(&p); }) {}
+    : handle_(av_frame_alloc(), deleter{}) {}
 
-media::frame::frame(std::nullptr_t) {}
+media::frame::frame(std::nullptr_t)
+    : handle_(nullptr) {}
 
 bool media::frame::empty() const {
     return handle_ == nullptr || handle_->data == nullptr || handle_->data[0] == nullptr;
@@ -19,25 +20,25 @@ media::frame::pointer media::frame::operator->() const {
     return handle_.get();
 }
 
-void media::frame::unref() const {
+void media::frame::unreference() const {
     av_frame_unref(handle_.get());
 }
 
 media::packet::packet(std::nullptr_t) {}
 
-media::packet::packet(std::basic_string_view<uint8_t> sv)
+media::packet::packet(std::basic_string_view<uint8_t> buffer)
     : packet() {
     uint8_t* required_avbuffer = nullptr;
-    core::verify(required_avbuffer = static_cast<uint8_t*>(av_malloc(sv.size() + AV_INPUT_BUFFER_PADDING_SIZE)));
-    std::copy_n(sv.data(), sv.size(), required_avbuffer);
-    core::verify(0 == av_packet_from_data(handle_.get(), required_avbuffer, static_cast<int>(sv.size())));
+    core::verify(required_avbuffer = static_cast<uint8_t*>(av_malloc(buffer.size() + AV_INPUT_BUFFER_PADDING_SIZE)));
+    std::copy_n(buffer.data(), buffer.size(), required_avbuffer);
+    core::verify(0 == av_packet_from_data(handle_.get(), required_avbuffer, static_cast<int>(buffer.size())));
 }
 
-media::packet::packet(std::string_view csv)
-    : packet(std::basic_string_view<uint8_t>{reinterpret_cast<uint8_t const*>(csv.data()), csv.size()}) {}
+media::packet::packet(std::string_view buffer)
+    : packet(std::basic_string_view<uint8_t>{reinterpret_cast<uint8_t const*>(buffer.data()), buffer.size()}) {}
 
 media::packet::packet()
-    : handle_(av_packet_alloc(), [](pointer p) { av_packet_free(&p); }) {}
+    : handle_(av_packet_alloc(), deleter{}) {}
 
 bool media::packet::empty() const {
     return handle_ == nullptr || handle_->data == nullptr || handle_->size <= 0;
@@ -47,7 +48,7 @@ size_t media::packet::size() const {
     return handle_ ? handle_->size : 0;
 }
 
-std::basic_string_view<uint8_t> media::packet::bufview() const {
+std::basic_string_view<uint8_t> media::packet::buffer() const {
     return { handle_->data, boost::numeric_cast<size_t>(handle_->size) };
 }
 
@@ -67,7 +68,7 @@ media::packet::operator bool() const {
     return !empty();
 }
 
-void media::packet::unref() const {
+void media::packet::unreference() const {
     av_packet_unref(handle_.get());
 }
 
