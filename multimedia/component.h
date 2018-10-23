@@ -39,6 +39,7 @@ namespace media::component
         explicit operator bool() const;
 
         void parse_context(std::list<detail::const_buffer> buffer_list, unsigned concurrency);
+        bool codec_valid() const noexcept;
         bool context_valid() const noexcept;
         bool buffer_available() const;
         void reset_buffer_list(std::list<detail::const_buffer> buffer_list);

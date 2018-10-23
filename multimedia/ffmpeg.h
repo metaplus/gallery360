@@ -24,36 +24,67 @@ namespace media
         unknown = AVMEDIA_TYPE_UNKNOWN,
     };
 
-    class frame
+    class frame final
     {
-        std::shared_ptr<AVFrame> handle_;
+        struct deleter
+        {
+            void operator()(AVFrame* object) const {
+                if (object != nullptr) {
+                    av_frame_free(&object);
+                }
+            }
+        };
+        std::unique_ptr<AVFrame, deleter> handle_;
+
     public:
         using pointer = AVFrame * ;
         using reference = AVFrame & ;
+
         frame();
         explicit frame(std::nullptr_t);
+        frame(const frame&) = delete;
+        frame(frame&&) = default;
+        frame& operator=(const frame&) = delete;
+        frame& operator=(frame&&) = default;
+        ~frame() = default;
         pointer operator->() const;
+
         bool empty() const;
-        void unref() const;
+        void unreference() const;
     };
 
     class packet final
     {
-        std::shared_ptr<AVPacket> handle_;
-        struct chunk;
+        struct deleter
+        {
+            void operator()(AVPacket* object) const {
+                if (object != nullptr) {
+                    av_packet_free(&object);
+                }
+            }
+        };
+        std::unique_ptr<AVPacket, deleter> handle_;
+
     public:
         using pointer = AVPacket * ;
         using reference = AVPacket & ;
+
         packet();
         explicit packet(std::nullptr_t);
-        explicit packet(std::basic_string_view<uint8_t> sv); // copy by av_malloc from buffer view
-        explicit packet(std::string_view csv);
+        explicit packet(std::basic_string_view<uint8_t> buffer);    // copy by av_malloc from buffer view
+        explicit packet(std::string_view buffer);
+        packet(const packet&) = delete;
+        packet(packet&&) = default;
+        packet& operator=(const packet&) = delete;
+        packet& operator=(packet&&) = default;
+        ~packet() = default;
         pointer operator->() const;
         explicit operator bool() const;
+
         bool empty() const;
         size_t size() const;
-        std::basic_string_view<uint8_t> bufview() const;
-        void unref() const;
+        std::basic_string_view<uint8_t> buffer() const;
+        void unreference() const;
     };
 
     struct codec final : std::reference_wrapper<AVCodec>

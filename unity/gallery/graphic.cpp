@@ -34,8 +34,7 @@ namespace dll
     }
 
     void graphic::update_textures(std::array<uint8_t*, 3>& pixel_array) const {
-        auto context = this->context();
-        if (context) {
+        if (auto context = this->context(); context != nullptr) {
             for (auto index : std::array<int, 3>{ 0, 1, 2 }) {
                 D3D11_TEXTURE2D_DESC desc;
                 auto* texture = alphas_[index];
@@ -52,8 +51,7 @@ namespace dll
 
     void graphic::update_textures(media::frame& frame,
                                   std::array<ID3D11Texture2D*, 3> alphas) const {
-        auto context = this->context();
-        if (context) {
+        if (auto context = this->context(); context != nullptr) {
             for (auto index : std::array<int, 3>{ 0, 1, 2 }) {
                 D3D11_TEXTURE2D_DESC desc;
                 auto* texture = alphas[index];

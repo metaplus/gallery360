@@ -333,7 +333,9 @@ TEST(Galley, Plugin) {
     EXPECT_EQ(iteration, 3715);
 }
 
-auto loop_poll_frame = []() {
+auto loop_poll_frame = [](unsigned codec_concurrency = 8) {
+    test::_nativeConfigConcurrency(codec_concurrency);
+    test::_nativeMockGraphic();
     folly::stop_watch<seconds> watch;
     _nativeConfigExecutor();
     _nativeDashCreate("http://localhost:8900/dash/NewYork/5k/NewYork_5k.mpd");
@@ -343,7 +345,6 @@ auto loop_poll_frame = []() {
     EXPECT_EQ(row, 3);
     EXPECT_EQ(width, 3840);
     EXPECT_EQ(height, 1920);
-    _nativeDashPrefetch();
     auto iteration = 0;
     std::vector<int> ref_index_range;
     for (auto r = 0; r < row; ++r) {
@@ -352,13 +353,14 @@ auto loop_poll_frame = []() {
             _nativeDashSetTexture(c, r, nullptr, nullptr, nullptr);
         }
     }
-    test::_nativeMockGraphic();
+    _nativeDashPrefetch();
     auto index_range = ref_index_range;
+    auto begin_iter = index_range.begin();
     auto remove_iter = index_range.end();
     auto count = 0;
     while (_nativeDashAvailable()) {
         remove_iter = std::remove_if(
-            index_range.begin(), remove_iter,
+            begin_iter, remove_iter,
             [&](int index) {
                 const auto r = (index - 1) / col;
                 const auto c = (index - 1) % col;
@@ -373,10 +375,12 @@ auto loop_poll_frame = []() {
             iteration++;
             EXPECT_EQ(std::exchange(count, 0), 9);
             index_range = ref_index_range;
+            begin_iter = index_range.begin();
             remove_iter = index_range.end();
         }
     }
     const auto t1 = watch.elapsed();
+    _nativeLibraryRelease();
     fmt::print("time:{} fps:{}\n", t1, iteration / t1.count());
     EXPECT_EQ(iteration, 3714);
     return t1;
@@ -384,7 +388,6 @@ auto loop_poll_frame = []() {
 
 TEST(Galley, PluginPoll) {
     loop_poll_frame();  // fps 53
-
 }
 
 TEST(Executor, ThreadedExecutor) {
