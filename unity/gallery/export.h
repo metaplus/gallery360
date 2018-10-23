@@ -21,6 +21,7 @@ namespace unity
     {
         EXTERN_C BOOL DLLAPI _nativeMediaSessionDropFrame(INT64 id);
         EXTERN_C void DLLAPI _nativeMockGraphic();
+        EXTERN_C void DLLAPI _nativeConfigConcurrency(UINT codec, UINT net = 4);
     }
 
     EXTERN_C void DLLAPI _nativeConfigExecutor();

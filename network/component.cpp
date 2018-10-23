@@ -371,15 +371,16 @@ namespace net::component
             return folly::makeSemiFuture<buffer_context>(core::stream_drained_error{ __FUNCTION__ });
         }
         auto& represent = impl_->predict_represent(video_set);
-        return folly::collectAllSemiFuture(
-            impl_->request_initial_if_null(represent),
-            impl_->request_send(impl_->concat_url_suffix(video_set, represent))
-        ).deferValue(
-            [](std::tuple<folly::Try<std::shared_ptr<multi_buffer>>, folly::Try<multi_buffer>>&& buffer_tuple) {
-                auto&[initial_buffer, data_buffer] = buffer_tuple;
-                data_buffer.throwIfFailed();
-                return buffer_context{ **initial_buffer,std::move(*data_buffer) };
-            });
+        auto initial_segment = impl_->request_initial_if_null(represent);
+        auto tile_segment = impl_->request_send(impl_->concat_url_suffix(video_set, represent));
+        return folly::collectAllSemiFuture(initial_segment, tile_segment)
+            .deferValue(
+                [](std::tuple<folly::Try<std::shared_ptr<multi_buffer>>, folly::Try<multi_buffer>>&& buffer_tuple) {
+                    auto&[initial_buffer, data_buffer] = buffer_tuple;
+                    data_buffer.throwIfFailed();
+                    return buffer_context{ **initial_buffer,std::move(*data_buffer) };
+                }
+        );
     }
 
     folly::Function<size_t(int, int)>

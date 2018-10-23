@@ -312,7 +312,7 @@ TEST(FrameSegmentor, TransformAsyncBuilder) {
     EXPECT_EQ(count, 125);
 }
 
-TEST(Std, WeakPtr) {
+TEST(WeakPtr, Expired) {
     std::weak_ptr<int> w;
     EXPECT_TRUE(w.expired());
     w = std::make_shared<int>(1);
@@ -324,7 +324,7 @@ TEST(Std, WeakPtr) {
     EXPECT_TRUE(w.expired());
 }
 
-TEST(Std, ListIterator) {
+TEST(List, Iterator) {
     std::list<int> l{ 1,2,3 };
     auto iter = l.begin();
     EXPECT_EQ(*iter, 1);
@@ -366,20 +366,28 @@ std::map<int, multi_buffer> create_tile_buffer_map(std::string prefix, int first
 }
 
 TEST(Util, CreateTileBufferMap) {
-    auto map = create_tile_buffer_map("F:/Gpac/x264/segment", 10, 20);
-    std::ofstream fout{ "F:/debug/test.mp4",std::ios::out | std::ios::binary | std::ios::trunc };
+    auto map = create_tile_buffer_map("D:/Media/dash/NewYork/5k/segment_0_0_5k", 10, 20);
+    std::ofstream mp4{ "F:/debug/test.mp4",std::ios::out | std::ios::binary | std::ios::trunc };
+    std::ofstream yuv{ "F:/debug/test.yuv",std::ios::out | std::ios::binary | std::ios::trunc };
     for (auto&[index, buffer] : map) {
         if (index > 0) {
-            auto count = 0;
+            auto count = 0i64;
             for (auto sub_buf : buffer.data()) {
-                fout.write(static_cast<const char*>(sub_buf.data()), sub_buf.size());
-                EXPECT_TRUE(fout.good());
+                mp4.write(static_cast<const char*>(sub_buf.data()), sub_buf.size());
+                EXPECT_TRUE(mp4.good());
             }
             frame_segmentor segmentor{ core::split_buffer_sequence(map.at(0),map.at(index)) };
-            while (!segmentor.try_consume_once().empty() && ++count) {
+            while (segmentor.codec_valid()) {
+                auto frames = segmentor.try_consume();
+                count += std::size(frames);
+                for (auto& frame : frames) {
+                    yuv.write(reinterpret_cast<const char*>(frame->data[0]), frame->width*frame->height);
+                    yuv.write(reinterpret_cast<const char*>(frame->data[1]), frame->width*frame->height / 4);
+                    yuv.write(reinterpret_cast<const char*>(frame->data[2]), frame->width*frame->height / 4);
+                }
             }
             fmt::print("{}: count {}\n", index, count);
-            EXPECT_EQ(count, 24);
+            EXPECT_EQ(count, 30);
         }
     }
 }

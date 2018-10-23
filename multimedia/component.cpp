@@ -64,6 +64,10 @@ namespace media::component
             concurrency);
     }
 
+    bool frame_segmentor::codec_valid() const noexcept {
+        return impl_->codec_context->valid();
+    }
+
     bool frame_segmentor::context_valid() const noexcept {
         return impl_ != nullptr
             && impl_->io_context.has_value()
