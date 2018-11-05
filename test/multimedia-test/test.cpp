@@ -475,14 +475,19 @@ TEST(Command, Scale) {
 
 TEST(Command, ScaleMedia) {
     command_output_directory();
+    //{
+    //    media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 3000/2 });
+    //    media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 2000/2 });
+    //    media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 1000/2 });
+    //}
     {
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 3000 });
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 2000 });
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 1000 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 5000,60 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 2500,60 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 1000,60 });
     }
-    {
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 5000 });
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 2500 });
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 1000 });
-    }
+}
+
+TEST(Command, PackageMp4) {
+    command_output_directory("F:/Output/NewYork/");
+    media::command::package_container({ -1,60 });
 }

@@ -33,9 +33,14 @@ namespace media
 
         static inline std::filesystem::path output_directory;
 
-        static void resize(std::string_view input, size_param size);
+        static void resize(std::string_view input,
+                           size_param size);
 
-        static void crop_scale_transcode(std::string_view input, filter_param filter,
-                                         rate_control rate = {}, pace_control pace = {});
+        static void crop_scale_transcode(std::string_view input,
+                                         filter_param filter,
+                                         rate_control rate = {},
+                                         pace_control pace = {});
+
+        static void package_container(rate_control rate);
     };
 }

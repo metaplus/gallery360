@@ -18,13 +18,11 @@ namespace core
         return std::distance(begin(iterator), end(iterator));
     }
 
-    std::pair<size_t, bool>  make_empty_directory(const std::filesystem::path & directory) {
+    std::pair<size_t, bool> make_empty_directory(const std::filesystem::path & directory) {
         assert(is_directory(directory.root_directory()));
         const auto remove_count = std::filesystem::remove_all(directory);
         const auto create_success = std::filesystem::create_directories(directory);
-        return std::make_pair(
-            boost::numeric_cast<size_t>(remove_count),
-            create_success);
+        return std::make_pair(boost::numeric_cast<size_t>(remove_count), create_success);
     }
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name) {
