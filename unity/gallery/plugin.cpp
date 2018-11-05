@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "export.h"
 #include "network/component.h"
 #include "multimedia/component.h"
@@ -231,6 +231,7 @@ namespace unity
 
     void _nativeDashPrefetch() {
         assert(std::size(tile_textures) == frame_grid.first*frame_grid.second);
+        assert(manager.hasValue());
         auto& dash_manager = manager.value();
         session_barrier.emplace(boost::numeric_cast<unsigned>(std::size(tile_textures) + 1));
         for (auto&[coordinate, texture_context] : tile_textures) {
@@ -265,7 +266,9 @@ namespace unity
                     } catch (core::bad_response_error) {
                         texture_context.frame_queue.blockingWrite(media::frame{ nullptr });
                     } catch (...) {
-                        assert(!"session_executor catch unexpected exception");
+                        fmt::print(std::cerr, folly::exceptionStr(std::current_exception()).toStdString());
+                        fmt::print(std::cerr, "\n");
+                        //assert(!"session_executor catch unexpected exception");
                     }
                 });
         }
@@ -279,7 +282,7 @@ namespace unity
     auto pop_tile_frame_to_context = [](int col, int row, int poll) {
         auto& texture_context = texture_at(col, row);
         auto update_state = true;
-        if (!poll) {
+        if (poll) {
             update_state = texture_context.frame_queue.readIfNotEmpty(texture_context.avail_frame);
         } else {
             texture_context.frame_queue.blockingRead(texture_context.avail_frame);
@@ -293,12 +296,31 @@ namespace unity
         return false;
     };
 
+    auto pop_tile_frame = [](int col, int row, auto read_queue) {
+        auto& texture_context = texture_at(col, row);
+        if (read_queue(texture_context)) {
+            state::tile_col = col;
+            state::tile_row = row;
+            return true;
+        }
+        return false;
+    };
+
     BOOL DLLAPI _nativeDashTilePollUpdate(INT x, INT y) {
-        return pop_tile_frame_to_context(x, y, true);
+        return pop_tile_frame(
+            x, y,
+            [](texture_context& texture_context) {
+                return texture_context.frame_queue.readIfNotEmpty(texture_context.avail_frame);
+            });
     }
 
     BOOL DLLAPI _nativeDashTileWaitUpdate(INT x, INT y) {
-        return pop_tile_frame_to_context(x, y, false);
+        return pop_tile_frame(
+            x, y,
+            [](texture_context& texture_context) {
+                texture_context.frame_queue.blockingRead(texture_context.avail_frame);
+                return true;
+            });
     }
 
     void _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v) {

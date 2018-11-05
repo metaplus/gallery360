@@ -8,7 +8,7 @@
 #include <folly/executors/thread_factory/NamedThreadFactory.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
-
+#include "multimedia/command.h"
 
 using boost::beast::multi_buffer;
 using boost::beast::flat_buffer;
@@ -365,7 +365,7 @@ std::map<int, multi_buffer> create_tile_buffer_map(std::string prefix, int first
     return map;
 }
 
-TEST(Util, CreateTileBufferMap) {
+TEST(Command, CreateTileBufferMap) {
     auto map = create_tile_buffer_map("D:/Media/dash/NewYork/5k/segment_0_0_5k", 10, 20);
     std::ofstream mp4{ "F:/debug/test.mp4",std::ios::out | std::ios::binary | std::ios::trunc };
     std::ofstream yuv{ "F:/debug/test.yuv",std::ios::out | std::ios::binary | std::ios::trunc };
@@ -431,7 +431,6 @@ void scale_partial(const std::string_view input,
                 cmd.append(fmt::format("-map \"[v{}:{}]\" -c:v h264 E:/Tile/{}/t{}_{}_{}_{}.mp4 ", i, j,
                                        std::filesystem::path{ std::string{ input } }.stem().generic_string(), wcrop*hcrop, wscale*hscale, j, i));
             } else {
-                //ffmpeg -i NewYork_0_0.mp4 -c:v libx264 -preset slow -x264-params keyint=30:min-keyint=30 -b:v 1M -maxrate 1M -minrate 1M -buf size 2M -framerate 30 NewYork_0_0.h264
                 cmd.append(fmt::format("-map \"[v{}:{}]\" -c:v libx264  -preset slow "
                                        "-x264-params keyint=30:min-keyint=30:bitrate=5000:vbv-maxrate=10000:vbv-bufsize=20000:fps=30:scenecut=0:no-scenecut:pass=1 "
                                        "F:/Gpac/debug/{}/{}_{}_{}_5K.mp4 ",
@@ -445,10 +444,6 @@ void scale_partial(const std::string_view input,
     scale_partial(input, wcrop, hcrop, wscale, hscale, stride, offset + stride);
 }
 
-TEST(Util, Scale) {
-    scale_partial("F:/Gpac/NewYork.mp4", 3, 3, 1, 1);
-}
-
 TEST(Media, Frame) {
     media::frame f;
     EXPECT_TRUE(f.empty());
@@ -457,4 +452,51 @@ TEST(Media, Frame) {
     EXPECT_TRUE(f.operator->() == nullptr);
     EXPECT_TRUE(f2.empty());
     EXPECT_FALSE(f2.operator->() == nullptr);
+}
+
+auto command_output_directory = [](std::filesystem::path output_directory = "F:/Output") {
+    {
+        EXPECT_TRUE(is_directory(output_directory.root_directory()));
+        create_directories(output_directory);
+        EXPECT_TRUE(is_directory(output_directory));
+    }
+    media::command::output_directory = output_directory;
+};
+
+TEST(Command, Resize) {
+    command_output_directory();
+    media::command::resize("F:/Gpac/NewYork.mp4", { 1920, 1080 });
+}
+
+TEST(Command, Scale) {
+    command_output_directory();
+    scale_partial("F:/Gpac/NewYork.mp4", 3, 3, 1, 1);
+}
+
+TEST(Command, CropScaleMedia3x3) {
+    command_output_directory();
+    {
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 5000,60 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 2500,60 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3,3 }, { 1000,60 });
+    }
+}
+
+TEST(Command, CropScaleMedia4x4) {
+    command_output_directory();
+    {
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 3000/2 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 2000/2 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 4,4 }, { 1000/2 });
+    }
+}
+
+TEST(Command, PackageMp4) {
+    command_output_directory("F:/Output/NewYork/");
+    media::command::package_container({ -1,60 });
+}
+
+TEST(Command, DashSegmental) {
+    command_output_directory("F:/Output/NewYork/");
+    media::command::dash_segment(1000ms);
 }
