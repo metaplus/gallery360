@@ -94,7 +94,7 @@ namespace media
                                        const pace_control pace) {
         std::vector<std::filesystem::path> output_mesh_trace;
         if (pace.offset < filter.wcrop * filter.hcrop) {
-            std::vector<std::string> params{ "ffmpeg","-i",input.data() };
+            std::vector<std::string> cmd_params{ "ffmpeg","-i",input.data() };
             std::string crop_scale_map;
             {
                 const auto[width, height] = media::format_context{ media::source::path{ input.data() } }.demux(media::type::video).scale();
@@ -114,7 +114,7 @@ namespace media
                 }
                 crop_scale_map.pop_back();
             }
-            params.emplace_back(fmt::format("-filter_complex \"{}\"", crop_scale_map));
+            cmd_params.emplace_back(fmt::format("-filter_complex \"{}\"", crop_scale_map));
             const auto[file_stem, file_output_dir] = output_h264_directory(input, mesh_description(filter, rate));
             const auto[remove_count, make_success] = core::make_empty_directory(file_output_dir);
             assert(make_success);
@@ -126,17 +126,17 @@ namespace media
                     if (i * filter.hcrop + j < pace.offset || i * filter.hcrop + j >= pace.offset + pace.stride) {
                         continue;
                     }
-                    params.emplace_back(fmt::format("-map [v{}:{}]", i, j));
-                    params.emplace_back("-c:v libx264");
-                    params.emplace_back("-preset slow");
-                    params.emplace_back("-x264-params");
-                    params.emplace_back(x264_encode_param(rate));
-                    params.emplace_back("-f h264");
-                    params.emplace_back(crop_tile_path(i, j));
+                    cmd_params.emplace_back(fmt::format("-map [v{}:{}]", i, j));
+                    cmd_params.emplace_back("-c:v libx264");
+                    cmd_params.emplace_back("-preset slow");
+                    cmd_params.emplace_back("-x264-params");
+                    cmd_params.emplace_back(x264_encode_param(rate));
+                    cmd_params.emplace_back("-f h264");
+                    cmd_params.emplace_back(crop_tile_path(i, j));
                 }
             }
-            params.emplace_back("-y");
-            system(folly::join(' ', params));
+            cmd_params.emplace_back("-y");
+            system(folly::join(' ', cmd_params));
             crop_scale_transcode(input, filter, rate, { pace.stride, pace.offset + pace.stride });
         }
     }
@@ -144,8 +144,8 @@ namespace media
     void command::package_container(rate_control rate) {
         for (auto& mesh_entry : std::filesystem::directory_iterator{ media::output_directory() }) {
             assert(mesh_entry.is_directory());
-            auto h264_directory = mesh_entry.path() / "h264";
-            auto mp4_directory = mesh_entry.path() / "mp4";
+            const auto h264_directory = mesh_entry.path() / "h264";
+            const auto mp4_directory = mesh_entry.path() / "mp4";
             assert(is_directory(h264_directory));
             const auto[remove_count, make_success] = core::make_empty_directory(mp4_directory);
             assert(make_success);
@@ -161,6 +161,31 @@ namespace media
                         mp4_path.generic_string()
                     }
                 );
+            }
+        }
+    }
+
+    void command::dash_segment(std::chrono::milliseconds duration) {
+        for (auto& mesh_entry : std::filesystem::directory_iterator{ media::output_directory() }) {
+            assert(mesh_entry.is_directory());
+            const auto mp4_directory = mesh_entry.path() / "mp4";
+            const auto dash_directory = mesh_entry.path() / "dash";
+            assert(is_directory(mp4_directory));
+            const auto[remove_count, make_success] = core::make_empty_directory(dash_directory);
+            assert(make_success);
+            for (auto& mp4_entry : std::filesystem::directory_iterator{ mp4_directory }) {
+                auto mp4_path = mp4_entry.path();
+                assert(std::filesystem::is_regular_file(mp4_path));
+                assert(mp4_path.extension() == ".mp4");
+                auto dash_path = (dash_directory / mp4_path.filename()).replace_extension(".mpd");
+                std::vector<std::string> cmd_params{ "mp4box" };
+                cmd_params.emplace_back(fmt::format("-dash {}", duration.count()));
+                cmd_params.emplace_back(fmt::format("-frag {}", duration.count()));
+                cmd_params.emplace_back("-profile live");
+                cmd_params.emplace_back("-rap");
+                cmd_params.emplace_back(fmt::format("-out {}", dash_path.generic_string()));
+                cmd_params.emplace_back(mp4_path.generic_string());
+                system(folly::join(' ', cmd_params));
             }
         }
     }
