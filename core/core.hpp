@@ -72,7 +72,7 @@ namespace core
         }
 
         template<typename Represent, typename Period>
-        std::ostream& operator<<(std::ostream& os, std::chrono::duration<Represent, Period> const& dura) {
+        std::ostream& operator<<(std::ostream& os, const std::chrono::duration<Represent, Period>& dura) {
             using namespace std::chrono;
             return
                 dura < 1us ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns" :
@@ -84,7 +84,9 @@ namespace core
         }
     }
 
-    size_t count_file_entry(std::filesystem::path const& directory);
+    size_t count_file_entry(const std::filesystem::path& directory);
+
+    std::pair<size_t, bool> make_empty_directory(const std::filesystem::path& directory);
 
     template<typename T>
     std::reference_wrapper<T> make_null_reference_wrapper() noexcept {
@@ -94,7 +96,7 @@ namespace core
         };
     }
 
-    // enable DefaultConstructible
+    // enable DefaultConstructable
     template<typename T>
     class reference : public std::reference_wrapper<T>
     {
@@ -129,25 +131,25 @@ namespace core
         namespace detail
         {
             template<typename T, typename ...Types>
-            auto hash_value_tuple(T const& head, Types const& ...tails) noexcept;
+            auto hash_value_tuple(const T& head, const Types& ...tails) noexcept;
 
             template<typename T>
-            std::tuple<size_t> hash_value_tuple(T const& head) noexcept {
+            std::tuple<size_t> hash_value_tuple(const T& head) noexcept {
                 return std::make_tuple(std::hash<T>{}(head));
             }
 
             template<typename T, typename U>
-            std::tuple<size_t, size_t> hash_value_tuple(std::pair<T, U> const& head) noexcept {
+            std::tuple<size_t, size_t> hash_value_tuple(const std::pair<T, U>& head) noexcept {
                 return hash_value_tuple(head.first, head.second);
             }
 
             template<typename ...TupleTypes>
-            auto hash_value_tuple(std::tuple<TupleTypes...> const& head) noexcept {
+            auto hash_value_tuple(const std::tuple<TupleTypes...>& head) noexcept {
                 return hash_value_tuple(std::get<TupleTypes>(head)...);
             }
 
             template<typename T, typename ...Types>
-            auto hash_value_tuple(T const& head, Types const& ...tails) noexcept {
+            auto hash_value_tuple(const T& head, const Types& ...tails) noexcept {
                 return std::tuple_cat(hash_value_tuple(head), hash_value_tuple(tails...));
             }
         }
@@ -162,7 +164,7 @@ namespace core
         template<typename ...Types>
         struct byte_hash
         {
-            size_t operator()(Types const& ...args) noexcept {
+            size_t operator()(const Types& ...args) noexcept {
                 return hash_value_from(args);
             }
         };
@@ -171,7 +173,7 @@ namespace core
         struct byte_hash<void>
         {
             template<typename ...Types>
-            size_t operator()(Types const& ...args) const noexcept {
+            size_t operator()(const Types& ...args) const noexcept {
                 return hash_value_from(args...);
             }
         };
@@ -185,7 +187,7 @@ namespace core
     {
         // smart pointer or iterator
         template<typename Handle>
-        size_t operator()(Handle const& handle) const {
+        size_t operator()(const Handle& handle) const {
             return Hash{}(*handle);
         }
     };
@@ -212,21 +214,21 @@ namespace core
     }
 
     template<typename T>
-    void as_mutable(T const&&) = delete;
+    void as_mutable(const T&&) = delete;
 
     template<typename T, typename U>
-    constexpr bool address_same(T const& x, U const& y) noexcept {
+    constexpr bool address_same(const T& x, const U& y) noexcept {
         return std::addressof(x) == std::addressof(y);
     }
 
     template<typename Enum>
-    constexpr std::underlying_type_t<Enum> underlying(Enum const& enumeration) noexcept {
+    constexpr std::underlying_type_t<Enum> underlying(const Enum& enumeration) noexcept {
         static_assert(std::is_enum<Enum>::value);
         return static_cast<std::underlying_type_t<Enum>>(enumeration);
     }
 
     template<typename EnumT, typename EnumU>
-    constexpr bool underlying_same(EnumT const& et, EnumU const& eu) noexcept {
+    constexpr bool underlying_same(const EnumT& et, const EnumU& eu) noexcept {
         return std::equal_to<>{}(underlying(et), underlying(eu));
     }
 
@@ -249,7 +251,7 @@ namespace core
     std::shared_ptr<folly::ThreadedExecutor> make_threaded_executor(std::string_view thread_name = "CoreThread");
 
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency, int queue_size, bool throw_if_full,
-                                                                    std::string_view pool_name = "CorePool");
+                                                                  std::string_view pool_name = "CorePool");
 
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency, std::string_view pool_name = "CorePool");
 

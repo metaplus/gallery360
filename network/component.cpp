@@ -46,7 +46,7 @@ namespace net
 
     buffer_context::buffer_context(buffer_context&& that) noexcept
         : initial(that.initial)
-        , data(std::move(data)) {}
+        , data(std::move(that.data)) {}
 }
 
 namespace net::component

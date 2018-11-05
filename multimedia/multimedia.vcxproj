@@ -164,6 +164,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="command.h" />
     <ClInclude Include="component.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="cursor.h" />
@@ -173,6 +174,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="command.cpp" />
     <ClCompile Include="component.cpp" />
     <ClCompile Include="context.cpp" />
     <ClCompile Include="cursor.cpp" />
