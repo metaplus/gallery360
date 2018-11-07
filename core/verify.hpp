@@ -47,7 +47,6 @@ namespace core
             if (expect_.has_value()) {
                 auto&& expect_value = std::any_cast<const U&>(result);
                 assert(std::equal_to<>{}(std::forward<U>(result), expect_value));
-                expect_.reset();
             } else {
                 using native_type = typename std::decay<U>::type;
                 if constexpr (std::is_pointer<native_type>::value) {
@@ -59,7 +58,7 @@ namespace core
                 } else {
                     static_assert(!std::is_null_pointer<native_type>::value);
                     static_assert(!std::is_floating_point<native_type>::value);
-                    throw unreachable_execution_error{ __PRETTY_FUNCTION__ };
+                    throw_unreachable(__FUNCTION__);
                 }
             }
         }
@@ -76,6 +75,14 @@ namespace core
         check_result& operator[](U&& expect) {
             expect_.emplace<U>(std::forward<U>(expect));
             return *this;
+        }
+
+        bool reset() noexcept {
+            if (expect_.has_value()) {
+                expect_.reset();
+                return true;
+            }
+            return false;
         }
     };
 

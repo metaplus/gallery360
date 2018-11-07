@@ -88,6 +88,21 @@ namespace core
 
     std::pair<size_t, bool> make_empty_directory(const std::filesystem::path& directory);
 
+    template<typename EntryPredicate>
+    std::vector<std::filesystem::path> filter_directory_entry(const std::filesystem::path& directory,
+                                                              const EntryPredicate& predicate) {
+        return std::reduce(
+            std::filesystem::directory_iterator{ directory },
+            std::filesystem::directory_iterator{},
+            std::vector<std::filesystem::path>{},
+            [&predicate](std::vector<std::filesystem::path>&& container, const std::filesystem::directory_entry& entry) {
+                if (predicate(entry)) {
+                    container.emplace_back(entry.path());
+                }
+                return container;
+            });
+    }
+
     template<typename T>
     std::reference_wrapper<T> make_null_reference_wrapper() noexcept {
         static void* null_pointer = nullptr;
