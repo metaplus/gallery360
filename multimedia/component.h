@@ -1,4 +1,4 @@
-#pragma once                    
+#pragma once
 
 namespace media
 {
@@ -32,10 +32,12 @@ namespace media::component
 
         explicit frame_segmentor(std::list<detail::const_buffer> buffer_list,
                                  unsigned concurrency = std::thread::hardware_concurrency());
+
         template<typename ...BufferSequence>
         explicit frame_segmentor(unsigned concurrency, BufferSequence&& ...sequence)
             : frame_segmentor(core::split_buffer_sequence(std::forward<BufferSequence>(sequence)...),
                               concurrency) {}
+
         explicit operator bool() const;
 
         void parse_context(std::list<detail::const_buffer> buffer_list, unsigned concurrency);

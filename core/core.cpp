@@ -6,7 +6,7 @@
 
 namespace core
 {
-    std::string time_format(std::string format, std::tm *(*timing)(std::time_t const *)) {
+    std::string time_format(std::string format, std::tm*(*timing)(std::time_t const*)) {
         // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         const auto t = std::time(nullptr);
         return fmt::format("{}", std::put_time(timing(&t), format.data()));
@@ -14,11 +14,11 @@ namespace core
 
     size_t count_file_entry(const std::filesystem::path& directory) {
         // non-recursive version, regardless of symbolic link
-        const std::filesystem::directory_iterator iterator{ directory };
-        return std::distance(begin(iterator), end(iterator));
+        return std::distance(std::filesystem::directory_iterator{ directory },
+                             std::filesystem::directory_iterator{});
     }
 
-    std::pair<size_t, bool> make_empty_directory(const std::filesystem::path & directory) {
+    std::pair<size_t, bool> make_empty_directory(const std::filesystem::path& directory) {
         assert(is_directory(directory.root_directory()));
         const auto remove_count = std::filesystem::remove_all(directory);
         const auto create_success = std::filesystem::create_directories(directory);

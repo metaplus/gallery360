@@ -4,14 +4,16 @@ namespace core
 {
     template<typename BufferSequence, typename ...TailSequence>
     std::list<boost::asio::const_buffer>
-        split_buffer_sequence(BufferSequence&& sequence, TailSequence&& ...tails) {
+    split_buffer_sequence(BufferSequence&& sequence, TailSequence&& ...tails) {
         static_assert(boost::asio::is_const_buffer_sequence<decltype(sequence.data())>::value);
         std::list<boost::asio::const_buffer> buffer_list;
         auto sequence_data = std::forward<BufferSequence>(sequence).data();
         std::transform(boost::asio::buffer_sequence_begin(sequence_data),
                        boost::asio::buffer_sequence_end(sequence_data),
                        std::back_inserter(buffer_list),
-                       [](const auto& buffer) { return boost::asio::const_buffer{ buffer }; });
+                       [](const auto& buffer) {
+                           return boost::asio::const_buffer{ buffer };
+                       });
         if constexpr (sizeof...(TailSequence) > 0) {
             buffer_list.splice(buffer_list.end(),
                                split_buffer_sequence(std::forward<TailSequence>(tails)...));
@@ -75,12 +77,17 @@ namespace core
         std::ostream& operator<<(std::ostream& os, const std::chrono::duration<Represent, Period>& dura) {
             using namespace std::chrono;
             return
-                dura < 1us ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns" :
-                dura < 1ms ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us" :
-                dura < 1s ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms" :
-                dura < 1min ? os << duration_cast<duration<double>>(dura).count() << "s" :
-                dura < 1h ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min" :
-                os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
+                dura < 1us
+                    ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns"
+                    : dura < 1ms
+                          ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us"
+                          : dura < 1s
+                                ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms"
+                                : dura < 1min
+                                      ? os << duration_cast<duration<double>>(dura).count() << "s"
+                                      : dura < 1h
+                                            ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min"
+                                            : os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
         }
     }
 
@@ -127,18 +134,14 @@ namespace core
     inline namespace tag //  tag dispatching usage, clarify semantics
     {
         inline constexpr struct use_future_tag {} use_future;
-        inline constexpr struct use_recursion_tag {} use_recursion;
-        inline constexpr struct as_default_tag {} as_default;
+
         inline constexpr struct as_stacktrace_tag {} as_stacktrace;
-        inline constexpr struct as_element_tag {} as_element;
+
         inline constexpr struct as_view_tag {} as_view;
-        inline constexpr struct as_observer_tag {} as_observer;
-        inline constexpr struct defer_construct_tag {} defer_construct;
+
         inline constexpr struct defer_execute_tag {} defer_execute;
-        inline constexpr struct defer_destruct_tag {} defer_destruct;
+
         inline constexpr struct folly_tag {} folly;
-        inline constexpr struct boost_tag {} boost;
-        inline constexpr struct tbb_tag {} tbb;
     }
 
     namespace v3
@@ -248,8 +251,13 @@ namespace core
     }
 
     template<typename ...Types>
-    struct overload : Types... { using Types::operator()...; };
-    template<typename ...Types> overload(Types...)->overload<Types...>;
+    struct overload : Types...
+    {
+        using Types::operator()...;
+    };
+
+    template<typename ...Types>
+    overload(Types ...) -> overload<Types...>;
 
     template<typename Variant, typename ...Callable>
     auto visit(Variant&& variant, Callable&& ...callable) {
