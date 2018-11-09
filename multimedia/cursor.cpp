@@ -12,7 +12,9 @@ namespace media
         , buffer_iter(buffer_begin) {
         auto& buffer_sizes = core::as_mutable(this->buffer_sizes);
         std::transform(buffer_begin, buffer_end, std::back_inserter(buffer_sizes),
-                       [](const_buffer_iterator::reference buffer) { return boost::asio::buffer_size(buffer); });
+                       [](const_buffer_iterator::reference buffer) {
+                           return boost::asio::buffer_size(buffer);
+                       });
         //std::partial_sum(buffer_sizes.begin(), buffer_sizes.end(), buffer_sizes.begin());
     }
 
@@ -54,6 +56,18 @@ namespace media
         return seekable() ? seeker(offset, whence) : std::numeric_limits<int64_t>::min();
     }
 
+    bool generic_cursor::readable() const {
+        return reader != nullptr;
+    }
+
+    bool generic_cursor::writable() const {
+        return writer != nullptr;
+    }
+
+    bool generic_cursor::seekable() const {
+        return seeker != nullptr;
+    }
+
     std::shared_ptr<generic_cursor> generic_cursor::create(read_context&& rfunc, write_context&& wfunc, seek_context&& sfunc) {
         return std::make_shared<generic_cursor>(std::move(rfunc), std::move(wfunc), std::move(sfunc));
     }
@@ -90,31 +104,80 @@ namespace media
 
     int64_t random_access_cursor::seek(int64_t seek_offset, int whence) {
         switch (whence) {
-        case SEEK_SET: fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
-            break;
-        case SEEK_END: fmt::print("SEEK_END OFFSET {}\n", seek_offset);
-            seek_offset += sequence_size();
-            break;
-        case SEEK_CUR: fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
-            seek_offset += sequence_offset;
-            break;
-        case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
-            return sequence_size();
-        default:
-            throw core::unreachable_execution_error{ __FUNCSIG__ };
+            case SEEK_SET: fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
+                break;
+            case SEEK_END: fmt::print("SEEK_END OFFSET {}\n", seek_offset);
+                seek_offset += sequence_size();
+                break;
+            case SEEK_CUR: fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
+                seek_offset += sequence_offset;
+                break;
+            case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
+                return sequence_size();
+            default: throw core::unreachable_execution_error{ __FUNCSIG__ };
         }
         return seek_sequence(seek_offset);
+    }
+
+    bool random_access_cursor::readable() const {
+        return true;
+    }
+
+    bool random_access_cursor::seekable() const {
+        return true;
     }
 
     std::shared_ptr<random_access_cursor> random_access_cursor::create(const multi_buffer& buffer) {
         return std::make_shared<random_access_cursor>(buffer);
     }
 
+    bool io_base::readable() const {
+        return false;
+    }
+
+    bool io_base::writable() const {
+        return false;
+    }
+
+    bool io_base::seekable() const {
+        return false;
+    }
+
+    bool io_base::available() const {
+        core::throw_unimplemented(__FUNCSIG__);
+    }
+
+    int64_t io_base::consume_size() const {
+        core::throw_unimplemented(__FUNCSIG__);
+    }
+
+    int64_t io_base::remain_size() const {
+        core::throw_unimplemented(__FUNCSIG__);
+    }
+
+    bool io::cursor_view::active() const noexcept {
+        return !cursor_.expired();
+    }
+
+    int io::reader::read(uint8_t* buffer, int size) {
+        core::throw_unimplemented(__FUNCSIG__);
+    }
+
+    int io::writer::write(uint8_t* buffer, int size) {
+        core::throw_unimplemented(__FUNCSIG__);
+    }
+
+    int64_t io::seeker::seek(int64_t offset, int whence) {
+        core::throw_unimplemented(__FUNCSIG__);
+    }
+
     //-- buffer_list_cursor
     buffer_list_cursor::buffer_list_cursor(std::list<const_buffer> bufs) {
         full_size_ = std::accumulate(
             bufs.begin(), bufs.end(), 0i64,
-            [](int64_t sum, const_buffer& buffer) { return sum + buffer.size(); });
+            [](int64_t sum, const_buffer& buffer) {
+                return sum + buffer.size();
+            });
         buffer_list_ = std::move(bufs);
         buffer_iter_ = buffer_list_.begin();
     }
@@ -151,18 +214,17 @@ namespace media
 
     int64_t buffer_list_cursor::seek(int64_t seek_offset, int whence) {
         switch (whence) {
-        case SEEK_SET:      //fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
-            break;
-        case SEEK_END:      //fmt::print("SEEK_END OFFSET {}\n", seek_offset);
-            seek_offset += full_size_;
-            break;
-        case SEEK_CUR:      //fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
-            seek_offset += full_offset_;
-            break;
-        case AVSEEK_SIZE:   //fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
-            return -1;      //TODO: return -1 for streaming
-        default:
-            throw core::unreachable_execution_error{ __FUNCSIG__ };
+            case SEEK_SET: //fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
+                break;
+            case SEEK_END: //fmt::print("SEEK_END OFFSET {}\n", seek_offset);
+                seek_offset += full_size_;
+                break;
+            case SEEK_CUR:  //fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
+                seek_offset += full_offset_;
+                break;
+            case AVSEEK_SIZE: //fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
+                return -1;    //TODO: return -1 for streaming
+            default: throw core::unreachable_execution_error{ __FUNCSIG__ };
         }
         if (seek_offset >= full_size_) {
             buffer_iter_ = buffer_list_.end();
@@ -185,6 +247,14 @@ namespace media
         full_offset_ = seek_offset;
         offset_ = seek_offset - partial_sum;
         return seek_offset;
+    }
+
+    bool buffer_list_cursor::readable() const {
+        return true;
+    }
+
+    bool buffer_list_cursor::seekable() const {
+        return true;
     }
 
     bool buffer_list_cursor::available() const {
@@ -246,6 +316,18 @@ namespace media
         }
         fmt::print("----- end total read {}\n", total_read_size);
         return total_read_size;
+    }
+
+    int forward_stream_cursor::write(uint8_t* buffer, int size) {
+        throw core::not_implemented_error{ "TBD" };
+    }
+
+    int64_t forward_stream_cursor::seek(int64_t seek_offset, int whence) {
+        throw core::not_implemented_error{ "TBD" };
+    }
+
+    bool forward_stream_cursor::readable() const {
+        return true;
     }
 
     std::shared_ptr<forward_stream_cursor> forward_stream_cursor::create(buffer_supplier&& supplier) {

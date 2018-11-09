@@ -9,7 +9,7 @@ namespace media
 
     public:
         using value_type = AVIOContext;
-        using pointer = AVIOContext * ;
+        using pointer = AVIOContext*;
 
         static constexpr inline size_t default_cache_page_size = 4096;
         static constexpr inline bool default_buffer_writable = false;
@@ -17,6 +17,7 @@ namespace media
         io_context() = default;
         io_context(io_context const&) = default;
         io_context(io_context&&) noexcept = default;
+
         io_context& operator=(io_context const&) = default;
         io_context& operator=(io_context&&) noexcept = default;
 
@@ -42,7 +43,7 @@ namespace media
 
     public:
         using value_type = AVFormatContext;
-        using pointer = AVFormatContext * ;
+        using pointer = AVFormatContext*;
 
         format_context(io_context io, source::format iformat);
         format_context(io_context io, sink::format oformat);
@@ -79,7 +80,7 @@ namespace media
 
     public:
         using value_type = AVCodecContext;
-        using pointer = AVCodecContext * ;
+        using pointer = AVCodecContext*;
         using resolution = std::pair<decltype(AVCodecContext::width), decltype(AVCodecContext::height)>;
 
         codec_context(codec codec, stream stream, unsigned threads = boost::thread::hardware_concurrency());
@@ -87,9 +88,9 @@ namespace media
 
         codec_context() = default;
         codec_context(codec_context const&) = default;
-        codec_context(codec_context &&) noexcept = default;
+        codec_context(codec_context&&) noexcept = default;
         codec_context& operator=(codec_context const&) = default;
-        codec_context& operator=(codec_context &&) noexcept = default;
+        codec_context& operator=(codec_context&&) noexcept = default;
         pointer operator->() const;
         explicit operator bool() const;
 

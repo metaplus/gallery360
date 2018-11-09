@@ -31,6 +31,7 @@ namespace media
             const int offset = 0;
         };
 
+        static inline std::filesystem::path input_directory;
         static inline std::filesystem::path output_directory;
 
         static void resize(std::string_view input,
@@ -44,5 +45,7 @@ namespace media
         static void package_container(rate_control rate);
 
         static void dash_segment(std::chrono::milliseconds duration);
+
+        static void merge_dash_mpd(filter_param filter);
     };
 }

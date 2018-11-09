@@ -6,33 +6,50 @@
 
 namespace core
 {
-    std::string time_format(std::string format, std::tm *(*timing)(std::time_t const *)) {
+    std::string time_format(std::string format,
+                            std::tm*(*timing)(std::time_t const*)) {
         // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        const auto t = std::time(nullptr);
-        return fmt::format("{}", std::put_time(timing(&t), format.data()));
+        const auto current_time = std::time(nullptr);
+        return fmt::format("{}", std::put_time(timing(&current_time), format.data()));
     }
 
     size_t count_file_entry(const std::filesystem::path& directory) {
         // non-recursive version, regardless of symbolic link
-        const std::filesystem::directory_iterator iterator{ directory };
-        return std::distance(begin(iterator), end(iterator));
+        return std::distance(std::filesystem::directory_iterator{ directory },
+                             std::filesystem::directory_iterator{});
     }
 
-    std::pair<size_t, bool> make_empty_directory(const std::filesystem::path & directory) {
+    std::pair<size_t, bool> make_empty_directory(const std::filesystem::path& directory) {
         assert(is_directory(directory.root_directory()));
         const auto remove_count = std::filesystem::remove_all(directory);
         const auto create_success = std::filesystem::create_directories(directory);
         return std::make_pair(boost::numeric_cast<size_t>(remove_count), create_success);
     }
 
-    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name) {
+    std::filesystem::path tidy_directory_path(const std::filesystem::path& directory) {
+        return directory.has_filename()
+                   ? directory
+                   : directory.parent_path();
+    }
+
+    std::filesystem::path file_path_of_directory(const std::filesystem::path& directory,
+                                                 const std::filesystem::path& extension) {
+        assert(is_directory(directory));
+        const auto file_name = tidy_directory_path(directory).filename();
+        return (directory / file_name).replace_extension(extension);
+    }
+
+    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
+                                                                int queue_size,
+                                                                std::string_view pool_name) {
         static auto executor = make_pool_executor(concurrency, queue_size, false, pool_name);
         assert(executor->numThreads() == concurrency);
         folly::setCPUExecutor(executor);
         return executor;
     }
 
-    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency, std::string_view pool_name) {
+    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
+                                                                std::string_view pool_name) {
         static auto executor = make_pool_executor(concurrency, pool_name);
         assert(executor->numThreads() == concurrency);
         folly::setCPUExecutor(executor);
@@ -44,8 +61,10 @@ namespace core
             std::make_shared<folly::NamedThreadFactory>(thread_name));
     }
 
-    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency, int queue_size,
-                                                                  bool throw_if_full, std::string_view pool_name) {
+    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
+                                                                  int queue_size,
+                                                                  bool throw_if_full,
+                                                                  std::string_view pool_name) {
         std::unique_ptr<folly::BlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>> task_queue;
         if (throw_if_full) {
             task_queue = std::make_unique<folly::LifoSemMPMCQueue<folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::THROW>>(queue_size);
@@ -58,7 +77,8 @@ namespace core
             std::make_shared<folly::NamedThreadFactory>(pool_name.data()));
     }
 
-    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency, std::string_view pool_name) {
+    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
+                                                                  std::string_view pool_name) {
         return std::make_shared<folly::CPUThreadPoolExecutor>(
             std::make_pair(concurrency, 1),
             std::make_unique<folly::UnboundedBlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>>(),
