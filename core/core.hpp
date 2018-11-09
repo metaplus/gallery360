@@ -110,6 +110,11 @@ namespace core
             });
     }
 
+    std::filesystem::path tidy_directory_path(const std::filesystem::path& directory);
+
+    std::filesystem::path file_path_of_directory(const std::filesystem::path& directory,
+                                                 const std::filesystem::path& extension);
+
     template<typename T>
     std::reference_wrapper<T> make_null_reference_wrapper() noexcept {
         static void* null_pointer = nullptr;
@@ -262,9 +267,8 @@ namespace core
     template<typename Variant, typename ...Callable>
     auto visit(Variant&& variant, Callable&& ...callable) {
         static_assert(meta::is_variant<std::decay_t<Variant>>::value);
-        return std::visit(
-            overload{ std::forward<Callable>(callable)... },
-            std::forward<Variant>(variant));
+        return std::visit(overload{ std::forward<Callable>(callable)... },
+                          std::forward<Variant>(variant));
     }
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name = "CorePool");

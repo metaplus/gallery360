@@ -246,21 +246,88 @@ namespace media
         }
     }
 
+    using tinyxml2::XMLNode;
     using tinyxml2::XMLDocument;
     using tinyxml2::XMLElement;
     using tinyxml2::XMLAttribute;
+    using tinyxml2::XMLDeclaration;
+    using tinyxml2::XMLPrinter;
+
+    static_assert(!std::is_copy_constructible<XMLDocument>::value);
+    static_assert(!std::is_move_constructible<XMLDocument>::value);
+
+    auto node_range = [](XMLDocument& document,
+                         std::initializer_list<std::string> node_path) {
+        return std::reduce(node_path.begin(), node_path.end(), std::vector<XMLElement*>{},
+                           [&document](std::vector<XMLElement*>&& container,
+                                       const std::string& node_name) {
+                               auto* parent = std::empty(container)
+                                                  ? std::addressof<XMLNode>(document)
+                                                  : container.back();
+                               container.push_back(parent->FirstChildElement(node_name.data()));
+                               return container;
+                           });
+    };
+
+    const auto clone_element_if_null = [](XMLDocument& dest_document,
+                                          XMLDocument& src_document) {
+        return [&dest_document, &src_document](XMLElement*& dest_element,
+                                               std::initializer_list<std::string> node_path) {
+            if (!dest_element) {
+                XMLNode* src_node = &src_document;
+                XMLNode* dest_node = &dest_document;
+                const auto last_node_name = std::for_each_n(
+                    node_path.begin(), node_path.size() - 1,
+                    [&dest_node, &src_node](const std::string& node_name) mutable {
+                        src_node = src_node->FirstChildElement(node_name.data());
+                        if (auto* temp_node = dest_node->FirstChildElement(node_name.data()); temp_node) {
+                            dest_node = temp_node;
+                        } else {
+                            dest_node = dest_node->InsertEndChild(src_node->ShallowClone(dest_node->GetDocument()));
+                        }
+                    });
+                src_node = src_node->FirstChildElement(last_node_name->data());
+                dest_node = dest_node->InsertEndChild(src_node->DeepClone(&dest_document));
+                assert(src_node&&dest_node);
+                return std::exchange(dest_element, dynamic_cast<XMLElement*>(dest_node));
+            }
+            return dest_element;
+        };
+    };
 
     void command::merge_dash_mpd(const filter_param filter) {
-        const auto& mpd_directory = output_directory;
+        XMLDocument dest_document;
+        XMLDeclaration* declaration = nullptr;
+        XMLElement* program_information = nullptr;
         auto xml_check = folly::lazy([] {
             return (core::check[tinyxml2::XML_SUCCESS]);
         });
+        auto represent_index = 0;
+        const auto output_file = core::file_path_of_directory(output_directory, ".mpd");
         for (auto& [coordinate, mpd_paths] : tile_mpd_path_map(filter)) {
+            XMLElement* adaptation_set = nullptr;
             for (auto& mpd_path : mpd_paths) {
-                XMLDocument mpd_document;
-                xml_check() << mpd_document.LoadFile(mpd_path.generic_string().data());
-                auto str = mpd_document.RootElement()->GetText();
+                XMLDocument src_document;
+                xml_check() << src_document.LoadFile(mpd_path.string().data());
+                if (!declaration) {
+                    declaration = src_document.FirstChild()
+                                              ->ToDeclaration();
+                    dest_document.InsertFirstChild(declaration->ShallowClone(&dest_document));
+                }
+                auto exchanged_element = clone_element_if_null(dest_document, src_document);
+                if (!exchanged_element(program_information, { "MPD", "ProgramInformation" })) {
+                    program_information->FirstChildElement("Title")
+                                       ->SetText(output_file.filename().string().data());
+                }
+                if (exchanged_element(adaptation_set, { "MPD", "Period", "AdaptationSet" })) {
+                    adaptation_set->InsertEndChild(node_range(src_document, { "MPD", "Period", "AdaptationSet", "Representation" })
+                                                   .back()
+                                                   ->DeepClone(&dest_document));
+                }
+                adaptation_set->LastChildElement("Representation")
+                              ->SetAttribute("id", ++represent_index);
             }
         }
+        xml_check() << dest_document.SaveFile(output_file.string().data());
     }
 }

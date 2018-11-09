@@ -29,5 +29,11 @@
     <ClCompile Include="folly-test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="std-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="core-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
