@@ -23,7 +23,8 @@ namespace core
         assert(is_directory(directory.root_directory()));
         const auto remove_count = std::filesystem::remove_all(directory);
         const auto create_success = std::filesystem::create_directories(directory);
-        return std::make_pair(boost::numeric_cast<size_t>(remove_count), create_success);
+        return std::make_pair(boost::numeric_cast<size_t>(remove_count),
+                              create_success);
     }
 
     std::filesystem::path tidy_directory_path(const std::filesystem::path& directory) {
@@ -67,9 +68,17 @@ namespace core
                                                                   std::string_view pool_name) {
         std::unique_ptr<folly::BlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>> task_queue;
         if (throw_if_full) {
-            task_queue = std::make_unique<folly::LifoSemMPMCQueue<folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::THROW>>(queue_size);
+            task_queue = std::make_unique<
+                folly::LifoSemMPMCQueue<
+                    folly::CPUThreadPoolExecutor::CPUTask,
+                    folly::QueueBehaviorIfFull::THROW>
+            >(queue_size);
         } else {
-            task_queue = std::make_unique<folly::LifoSemMPMCQueue<folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::BLOCK>>(queue_size);
+            task_queue = std::make_unique<
+                folly::LifoSemMPMCQueue<
+                    folly::CPUThreadPoolExecutor::CPUTask,
+                    folly::QueueBehaviorIfFull::BLOCK>
+            >(queue_size);
         }
         return std::make_shared<folly::CPUThreadPoolExecutor>(
             std::make_pair(concurrency, 1),
