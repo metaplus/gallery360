@@ -26,51 +26,6 @@ namespace net::client
         reserve_recvbuf_capacity();
     }
 
-#if 0
-    folly::Function<multi_buffer()>
-        http_session::transform_buffer_stream(folly::Function<std::string()> url_supplier) {
-        struct stream : std::enable_shared_from_this<stream>
-        {
-            using future_response = std::variant<boost::future<response>, folly::SemiFuture<response>>;
-
-            int64_t recv_count = 0;
-            future_response response;
-            folly::Function<future_response()> response_supplier;
-
-            [[maybe_unused]] multi_buffer iterate_buffer() {
-                //auto available_buffer = response.get().body();
-                multi_buffer available_buffer;
-                ++recv_count;
-                response = response_supplier();
-                return available_buffer;
-            }
-
-            decltype(auto) drain_error(std::string&& message) {
-                struct stream_drain_error : std::runtime_error
-                {
-                    std::shared_ptr<stream> stream_ptr;
-                    stream_drain_error(const std::string& message, std::shared_ptr<stream> stream)
-                        : runtime_error(message), stream_ptr(stream) {}
-                };
-                return stream_drain_error{ message,shared_from_this() };
-            }
-        };
-        const auto stream_ptr = std::make_shared<stream>();
-        stream_ptr->response_supplier = [this, url_supplier = std::move(url_supplier)]{
-            folly::Uri uri{ std::invoke(core::as_mutable(url_supplier)) };
-            return async_send_request(net::make_http_request<empty_body>(uri.host(), uri.path()));
-        };
-        stream_ptr->iterate_buffer();
-        return[this, stream_ptr] {
-            try {
-                return stream_ptr->iterate_buffer();
-            } catch (...) {
-                throw stream_ptr->drain_error(boost::current_exception_diagnostic_information());
-            }
-        };
-    }
-#endif
-
     http_session_ptr session<protocal::http>::create(socket_type&& socket, boost::asio::io_context& context) {
         return std::make_unique<http_session>(std::move(socket), context);
     }
@@ -81,30 +36,30 @@ namespace net::client
     }
 
     folly::Function<void(boost::system::error_code, std::size_t)>
-        session<protocal::http>::on_send_request(folly::MoveWrapper<std::any> request) {
-        return [this, request](boost::system::error_code errc, std::size_t transfer_size) mutable {
+    session<protocal::http>::on_send_request(std::any&& request) {
+        return [this, request = std::move(request)](boost::system::error_code errc, std::size_t transfer_size) mutable {
             logger_->info("on_send_request errc {} transfer {}", errc, transfer_size);
             if (errc) {
                 logger_->error("on_send_request failure");
-                return clear_request_then_close(core::bad_request_error{ errc.message() },
+                return shutdown_and_reject_request(core::bad_request_error{ errc.message() },
                                                 errc, boost::asio::socket_base::shutdown_send);
             }
-            boost::beast::http::async_read(socket_, recvbuf_, *response_parser_, on_recv_response());
+            http::async_read(socket_, recvbuf_, *response_parser_, on_recv_response());
         };
     }
 
     folly::Function<void(boost::system::error_code, std::size_t)>
-        session<protocal::http>::on_recv_response() {
+    session<protocal::http>::on_recv_response() {
         return [this](boost::system::error_code errc, std::size_t transfer_size) mutable {
             logger_->info("on_recv_response errc {} transfer {}", errc, transfer_size);
             if (errc) {
                 logger_->error("on_recv_response failure");
-                return clear_request_then_close(core::bad_response_error{ errc.message() },
+                return shutdown_and_reject_request(core::bad_response_error{ errc.message() },
                                                 errc, boost::asio::socket_base::shutdown_receive);
             }
             if (response_parser_->get().result() != http::status::ok) {
                 logger_->error("on_recv_response bad response");
-                return clear_request_then_close(core::bad_response_error{ response_parser_->get().reason().data() },
+                return shutdown_and_reject_request(core::bad_response_error{ response_parser_->get().reason().data() },
                                                 errc, boost::asio::socket_base::shutdown_receive);
             }
             request_list_.withWLock(
@@ -112,7 +67,7 @@ namespace net::client
                     response_list.front()(response_parser_->release());
                     response_list.pop_front();
                     if (std::size(response_list)) {
-                        response_list.front()({});
+                        response_list.front()(std::monostate{});
                     }
                 });
         };

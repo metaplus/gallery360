@@ -17,9 +17,8 @@ namespace net::client
     using http_session_ptr = std::unique_ptr<session<protocal::http>>;
 
     template<>
-    class session<protocal::http>
-        : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>
-        , protocal::http::protocal_base
+    class session<protocal::http> : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
+                                    protocal::http::protocal_base
     {
         using request_param = std::variant<
             std::monostate,
@@ -48,60 +47,59 @@ namespace net::client
         using session_base::remote_endpoint;
 
         template<typename Body>
-        folly::SemiFuture<response<dynamic_body>> async_send_request(request<Body>&& req) {
+        folly::SemiFuture<response<dynamic_body>> send_request(request<Body>&& request1) {
             static_assert(boost::beast::http::is_body<Body>::value);
             logger_->info("async_send_request via message");
-            auto request_wrapper = folly::makeMoveWrapper(req);
-            auto promise_response = folly::makeMoveWrapper(folly::Promise<response<dynamic_body>>{});
-            auto future_response = promise_response->getSemiFuture();
-            auto invoke_send_request = [this, request_wrapper, promise_response](request_param request_param) mutable {
-                core::visit(request_param,
-                            [this, &request_wrapper](std::monostate) {
-                                config_response_parser();
-                                auto request_ptr = std::make_shared<request<Body>>(request_wrapper.move());
-                                auto& request_ref = *request_ptr;
-                                auto target = request_ref.target();
-                                boost::beast::http::async_write(socket_, request_ref,
-                                                                on_send_request(folly::makeMoveWrapper(std::any{ std::move(request_ptr) })));
-                            }, [&promise_response](auto& resp) {
-                                using param_type = std::decay_t<decltype(resp)>;
-                                if constexpr (std::is_same<response<dynamic_body>, param_type>::value) {
-                                    return promise_response->setValue(std::move(resp));
-                                } else if constexpr (std::is_base_of<std::exception, param_type>::value) {
-                                    return promise_response->setException(resp);
-                                }
-                                core::throw_unreachable("invoke_send_request");
-                            });
+            auto [promise_response, future_response] = folly::makePromiseContract<response<dynamic_body>>();
+            auto send_task = [this, promise_response = std::move(promise_response),
+                    request1 = std::move(request1)](request_param request_param) mutable {
+                core::visit(
+                    request_param,
+                    [this, &request1](std::monostate) {
+                        config_response_parser();
+                        auto request_ptr = std::make_shared<request<Body>>(std::move(request1));
+                        auto& request_ref = *request_ptr;
+                        boost::beast::http::async_write(socket_, request_ref,
+                                                        on_send_request(std::move(request_ptr)));
+                    },
+                    [&promise_response](auto& response1) {
+                        using param_type = std::decay_t<decltype(response1)>;
+                        if constexpr (std::is_same<response<dynamic_body>, param_type>::value) {
+                            return promise_response.setValue(std::move(response1));
+                        } else if constexpr (std::is_base_of<std::exception, param_type>::value) {
+                            return promise_response.setException(response1);
+                        }
+                        core::throw_unreachable("send_request_caller");
+                    });
             };
             request_list_.withWLock(
-                [this, &invoke_send_request](request_list& request_list) {
+                [this, &send_task](request_list& request_list) {
                     if (active_) {
-                        request_list.push_back(std::move(invoke_send_request));
+                        request_list.push_back(std::move(send_task));
                         if (std::size(request_list) == 1) {
-                            request_list.front()({});
+                            request_list.front()(std::monostate{});
                         }
                     } else {
-                        invoke_send_request(core::session_closed_error{ "async_send_request" });
+                        send_task(core::session_closed_error{ "async_send_request" });
                     }
                 });
             round_trip_index_++;
-            return future_response;
+            return std::move(future_response);
         }
 
         template<typename Target, typename Body>
-        folly::SemiFuture<Target> async_send_request_for(request<Body>&& req) {
+        folly::SemiFuture<Target> send_request_for(request<Body>&& req) {
             static_assert(!std::is_reference<Target>::value);
-            return async_send_request(std::move(req))
-                .deferValue(
-                    [](response<dynamic_body>&& response) -> Target {
-                        if (response.result() != boost::beast::http::status::ok) {
-                            core::throw_bad_request("async_send_request_for");
-                        }
-                        if constexpr (std::is_same<multi_buffer, Target>::value) {
-                            return std::move(response).body();
-                        }
-                        core::throw_unreachable("async_send_request_for");
-                    });
+            return send_request(std::move(req)).deferValue(
+                [](response<dynamic_body>&& response) -> Target {
+                    if (response.result() != boost::beast::http::status::ok) {
+                        core::throw_bad_request("send_request_for");
+                    }
+                    if constexpr (std::is_same<multi_buffer, Target>::value) {
+                        return std::move(response).body();
+                    }
+                    core::throw_unreachable(__FUNCTION__);
+                });
         }
 
         static http_session_ptr create(socket_type&& socket, boost::asio::io_context& context);
@@ -110,9 +108,9 @@ namespace net::client
         void config_response_parser();
 
         template<typename Exception>
-        void clear_request_then_close(Exception&& exception,
-                                      boost::system::error_code errc,
-                                      boost::asio::socket_base::shutdown_type operation) {
+        void shutdown_and_reject_request(Exception&& exception,
+                                         boost::system::error_code errc,
+                                         boost::asio::socket_base::shutdown_type operation) {
             request_list_.withWLock(
                 [this, errc, operation, &exception](request_list& request_list) {
                     for (auto& request : request_list) {
@@ -120,12 +118,11 @@ namespace net::client
                     }
                     request_list.clear();
                     close_socket(errc, operation);
-                    //assert(!socket_.is_open());
                     active_ = false;
                 });
         }
 
-        folly::Function<void(boost::system::error_code, std::size_t)> on_send_request(folly::MoveWrapper<std::any> request);
+        folly::Function<void(boost::system::error_code, std::size_t)> on_send_request(std::any&& request);
 
         folly::Function<void(boost::system::error_code, std::size_t)> on_recv_response();
     };

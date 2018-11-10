@@ -441,4 +441,37 @@ namespace folly_test
         EXPECT_THROW(f.hasException(), folly::FutureNotReady);
         EXPECT_FALSE(poll.has_value());
     }
+
+    TEST(ForEach,Base) {
+        auto one = std::make_tuple(1, 2, 3);
+        auto two = std::vector<int>{ 1, 2, 3 };
+        const auto func = [](auto element, auto index) {
+            std::cout << index << " : " << element << std::endl;
+        };
+        folly::for_each(one, func);
+        folly::for_each(two, func);
+    }
+
+    TEST(ForEach,Control) {
+        auto range_one = std::vector<int>{ 1, 2, 3 };
+        auto range_two = std::make_tuple(1, 2, 3);
+        const auto func = [](auto ele, auto index) {
+            std::cout << "Element at index " << index << " : " << ele << std::endl;
+            if (index == 1) {
+                return folly::loop_break;
+            }
+            return folly::loop_continue;
+        };
+        folly::for_each(range_one, func);
+        folly::for_each(range_two, func);
+
+    }
+
+    TEST(ForEach, Fetch) {
+        auto range_one = std::make_tuple(1, 2, 3);
+        auto range_two = std::make_tuple(4, 5, 6);
+        folly::for_each(range_one, [&range_two](auto ele, auto index) {
+            folly::fetch(range_two, index) = ele;
+        });
+    }
 }

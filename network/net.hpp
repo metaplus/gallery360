@@ -2,12 +2,6 @@
 
 namespace net
 {
-    std::vector<boost::thread*> create_asio_threads(boost::asio::io_context& context,
-                                                    boost::thread_group& thread_group,
-                                                    uint32_t num = std::thread::hardware_concurrency());
-    std::vector<std::thread> create_asio_named_threads(boost::asio::io_context& context,
-                                                       uint32_t num = std::thread::hardware_concurrency());
-
     template<typename... Options>
     struct policy;
 
@@ -120,14 +114,6 @@ namespace net
         };
     }
 
-    inline namespace tag
-    {
-        inline namespace encoding
-        {
-            inline struct use_chunk_t {} use_chunk;
-        }
-    }
-
     template<typename Body>
     boost::beast::http::request<Body> make_http_request(const std::string& host,
                                                         const std::string& target) {
@@ -145,7 +131,7 @@ namespace net
     }
 
     std::filesystem::path config_path() noexcept;
-    std::string config_entry(std::initializer_list<std::string_view> entry_name);
+    std::string config_entry(std::initializer_list<std::string_view> entry_path);
 
     template<typename T>
     T config_entry(std::initializer_list<std::string_view> entry_name) {
@@ -160,6 +146,7 @@ namespace net
     class state_base
     {
         enum state_index { active, state_size };
+
         folly::AtomicBitSet<state_size> state_;
 
     protected:
@@ -174,7 +161,10 @@ namespace net
 
     struct asio_deleter;
 
-    std::shared_ptr<boost::asio::io_context> create_running_asio_pool(unsigned concurrency);
+    std::vector<std::thread> make_asio_threads(boost::asio::io_context& context,
+                                               unsigned concurrency = std::thread::hardware_concurrency());
+
+    std::shared_ptr<boost::asio::io_context> make_asio_pool(unsigned concurrency);
 }
 
 template<typename Protocal>

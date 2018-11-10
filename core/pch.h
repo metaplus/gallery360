@@ -65,9 +65,8 @@ using namespace std::literals;
 //#include <boost/hana.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/logic/tribool_fwd.hpp>
-#include <boost/numeric/conversion/cast.hpp>
 #include <boost/stacktrace.hpp>
-#include <boost/thread.hpp>
+#include <boost/thread/future.hpp>
 #include <boost/type_index.hpp>
 
 //using namespace boost::hana::literals;
@@ -85,6 +84,7 @@ using namespace std::literals;
 //#include <folly/container/Access.h>
 #include <folly/container/Array.h>
 #include <folly/container/Foreach.h>
+#include <folly/container/Iterator.h>
 #include <folly/executors/Async.h>
 #include <folly/executors/GlobalExecutor.h>
 #include <folly/executors/ThreadedExecutor.h>
