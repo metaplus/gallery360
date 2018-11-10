@@ -271,16 +271,22 @@ namespace core
                           std::forward<Variant>(variant));
     }
 
-    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name = "CorePool");
+    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
+                                                                int queue_size,
+                                                                std::string_view pool_name = "CorePool");
 
-    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency, std::string_view pool_name = "CorePool");
+    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
+                                                                std::string_view pool_name = "CorePool");
 
     std::shared_ptr<folly::ThreadedExecutor> make_threaded_executor(std::string_view thread_name = "CoreThread");
 
-    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency, int queue_size, bool throw_if_full,
+    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
+                                                                  int queue_size,
+                                                                  bool throw_if_full,
                                                                   std::string_view pool_name = "CorePool");
 
-    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency, std::string_view pool_name = "CorePool");
+    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
+                                                                  std::string_view pool_name = "CorePool");
 
     template<typename T, typename ...Policy>
     static auto promise_contract_of(Policy& ...p) {

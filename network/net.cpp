@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "net.hpp"
-#include <boost/property_tree/xml_parser.hpp>
 #include <folly/executors/thread_factory/NamedThreadFactory.h>
 #include <tinyxml2.h>
 #include <boost/multi_array.hpp>
@@ -62,7 +61,7 @@ namespace net
                         adaptation_set.mime_type = represents.front()->Attribute("mimeType");
                         adaptation_set.width = std::stoi(element->Attribute("maxWidth"));
                         adaptation_set.height = std::stoi(element->Attribute("maxHeight"));
-                        auto[x, y, w, h, total_w, total_h] = split_spatial_description(
+                        auto [x, y, w, h, total_w, total_h] = split_spatial_description(
                             element->FirstChildElement("SupplementalProperty")->Attribute("value"));
                         adaptation_set.x = x;
                         adaptation_set.y = y;
@@ -99,7 +98,7 @@ namespace net
             }
 
             void parse_grid_size(tinyxml2::XMLElement* element) {
-                auto[x, y, w, h, total_w, total_h] = split_spatial_description(
+                auto [x, y, w, h, total_w, total_h] = split_spatial_description(
                     element->FirstChildElement("SupplementalProperty")->Attribute("value"));
                 grid_width = total_w;
                 grid_height = total_h;
@@ -108,12 +107,12 @@ namespace net
             void parse_scale_size() {
                 using scale_pair = std::pair<int, int>;
                 std::tie(scale_width, scale_height) = std::transform_reduce(
-                    std::execution::par, video_adaptation_sets.begin(), video_adaptation_sets.end(), scale_pair{ 0,0 },
+                    std::execution::par, video_adaptation_sets.begin(), video_adaptation_sets.end(), scale_pair{ 0, 0 },
                     [](scale_pair sum, scale_pair increment) {
-                        return scale_pair{ sum.first + increment.first,sum.second + increment.second };
+                        return scale_pair{ sum.first + increment.first, sum.second + increment.second };
                     },
                     [](video_adaptation_set& adaptation_set) {
-                        return scale_pair{ adaptation_set.width,adaptation_set.height };
+                        return scale_pair{ adaptation_set.width, adaptation_set.height };
                     });
                 scale_width /= grid_height;
                 scale_height /= grid_width;
@@ -139,9 +138,15 @@ namespace net
                 });
             auto futures = {
                 boost::when_all(
-                    boost::async([&] { impl_->parse_video_adaptation_set(adaptation_sets.begin(), audio_set_iter); }),
-                    boost::async([&] { impl_->parse_grid_size(adaptation_sets.front()); })
-                ).then([&](auto&&) { impl_->parse_scale_size(); }),
+                    boost::async([&] {
+                        impl_->parse_video_adaptation_set(adaptation_sets.begin(), audio_set_iter);
+                    }),
+                    boost::async([&] {
+                        impl_->parse_grid_size(adaptation_sets.front());
+                    })
+                ).then([&](auto&&) {
+                    impl_->parse_scale_size();
+                }),
                 boost::async([&] {
                     if (audio_set_iter != adaptation_sets.end()) {
                         impl_->parse_audio_adaptation_set(*audio_set_iter);
@@ -154,6 +159,7 @@ namespace net
         std::string_view dash::parser::title() const {
             return impl_->title;
         }
+
         std::pair<int, int> dash::parser::grid_size() const {
             return std::make_pair(impl_->grid_width, impl_->grid_height);
         }
@@ -183,8 +189,10 @@ namespace net
             using namespace std::chrono;
             const hours t1{ matches[2].matched ? std::stoi(matches[2].str()) : 0 };
             const minutes t2{ matches[4].matched ? std::stoi(matches[4].str()) : 0 };
-            const milliseconds t3{ boost::numeric_cast<int64_t>(
-               matches[5].matched ? 1000 * std::stod(matches[5].str()) : 0) };
+            const milliseconds t3{
+                boost::numeric_cast<int64_t>(
+                    matches[5].matched ? 1000 * std::stod(matches[5].str()) : 0)
+            };
             return t1 + t2 + t3;
         }
         throw impl::duration_parse_mismatch{ __FUNCSIG__ };
@@ -214,7 +222,9 @@ namespace net
         auto thread_factory = std::make_unique<folly::NamedThreadFactory>("NetAsio");
         std::generate(threads.begin(), threads.end(),
                       [&thread_factory, &context] {
-                          return thread_factory->newThread([&context] { context.run(); });
+                          return thread_factory->newThread([&context] {
+                              context.run();
+                          });
                       });
         return threads;
     }
@@ -225,19 +235,19 @@ namespace net
         return config_path;
     }
 
-    boost::property_tree::ptree const& load_config() {
-        static std::once_flag flag;
-        static boost::property_tree::ptree config_ptree;
-        std::call_once(flag,
-                       [] {
-                           const auto config_path = net::config_path().generic_string();
-                           boost::property_tree::read_xml(config_path, config_ptree);
-                       });
-        return config_ptree;
-    }
-
-    std::string config_entry(std::string_view entry_name) {
-        return load_config().get<std::string>(entry_name.data());
+    std::string config_entry(std::initializer_list<std::string_view> entry_name) {
+        static std::optional<tinyxml2::XMLDocument> config_document;
+        if (!config_document) {
+            core::check[tinyxml2::XML_SUCCESS] << config_document.emplace()
+                                                                 .LoadFile(config_path().string().data());
+        }
+        auto* config_node = std::addressof<tinyxml2::XMLNode>(config_document.value());
+        for (auto& node_name : entry_name) {
+            assert(config_node);
+            config_node = config_node->FirstChildElement(std::data(node_name));
+        }
+        return config_node->ToElement()
+                          ->GetText();
     }
 
     struct asio_deleter : std::default_delete<boost::asio::io_context>
@@ -295,7 +305,7 @@ namespace net
         logger->info("create_running_asio_pool");
         auto* io_context = new boost::asio::io_context();
         return std::shared_ptr<boost::asio::io_context>{
-            io_context, asio_deleter{ io_context,concurrency }
+            io_context, asio_deleter{ io_context, concurrency }
         };
     }
 }

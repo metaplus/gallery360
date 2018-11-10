@@ -145,10 +145,10 @@ namespace net
     }
 
     std::filesystem::path config_path() noexcept;
-    std::string config_entry(std::string_view entry_name);
+    std::string config_entry(std::initializer_list<std::string_view> entry_name);
 
     template<typename T>
-    T config_entry(std::string_view entry_name) {
+    T config_entry(std::initializer_list<std::string_view> entry_name) {
         auto entry = config_entry(entry_name);
         if constexpr (meta::is_within<T, std::string, std::string_view>::value) {
             return entry;
