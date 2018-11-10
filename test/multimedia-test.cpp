@@ -64,7 +64,7 @@ auto sequence_size2 = [](auto itbegin, auto itend) {
     return size;
 };
 
-namespace boost
+namespace boost_test
 {
     TEST(Buffer, MultiBuffer) {
         multi_buffer buf_init;
@@ -109,21 +109,21 @@ void set_cpu_executor(int concurrency) {
     folly::setCPUExecutor(executor);
 }
 
-namespace core
+namespace core_test
 {
     TEST(BufferOperation, Split2Sequence) {
         multi_buffer buf_int = create_buffer("init");
         multi_buffer buf1 = create_buffer("1");
-        auto list = split_buffer_sequence(buf1);
-        auto list2 = split_buffer_sequence(buf_int, buf1);
-        auto list3 = split_buffer_sequence(buf_int, buf1);
+        auto list = core::split_buffer_sequence(buf1);
+        auto list2 = core::split_buffer_sequence(buf_int, buf1);
+        auto list3 = core::split_buffer_sequence(buf_int, buf1);
         EXPECT_EQ(total_size<std::list>(list), 2090);
         EXPECT_EQ(total_size<std::list>(list2), 2966);
         EXPECT_EQ(total_size<std::list>(list3), 2966);
     }
 }
 
-namespace media
+namespace media_test
 {
     TEST(FrameSegmentor, Base) {
         auto& buffer_map = create_buffer_map();
@@ -205,7 +205,7 @@ auto create_buffer_from_path = [](std::string path) {
     return buffer;
 };
 
-namespace media
+namespace media_test
 {
     TEST(FrameSegmentor, TryConsumeOnceForLargeFile) {
         auto init_buffer = create_buffer_from_path("D:/Media/dash/full/tile1-576p-5000kbps_dashinit.mp4");
@@ -261,7 +261,7 @@ frame_builder create_async_frame_builder(pixel_consume& consume) {
     };
 }
 
-namespace media
+namespace media_test
 {
     TEST(Media, Frame) {
         media::frame f;
@@ -315,7 +315,7 @@ std::map<int, multi_buffer> create_tile_buffer_map(std::string prefix, int first
     return map;
 }
 
-namespace media
+namespace media_test
 {
     TEST(FrameSegmentor, CreateTileBufferMap) {
         auto map = create_tile_buffer_map("D:/Media/dash/NewYork/5k/segment_0_0_5k", 10, 20);
@@ -428,7 +428,7 @@ protected:
     };
 };
 
-namespace media
+namespace media_test
 {
     TEST_F(Command, Resize) {
         media::command::resize("F:/Gpac/NewYork.mp4", { 1920, 1080 });

@@ -303,7 +303,7 @@ namespace media
             return (core::check[tinyxml2::XML_SUCCESS]);
         });
         auto represent_index = 0;
-        const auto output_file = core::file_path_of_directory(output_directory, ".mpd");
+        const auto output_file_path = core::file_path_of_directory(output_directory, ".mpd");
         for (auto& [coordinate, mpd_paths] : tile_mpd_path_map(filter)) {
             XMLElement* adaptation_set = nullptr;
             for (auto& mpd_path : mpd_paths) {
@@ -317,7 +317,7 @@ namespace media
                 auto exchanged_element = clone_element_if_null(dest_document, src_document);
                 if (!exchanged_element(program_information, { "MPD", "ProgramInformation" })) {
                     program_information->FirstChildElement("Title")
-                                       ->SetText(output_file.filename().string().data());
+                                       ->SetText(output_file_path.filename().string().data());
                 }
                 if (exchanged_element(adaptation_set, { "MPD", "Period", "AdaptationSet" })) {
                     adaptation_set->InsertEndChild(node_range(src_document, { "MPD", "Period", "AdaptationSet", "Representation" })
@@ -328,6 +328,6 @@ namespace media
                               ->SetAttribute("id", ++represent_index);
             }
         }
-        xml_check() << dest_document.SaveFile(output_file.string().data());
+        xml_check() << dest_document.SaveFile(output_file_path.string().data());
     }
 }
