@@ -3,6 +3,7 @@
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/ThreadedExecutor.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace core
 {
@@ -92,5 +93,21 @@ namespace core
             std::make_pair(concurrency, 1),
             std::make_unique<folly::UnboundedBlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>>(),
             std::make_shared<folly::NamedThreadFactory>(pool_name.data()));
+    }
+
+    auto atomic_index = [](const int init = 0) {
+        return std::make_unique<std::atomic<int64_t>>(init);
+    };
+
+    folly::Function<std::pair<int64_t,
+                              std::shared_ptr<spdlog::logger>>()>
+    index_logger_factory(std::string logger_group) {
+
+        return [logger_group = std::move(logger_group), indexer = atomic_index()] {
+            const auto logger_index = indexer->fetch_add(1);
+            const auto logger_name = fmt::format("{}${}", logger_group, logger_index);
+            return std::make_pair(logger_index,
+                                  spdlog::stdout_color_mt(logger_name));
+        };
     }
 }

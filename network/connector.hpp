@@ -31,10 +31,14 @@ namespace net::client
             auto [promise_socket, future_socket] = folly::makePromiseContract<socket_type>();
             resolve_list_.withWLock(
                 [this, host, service, &promise_socket](std::list<entry>& resolve_list) {
-                    auto const pending_iter = resolve_list.insert(resolve_list.end(),
-                                                                  entry{ host, service, std::move(promise_socket) });
+                    const auto entry_iter = resolve_list.insert(resolve_list.end(),
+                                                                entry{ host, service, std::move(promise_socket) });
                     if (resolve_list.size() <= 1) {
-                        boost::asio::post(context_, on_establish_session(pending_iter));
+                        boost::asio::post(context_, [this, entry_iter] {
+                            resolver_.async_resolve(entry_iter->host,
+                                                    entry_iter->service,
+                                                    on_resolve(entry_iter));
+                        });
                     }
                 });
             return std::move(future_socket).deferValue(
@@ -44,8 +48,6 @@ namespace net::client
         }
 
     private:
-        folly::Function<void() const> on_establish_session(std::list<entry>::iterator entry_iter);
-
         folly::Function<void(boost::system::error_code errc,
                              boost::asio::ip::tcp::resolver::results_type endpoints) const>
         on_resolve(std::list<entry>::iterator entry_iter);

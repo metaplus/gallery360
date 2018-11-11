@@ -17,13 +17,6 @@ namespace net::client
         }
     }
 
-    folly::Function<void() const>
-    connector<protocal::tcp>::on_establish_session(std::list<entry>::iterator entry_iter) {
-        return [this, entry_iter] {
-            resolver_.async_resolve(entry_iter->host, entry_iter->service, on_resolve(entry_iter));
-        };
-    }
-
     folly::Function<void(boost::system::error_code errc,
                          boost::asio::ip::tcp::resolver::results_type endpoints) const>
     connector<protocal::tcp>::on_resolve(std::list<entry>::iterator entry_iter) {
@@ -51,7 +44,11 @@ namespace net::client
                 [this, entry_iter](std::list<entry>& resolve_list) {
                     resolve_list.erase(entry_iter);
                     if (resolve_list.size()) {
-                        return boost::asio::dispatch(context_, on_establish_session(resolve_list.begin()));
+                        return boost::asio::dispatch(context_, [this, entry_iter = resolve_list.begin()] {
+                            resolver_.async_resolve(entry_iter->host,
+                                                    entry_iter->service,
+                                                    on_resolve(entry_iter));
+                        });
                     }
                 });
         };

@@ -12,6 +12,7 @@ namespace net
     using boost::beast::http::file_body;
     using boost::beast::http::string_body;
     using boost::beast::http::dynamic_body;
+    using boost::beast::http::buffer_body;
     using boost::beast::multi_buffer;
     using boost::beast::flat_buffer;
 
@@ -19,8 +20,8 @@ namespace net
     {
         struct http
         {
-            static constexpr auto default_version = 11;
-            static constexpr auto default_method = boost::beast::http::verb::get;
+            constexpr static auto default_version = 11;
+            constexpr static auto default_method = boost::beast::http::verb::get;
 
             struct protocal_base
             {
@@ -143,22 +144,6 @@ namespace net
         }
     }
 
-    class state_base
-    {
-        enum state_index { active, state_size };
-
-        folly::AtomicBitSet<state_size> state_;
-
-    protected:
-        bool is_active() const {
-            return state_.test(active, std::memory_order_acquire);
-        }
-
-        bool is_active(bool active) {
-            return state_.set(state_index::active, active, std::memory_order_release);
-        }
-    };
-
     struct asio_deleter;
 
     std::vector<std::thread> make_asio_threads(boost::asio::io_context& context,
@@ -185,5 +170,25 @@ struct std::equal_to<boost::asio::basic_socket<Protocal>>
                     boost::asio::basic_socket<Protocal> const& sock2) const {
         return sock1.remote_endpoint() == sock2.remote_endpoint()
             && sock1.local_endpoint() == sock2.local_endpoint();
+    }
+};
+
+template<typename Protocal>
+struct std::hash<boost::asio::ip::basic_endpoint<Protocal>>
+{
+    using argument_type = boost::asio::ip::basic_endpoint<Protocal>;
+    using result_type = size_t;
+
+    [[nodiscard]] size_t operator()(const argument_type& endpoint) const {
+        size_t seed = 0;
+        if (auto&& address = endpoint.address(); address.is_v4()) {
+            boost::hash_combine(seed, address.to_v4().to_uint());
+        } else if (address.is_v6()) {
+            boost::hash_combine(seed, address.to_v6().to_bytes());
+        } else {
+            boost::hash_combine(seed, address.to_string());
+        }
+        boost::hash_combine(seed, endpoint.port());
+        return seed;
     }
 };

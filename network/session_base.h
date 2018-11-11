@@ -14,7 +14,7 @@ namespace detail
         boost::asio::io_context& context_;
         boost::asio::basic_stream_socket<Protocal> socket_;
         buffer_type recvbuf_;
-        mutable int64_t round_trip_index_ = -1;
+        mutable int64_t round_index_ = -1;
 
         // static_assert(boost::asio::is_mutable_buffer_sequence<buffer_type>::value);
 
@@ -96,7 +96,7 @@ namespace detail
         }
 
         boost::asio::ip::tcp::endpoint remote_endpoint() const {
-            return socket_.local_endpoint();
+            return socket_.remote_endpoint();
         }
     };
 }

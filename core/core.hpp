@@ -288,24 +288,6 @@ namespace core
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
                                                                   std::string_view pool_name = "CorePool");
 
-    template<typename T, typename ...Policy>
-    static auto promise_contract_of(Policy& ...p) {
-        if constexpr (meta::is_within<folly_tag, Policy...>::value) {
-            return folly::makePromiseContract<T>();
-        } else if constexpr (meta::is_within<folly::Promise<T>, Policy...>::value) {
-            auto tuple = std::forward_as_tuple(p...);
-            folly::Promise<T>& promise = std::get<folly::Promise<T>&>(tuple);
-            auto future = promise.getSemiFuture();
-            return std::make_pair(std::move(promise), std::move(future));
-        } else if constexpr (meta::is_within<boost::promise<T>, Policy...>::value) {
-            auto tuple = std::forward_as_tuple(p...);
-            boost::promise<T>& promise = std::get<boost::promise<T>&>(tuple);
-            auto future = promise.get_future();
-            return std::make_pair(std::move(promise), std::move(future));
-        } else {
-            boost::promise<T> promise;
-            auto future = promise.get_future();
-            return std::make_pair(std::move(promise), std::move(future));
-        }
-    }
+    folly::Function<std::pair<int64_t, std::shared_ptr<spdlog::logger>>()> 
+    index_logger_factory(std::string logger_group);
 }

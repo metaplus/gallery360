@@ -2,12 +2,6 @@
 
 namespace net::client
 {
-    struct info
-    {
-        static int16_t net_session_index();
-        static std::shared_ptr<spdlog::logger> create_logger(int16_t index);
-    };
-
     template<typename Protocal>
     class session;
 
@@ -31,12 +25,13 @@ namespace net::client
 
         folly::Synchronized<request_list> request_list_;
         std::optional<response_parser<dynamic_body>> response_parser_;
-        const int16_t index_ = info::net_session_index();
-        const std::shared_ptr<spdlog::logger> logger_ = info::create_logger(index_);
+        const int64_t index_ = 0;
+        const std::shared_ptr<spdlog::logger> logger_;
         mutable bool active_ = true;
 
     public:
-        session(socket_type&& socket, boost::asio::io_context& context);
+        session(socket_type&& socket,
+                boost::asio::io_context& context);
 
         session() = delete;
         session(const session&) = delete;
@@ -47,43 +42,43 @@ namespace net::client
         using session_base::remote_endpoint;
 
         template<typename Body>
-        folly::SemiFuture<response<dynamic_body>> send_request(request<Body>&& request1) {
+        folly::SemiFuture<response<dynamic_body>> send_request(request<Body>&& request) {
             static_assert(boost::beast::http::is_body<Body>::value);
-            logger_->info("async_send_request via message");
+            logger_->info("send_request via message");
             auto [promise_response, future_response] = folly::makePromiseContract<response<dynamic_body>>();
-            auto send_task = [this, promise_response = std::move(promise_response),
-                    request1 = std::move(request1)](request_param request_param) mutable {
+            auto send_request_task = [this, promise_response = std::move(promise_response),
+                    request = std::move(request)](request_param request_param) mutable {
                 core::visit(
                     request_param,
-                    [this, &request1](std::monostate) {
+                    [this, &request](std::monostate) {
                         config_response_parser();
-                        auto request_ptr = std::make_shared<request<Body>>(std::move(request1));
+                        auto request_ptr = std::make_shared<session::request<Body>>(std::move(request));
                         auto& request_ref = *request_ptr;
                         boost::beast::http::async_write(socket_, request_ref,
                                                         on_send_request(std::move(request_ptr)));
                     },
-                    [&promise_response](auto& response1) {
-                        using param_type = std::decay_t<decltype(response1)>;
-                        if constexpr (std::is_same<response<dynamic_body>, param_type>::value) {
-                            return promise_response.setValue(std::move(response1));
+                    [&promise_response](auto& response) {
+                        using param_type = std::decay_t<decltype(response)>;
+                        if constexpr (std::is_same<session::response<dynamic_body>, param_type>::value) {
+                            return promise_response.setValue(std::move(response));
                         } else if constexpr (std::is_base_of<std::exception, param_type>::value) {
-                            return promise_response.setException(response1);
+                            return promise_response.setException(response);
                         }
-                        core::throw_unreachable("send_request_caller");
+                        core::throw_unreachable("send_request_task");
                     });
             };
             request_list_.withWLock(
-                [this, &send_task](request_list& request_list) {
+                [this, &send_request_task](request_list& request_list) {
                     if (active_) {
-                        request_list.push_back(std::move(send_task));
+                        request_list.push_back(std::move(send_request_task));
                         if (std::size(request_list) == 1) {
                             request_list.front()(std::monostate{});
                         }
                     } else {
-                        send_task(core::session_closed_error{ "async_send_request" });
+                        send_request_task(core::session_closed_error{ "send_request_task" });
                     }
                 });
-            round_trip_index_++;
+            round_index_++;
             return std::move(future_response);
         }
 
@@ -102,7 +97,8 @@ namespace net::client
                 });
         }
 
-        static http_session_ptr create(socket_type&& socket, boost::asio::io_context& context);
+        static http_session_ptr create(socket_type&& socket,
+                                       boost::asio::io_context& context);
 
     private:
         void config_response_parser();
