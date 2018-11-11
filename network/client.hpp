@@ -19,8 +19,7 @@ namespace net::client
             response<dynamic_body>,
             core::bad_request_error,
             core::bad_response_error,
-            core::session_closed_error
-        >;
+            core::session_closed_error>;
         using request_list = std::list<folly::Function<void(request_param)>>;
 
         folly::Synchronized<request_list> request_list_;
@@ -118,8 +117,47 @@ namespace net::client
                 });
         }
 
-        folly::Function<void(boost::system::error_code, std::size_t)> on_send_request(std::any&& request);
+        auto on_recv_response() {
+            return [this](boost::system::error_code errc, std::size_t transfer_size) mutable {
+                logger_->info("on_recv_response errc {} transfer {}", errc, transfer_size);
+                if (errc) {
+                    logger_->error("on_recv_response failure");
+                    return shutdown_and_reject_request(core::bad_response_error{ errc.message() },
+                                                       errc,
+                                                       boost::asio::socket_base::shutdown_receive);
+                }
+                if (response_parser_->get().result() != boost::beast::http::status::ok) {
+                    logger_->error("on_recv_response bad response");
+                    return shutdown_and_reject_request(core::bad_response_error{ response_parser_->get().reason().data() },
+                                                       errc,
+                                                       boost::asio::socket_base::shutdown_receive);
+                }
+                request_list_.withWLock(
+                    [this, &errc](request_list& response_list) {
+                        response_list.front()(response_parser_->release());
+                        response_list.pop_front();
+                        if (std::size(response_list)) {
+                            response_list.front()(std::monostate{});
+                        }
+                    });
+            };
+        }
 
-        folly::Function<void(boost::system::error_code, std::size_t)> on_recv_response();
+        auto on_send_request(std::any&& request) {
+            return [this, request = std::move(request)](boost::system::error_code errc,
+                                                        std::size_t transfer_size) mutable {
+                logger_->info("on_send_request errc {} transfer {}", errc, transfer_size);
+                if (errc) {
+                    logger_->error("on_send_request failure");
+                    return shutdown_and_reject_request(core::bad_request_error{ errc.message() },
+                                                       errc,
+                                                       boost::asio::socket_base::shutdown_send);
+                }
+                boost::beast::http::async_read(socket_,
+                                               recvbuf_,
+                                               *response_parser_,
+                                               on_recv_response());
+            };
+        }
     };
 }
