@@ -2,7 +2,7 @@
 
 namespace core_test
 {
-    TEST(Core,FileOfDirectory) {
+    TEST(Core, FileOfDirectory) {
         auto p = core::file_path_of_directory("C:/AppData", ".exe");
         EXPECT_THAT(p.generic_string(), StrEq("C:/AppData/AppData.exe"));
     }

@@ -2,9 +2,55 @@
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/stop_watch.h>
+#include <boost/beast/core/ostream.hpp>
+
+using std::chrono::milliseconds;
+using std::chrono::steady_clock;
+using boost::beast::multi_buffer;
 
 namespace folly_test
 {
+    TEST(Executor, ThreadedExecutor) {
+        uint64_t i1 = 0, i2 = 0, i3 = 0;
+        auto i0 = folly::getCurrentThreadID();
+        folly::stop_watch<milliseconds> watch;
+        {
+            auto executor = core::make_threaded_executor("Test");
+            watch.reset();
+            executor->add([&] {
+                std::this_thread::sleep_for(200ms);
+                i1 = folly::getCurrentThreadID();
+            });
+            executor->add([&] {
+                std::this_thread::sleep_for(150ms);
+                i2 = folly::getCurrentThreadID();
+            });
+            executor->add([&] {
+                std::this_thread::sleep_for(100ms);
+                i3 = folly::getCurrentThreadID();
+            });
+        }
+        auto elapsed = watch.elapsed();
+        EXPECT_GE(elapsed, 200ms);
+        EXPECT_LT(elapsed, 250ms);
+        EXPECT_NE(i0, i1);
+        EXPECT_NE(i0, i2);
+        EXPECT_NE(i0, i3);
+        EXPECT_NE(i1, i2);
+        EXPECT_NE(i1, i3);
+        EXPECT_NE(i2, i3);
+    }
+
+    TEST(Executor, MakePool) {
+        auto executor = core::make_pool_executor(10);
+        EXPECT_EQ(executor->numActiveThreads(), 1);
+        EXPECT_EQ(executor->numThreads(), 10);
+        EXPECT_EQ(executor->getPendingTaskCount(), 0);
+        EXPECT_STREQ(executor->getName().data(), "CorePool");
+        EXPECT_EQ(executor->getPoolStats().idleThreadCount, 10);
+        EXPECT_EQ(executor->getPoolStats().activeThreadCount, 0);
+    }
+
     TEST(Future, Exchange) {
         auto f = folly::makeFuture(1);
         auto i = std::exchange(f, folly::makeFuture(2)).value();
@@ -14,7 +60,7 @@ namespace folly_test
         EXPECT_EQ(f.value(), 3);
     }
 
-    TEST(Folly, Function) {
+    TEST(Function, Base) {
         folly::Function<void() const> f;
         EXPECT_TRUE(f == nullptr);
         EXPECT_FALSE(f);
@@ -26,7 +72,7 @@ namespace folly_test
         EXPECT_FALSE(f);
     }
 
-    TEST(Folly, MoveWrapper) {
+    TEST(MoveWrapper, Base) {
         std::string x = "123";
         EXPECT_FALSE(x.empty());
         auto y = folly::makeMoveWrapper(x);
@@ -39,11 +85,78 @@ namespace folly_test
         z();
     }
 
-    TEST(Folly, LifoSemMPMCQueue) {
+    TEST(Queue, LifoSemMPMCQueue) {
         folly::LifoSemMPMCQueue<int, folly::QueueBehaviorIfFull::THROW> queue{ 1 };
         queue.add(1);
         folly::Promise<int> p;
         EXPECT_THROW(queue.add(1), std::runtime_error);
+    }
+
+    TEST(Queue, UnboundedQueue) {
+        {
+            folly::USPSCQueue<int, true> q;
+            EXPECT_TRUE(q.empty());
+            EXPECT_TRUE(q.try_peek() == nullptr);
+            EXPECT_FALSE(q.try_dequeue_for(50ms).hasValue());
+            q.enqueue(1);
+            q.enqueue(2);
+            q.enqueue(3);
+            EXPECT_EQ(*q.try_peek(), 1);
+            auto x = 0;
+            q.dequeue(x);
+            EXPECT_EQ(x, 1);
+        }
+        {
+            std::vector<int> v{ 1, 2, 3, 4, 5 };
+            auto* p = v.data();
+            folly::USPSCQueue<std::vector<int>, true> q;
+            q.enqueue(std::move(v));
+            EXPECT_TRUE(v.empty());
+            EXPECT_EQ(q.size(), 1);
+            q.dequeue(v);
+            EXPECT_EQ(v.data(), p);
+            EXPECT_EQ(v.size(), 5);
+            EXPECT_TRUE(q.empty());
+            q.enqueue(std::move(v));
+            EXPECT_EQ(q.size(), 1);
+            decltype(v) v2;
+            EXPECT_TRUE(q.try_dequeue(v2));
+            EXPECT_TRUE(q.empty());
+            EXPECT_EQ(v2.data(), p);
+        }
+    }
+
+    TEST(Queue, MPMCQueue) {
+        folly::MPMCQueue<int> q{ 2 };
+        EXPECT_EQ(q.capacity(), 2);
+        EXPECT_TRUE(q.isEmpty());
+        folly::Baton<> b;
+        decltype(steady_clock::now()) t1, t2, t3, t4;
+        std::thread{
+            [&] {
+                q.blockingWrite(1);
+                EXPECT_TRUE(q.write(2));
+                EXPECT_FALSE(q.writeIfNotFull(3));
+                EXPECT_TRUE(q.isFull());
+                t1 = steady_clock::now();
+                b.post();
+                std::this_thread::sleep_for(100ms);
+                q.blockingWrite(3);
+            }
+        }.detach();
+        b.wait();
+        t2 = steady_clock::now();
+        int i;
+        EXPECT_TRUE(q.read(i));
+        EXPECT_EQ(i, 1);
+        EXPECT_TRUE(q.readIfNotEmpty(i));
+        EXPECT_EQ(i, 2);
+        t3 = steady_clock::now();
+        q.blockingRead(i);
+        t4 = steady_clock::now();
+        EXPECT_EQ(i, 3);
+        EXPECT_LT(t1, t2);
+        EXPECT_GT(t4 - t3, 90ms);
     }
 
     TEST(Future, Promise) {
@@ -442,7 +555,90 @@ namespace folly_test
         EXPECT_FALSE(poll.has_value());
     }
 
-    TEST(ForEach,Base) {
+    TEST(Future, DeferError) {
+        static_assert(std::is_base_of<std::exception, core::bad_request_error>::value);
+        static_assert(std::is_base_of<std::exception, core::not_implemented_error>::value);
+        auto sf = folly::makeSemiFutureWith([] {
+            throw core::bad_request_error{ "123" };
+            return 1;
+        });
+        EXPECT_TRUE(sf.hasException());
+        EXPECT_FALSE(sf.hasValue());
+        EXPECT_THROW(sf.value(), core::bad_request_error);
+        sf = std::move(sf).deferError([](auto&&) {
+            throw core::not_implemented_error{ "123" };
+            return 2;
+        });
+        EXPECT_THROW(sf.value(), folly::FutureNotReady);
+        EXPECT_THROW(std::move(sf).get(), core::not_implemented_error);
+        auto [p1, sf1] = folly::makePromiseContract<int>();
+        p1.setException(core::bad_request_error{ "123" });
+        EXPECT_TRUE(sf1.hasException());
+        sf1 = std::move(sf1).deferError([](auto&&) {
+            return 2;
+        });
+        EXPECT_THROW(sf1.value(), folly::FutureNotReady);
+        EXPECT_EQ(std::move(sf1).get(), 2);
+    }
+
+    TEST(Future, PreFullfill) {
+        folly::Promise<int> p;
+        EXPECT_NO_THROW(p.setValue(1));
+        {
+            auto f = p.getSemiFuture();
+            EXPECT_TRUE(f.hasValue());
+            EXPECT_EQ(std::move(f).get(), 1);
+        }
+        EXPECT_THROW(p.getSemiFuture(), folly::FutureAlreadyRetrieved);
+    }
+
+    TEST(Future, FutureSplitterProfile) {
+        {
+            folly::FutureSplitter<int> fs{ folly::makeSemiFuture(1).via(&folly::InlineExecutor::instance()) };
+            EXPECT_TRUE(fs.getSemiFuture().hasValue());
+            EXPECT_TRUE(fs.getFuture().hasValue());
+        }
+        {
+            using std::chrono::microseconds;
+            multi_buffer buffer;
+            boost::beast::ostream(buffer) << std::ifstream{ "F:/Gpac/debug/NewYork/5k/segment_2_2_5k_init.mp4", std::ios::binary }.rdbuf();
+            EXPECT_EQ(buffer.size(), 925); // ~ 1kB
+            folly::FutureSplitter<multi_buffer> fs{ folly::makeFuture(buffer) };
+            folly::FutureSplitter<std::shared_ptr<multi_buffer>> fs2{ folly::makeFuture(std::make_shared<multi_buffer>(buffer)) };
+            std::vector<microseconds> time_trace(20);
+            {
+                folly::stop_watch<microseconds> watch;
+                const void* last = nullptr;
+                for (auto& t : time_trace) {
+                    {
+                        watch.reset();
+                        auto fss = fs.getSemiFuture();
+                        t = watch.elapsed(); // ~ 10us
+                        auto* data = (*fss.value().data().begin()).data();
+                        auto fss2 = fs.getSemiFuture();
+                        auto* data2 = (*fss2.value().data().begin()).data();
+                        EXPECT_EQ(fss.value().size(), 925);
+                        EXPECT_NE(data, data2);
+                        if (std::exchange(last, data)) {
+                            EXPECT_EQ(data, last);
+                            EXPECT_NE(data, (*buffer.data().begin()).data());
+                        }
+                        //std::cout << t;
+                        fmt::print("elapsed: {}\n", t.count());
+                    }
+                    {
+                        watch.reset();
+                        auto fss = fs2.getSemiFuture();
+                        auto t2 = watch.elapsed(); // ~ 2us
+                        EXPECT_GT(t, t2);
+                        fmt::print("elapsed-ptr: {}\n", t2.count());
+                    }
+                }
+            }
+        }
+    }
+
+    TEST(ForEach, Base) {
         auto one = std::make_tuple(1, 2, 3);
         auto two = std::vector<int>{ 1, 2, 3 };
         const auto func = [](auto element, auto index) {
@@ -452,7 +648,7 @@ namespace folly_test
         folly::for_each(two, func);
     }
 
-    TEST(ForEach,Control) {
+    TEST(ForEach, Control) {
         auto range_one = std::vector<int>{ 1, 2, 3 };
         auto range_two = std::make_tuple(1, 2, 3);
         const auto func = [](auto ele, auto index) {
@@ -473,5 +669,36 @@ namespace folly_test
         folly::for_each(range_one, [&range_two](auto ele, auto index) {
             folly::fetch(range_two, index) = ele;
         });
+    }
+
+    TEST(Try, Base) {
+        {
+            folly::Try<int> t;
+            EXPECT_FALSE(t.hasValue());
+            EXPECT_FALSE(t.hasException());
+            t.emplace(1);
+            EXPECT_TRUE(t.hasValue());
+            EXPECT_EQ(t.value(), 1);
+            t.emplaceException(std::logic_error{ "123" });
+            EXPECT_TRUE(t.hasException());
+            EXPECT_TRUE(t.exception().is_compatible_with<std::exception>());
+            EXPECT_STREQ(t.exception().class_name().c_str(), "class std::logic_error");
+            EXPECT_THROW(t.throwIfFailed(), std::exception);
+            EXPECT_THROW(t.throwIfFailed(), std::logic_error);
+            EXPECT_NO_THROW(dynamic_cast<std::logic_error&>(*t.tryGetExceptionObject()));
+            t.emplace();
+            EXPECT_TRUE(t.hasValue());
+            EXPECT_EQ(t.value(), 0);
+        }
+        {
+            folly::Try<std::unique_ptr<int>> t;
+            EXPECT_FALSE(t.hasValue());
+            t.emplace(std::make_unique<int>(2));
+            auto t2 = std::move(t);
+            EXPECT_TRUE(t.hasValue()); //! default constructed state after moved out, not empty
+            EXPECT_FALSE(t.value() != nullptr);
+            EXPECT_TRUE(t2.hasValue());
+            EXPECT_EQ(*t2.value(), 2);
+        }
     }
 }

@@ -4,8 +4,6 @@
 #include <folly/stop_watch.h>
 #include "network/component.h"
 
-using namespace std::literals;
-
 using net::component::dash_manager;
 
 namespace net_test

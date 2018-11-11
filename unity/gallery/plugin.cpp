@@ -4,6 +4,7 @@
 #include "multimedia/component.h"
 #include "multimedia/pch.h"
 #include "graphic.h"
+#include <boost/thread/barrier.hpp>
 
 using net::component::dash_manager;
 using net::component::frame_consumer;

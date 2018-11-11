@@ -168,6 +168,7 @@
     <ClCompile Include="boost-test.cpp" />
     <ClCompile Include="core-test.cpp" />
     <ClCompile Include="folly-test.cpp" />
+    <ClCompile Include="gallery-test.cpp" />
     <ClCompile Include="multimedia-test.cpp" />
     <ClCompile Include="network-test.cpp" />
     <ClCompile Include="pch.cpp">
@@ -188,6 +189,9 @@
     </ProjectReference>
     <ProjectReference Include="..\network\network.vcxproj">
       <Project>{900de24f-834c-4095-b20e-0b1785f1913b}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\unity\gallery\gallery.vcxproj">
+      <Project>{42b147aa-0f5d-4479-af8a-5861d7b6ca07}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

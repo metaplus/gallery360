@@ -1,9 +1,10 @@
 #include "pch.h"
 #include "multimedia/pch.h"
-#include <folly/executors/CPUThreadPoolExecutor.h>
-#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include "multimedia/command.h"
 #include "multimedia/component.h"
+#include <folly/executors/CPUThreadPoolExecutor.h>
+#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
+#include <boost/beast/core/ostream.hpp>
 
 using boost::beast::multi_buffer;
 using boost::beast::flat_buffer;

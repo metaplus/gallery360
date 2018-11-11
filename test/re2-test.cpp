@@ -7,8 +7,8 @@ namespace re2_test
         int i;
         std::string s;
         EXPECT_TRUE(RE2::FullMatch("ruby:1234", "(\\w+):(\\d+)", &s, &i));
-        EXPECT_THAT(s ,StrEq("ruby"));
-        EXPECT_EQ(i , 1234);
+        EXPECT_THAT(s, StrEq("ruby"));
+        EXPECT_EQ(i, 1234);
         EXPECT_FALSE(RE2::FullMatch("ruby", "(.+)", &i));
         EXPECT_TRUE(RE2::FullMatch("ruby:1234", "(\\w+):(\\d+)", &s));
         i = 0;
@@ -33,7 +33,7 @@ namespace re2_test
         EXPECT_FALSE(re.ok());     // can check re.error() for details
     }
 
-    TEST(Re2,FindAndConsume) {
+    TEST(Re2, FindAndConsume) {
         std::string str("abcd12b456");
         RE2 regex("(.b)");
         re2::StringPiece input(str);
