@@ -24,6 +24,13 @@ namespace net_test
             EXPECT_EQ(grid_size, std::make_pair(3, 3));
             EXPECT_EQ(spatial_size, std::make_pair(3840, 1920));
         }
+        {
+            auto manager = dash_manager::create_parsed("http://localhost:8900/Output/NewYork/NewYork.mpd").get();
+            auto spatial_size = manager.scale_size();
+            auto grid_size = manager.grid_size();
+            EXPECT_EQ(grid_size, std::make_pair(3, 3));
+            EXPECT_EQ(spatial_size, std::make_pair(3840, 1920));
+        }
     }
 
     TEST(DashManager, PathRegex) {

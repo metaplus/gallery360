@@ -19,7 +19,8 @@ using boost::asio::buffer_sequence_begin;
 using boost::asio::buffer_sequence_end;
 using boost::asio::dynamic_buffer;
 
-auto fill_buffer = [](multi_buffer& buffer, std::string suffix) {
+auto fill_buffer = [](multi_buffer& buffer,
+                      std::string suffix) {
     auto path_pattern = suffix == "init"
                             ? "D:/Media/dash/tile1-576p-5000kbps_dash{}.mp4"
                             : "D:/Media/dash/tile1-576p-5000kbps_dash{}.m4s";
@@ -67,7 +68,7 @@ auto sequence_size2 = [](auto itbegin, auto itend) {
 
 namespace boost_test
 {
-    TEST(Buffer, MultiBuffer) {
+    TEST(MultiBuffer, BufferSize) {
         multi_buffer buf_init;
         multi_buffer buf1;
         multi_buffer buf2;
@@ -82,7 +83,7 @@ namespace boost_test
         EXPECT_EQ(buffer_size(buf3.data()), 1417);
     }
 
-    TEST(Buffer, BufferSize) {
+    TEST(MultiBuffer, BufferSizeMap) {
         auto& buffer_map = create_buffer_map();
         auto size = 0i64;
         for (auto& [index, buffer] : buffer_map) {

@@ -136,7 +136,8 @@ namespace net
         dash::parser::parser(std::string_view xml_text)
             : impl_(std::make_shared<impl>()) {
             tinyxml2::XMLDocument document;
-            core::check[tinyxml2::XMLError::XML_SUCCESS] << document.Parse(xml_text.data());
+            auto success = document.Parse(xml_text.data());
+            assert(success == tinyxml2::XMLError::XML_SUCCESS);
             auto* xml_root = document.RootElement();
             impl_->presentation_time = parse_duration(xml_root->Attribute("mediaPresentationDuration"));
             impl_->min_buffer_time = parse_duration(xml_root->Attribute("minBufferTime"));

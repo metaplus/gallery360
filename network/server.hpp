@@ -68,6 +68,7 @@ namespace net::server
                     response->keep_alive(request->keep_alive());
                     send_response(std::move(response));
                 } else {
+                    logger_->error("on_recv_request target non-exist");
                     send_response(std::make_unique<
                         http::response<empty_body>>(http::status::bad_request,
                                                     request->version()));

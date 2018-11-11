@@ -4,7 +4,7 @@
 #include "multimedia/component.h"
 #include <folly/stop_watch.h>
 
-#define STATIC_LIBRARY
+//#define STATIC_LIBRARY
 #include "unity/gallery/pch.h"
 
 using std::chrono::microseconds;
@@ -277,13 +277,13 @@ auto loop_poll_frame = [](unsigned codec_concurrency = 8) {
     test::_nativeConfigConcurrency(codec_concurrency);
     test::_nativeMockGraphic();
     _nativeConfigExecutor();
-    _nativeDashCreate("http://localhost:8900/dash/NewYork/5k/NewYork_5k.mpd");
+    _nativeDashCreate("http://localhost:8900/Output/NewYork/NewYork.mpd");
     int col = 0, row = 0, width = 0, height = 0;
-    EXPECT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
-    EXPECT_EQ(col, 3);
-    EXPECT_EQ(row, 3);
-    EXPECT_EQ(width, 3840);
-    EXPECT_EQ(height, 1920);
+    ASSERT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
+    ASSERT_EQ(col, 3);
+    ASSERT_EQ(row, 3);
+    ASSERT_EQ(width, 3840);
+    ASSERT_EQ(height, 1920);
     auto iteration = 0;
     std::vector<int> ref_index_range;
     for (auto r = 0; r < row; ++r) {
@@ -322,15 +322,18 @@ auto loop_poll_frame = [](unsigned codec_concurrency = 8) {
         }
     }
     const auto t1 = watch.elapsed();
-    std::cout << "time: " << t1 << " fps " << iteration / t1.count();
+    fmt::print(std::cerr, "concurrency {} time {} fps {}\n", codec_concurrency, t1.count(), iteration / t1.count());
     _nativeLibraryRelease();
-    EXPECT_EQ(iteration, 3714);
-    return t1;
+    EXPECT_LT(iteration, 3710);
 };
 
 namespace gallery_test
 {
     TEST(Galley, PluginPoll) {
-        loop_poll_frame(); // fps 53
+        loop_poll_frame(8); // fps 71
+        loop_poll_frame(4); // fps 71
+        loop_poll_frame(3); // fps 71
+        loop_poll_frame(2); // fps 71
+        loop_poll_frame(1); // fps 71
     }
 }

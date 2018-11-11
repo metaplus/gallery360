@@ -295,6 +295,16 @@ namespace media
         };
     };
 
+    auto spatial_relationship = [](const filter_param filter,
+                                   const std::pair<int, int> coordinate) {
+        std::string srd;
+        folly::toAppendDelim(',', 0,
+                             coordinate.first, coordinate.second,
+                             1, 1, filter.wcrop, filter.hcrop,
+                             &srd);
+        return srd;
+    };
+
     void command::merge_dash_mpd(const filter_param filter) {
         XMLDocument dest_document;
         XMLDeclaration* declaration = nullptr;
@@ -323,6 +333,11 @@ namespace media
                     adaptation_set->InsertEndChild(node_range(src_document, { "MPD", "Period", "AdaptationSet", "Representation" })
                                                    .back()
                                                    ->DeepClone(&dest_document));
+                } else {
+                    auto* supplemental = dest_document.NewElement("SupplementalProperty");
+                    supplemental->SetAttribute("schemeIdUri", "urn:mpeg:dash:srd:2014");
+                    supplemental->SetAttribute("value", spatial_relationship(filter, coordinate).data());
+                    adaptation_set->InsertFirstChild(supplemental);
                 }
                 adaptation_set->LastChildElement("Representation")
                               ->SetAttribute("id", ++represent_index);

@@ -4,7 +4,7 @@
 
 namespace boost_test
 {
-    TEST(Beast, MultiBuffer) {
+    TEST(MultiBuffer, Base) {
         std::array<char, 64> ar;
         std::fill_n(ar.begin(), ar.size(), 0xcc);
         boost::beast::multi_buffer b;
@@ -29,7 +29,7 @@ namespace boost_test
         EXPECT_EQ(cb4.data(), cb2.data());
     }
 
-    TEST(Container, CircularBuffer) {
+    TEST(CircularBuffer, Base) {
         boost::circular_buffer<int> cb(2);
         EXPECT_EQ(cb.size(), 0);
         EXPECT_NE(cb.max_size(), 2);
@@ -48,11 +48,13 @@ namespace boost_test
         EXPECT_TRUE(cb.full());
     }
 
-    TEST(State, Tribool) {
+    TEST(Tribool, Base) {
         using boost::logic::indeterminate;
         using boost::logic::tribool;
         tribool tb{ indeterminate };
         EXPECT_FALSE(bool{ tb });
+        EXPECT_FALSE(bool{ tb == true });
+        EXPECT_FALSE(bool{ tb == false });
         EXPECT_TRUE(indeterminate(tb == indeterminate));
         EXPECT_TRUE(indeterminate(tb));
         tribool tb2{ true };

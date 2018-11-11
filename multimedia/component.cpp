@@ -37,7 +37,8 @@ namespace media::component
                                       std::back_inserter(remain_frames));
                         }
                     }
-                } while (frame_size == 0 && !packet_empty);
+                }
+                while (frame_size == 0 && !packet_empty);
             }
             return frame;
         }
@@ -80,8 +81,10 @@ namespace media::component
     }
 
     void frame_segmentor::reset_buffer_list(std::list<const_buffer> buffer_list) {
-        [[maybe_unused]] auto old_cursor = std::exchange(impl_->cursor, buffer_list_cursor::create(std::move(buffer_list)));
-        [[maybe_unused]] auto old_cursor2 = impl_->io_context->exchange_cursor(impl_->cursor);
+        [[maybe_unused]] auto old_cursor = std::exchange(impl_->cursor,
+                                                         buffer_list_cursor::create(std::move(buffer_list)));
+        [[maybe_unused]] auto old_cursor2 = impl_->io_context
+                                                 ->exchange_cursor(impl_->cursor);
         assert(old_cursor == old_cursor2);
     }
 
@@ -92,8 +95,9 @@ namespace media::component
 
     detail::vector<media::frame> frame_segmentor::try_consume() {
         if (impl_->codec_context->valid()) {
-            return impl_->codec_context->decode(
-                impl_->format_context->read(media::type::video));
+            return impl_->codec_context
+                        ->decode(impl_->format_context
+                                      ->read(media::type::video));
         }
         throw core::stream_drained_error{ __FUNCTION__ };
     }
@@ -102,7 +106,7 @@ namespace media::component
         return [&consume](frame frame) {
             pixel_array pixel_array;
             pixel_array.fill(nullptr);
-            return[&consume, frame = std::move(frame), pixel_array]() mutable {
+            return [&consume, frame = std::move(frame), pixel_array]() mutable {
                 if (!frame.empty()) {
                     pixel_array[0] = frame->data[0];
                     pixel_array[1] = frame->data[1];
@@ -129,17 +133,25 @@ namespace media::component
     }
 
     folly::Future<folly::Function<void()>>
-        frame_segmentor::defer_consume_once(const pixel_consume& pixel_consume) const {
+    frame_segmentor::defer_consume_once(const pixel_consume& pixel_consume) const {
         auto* impl = impl_.get();
-        return folly::async([impl] { return impl->try_consume_once(); })
-            .filter([](const frame& frame) { return !frame.empty(); })
-            .thenValue(frame_consume(pixel_consume));
+        return folly::async([impl] {
+                   return impl->try_consume_once();
+               })
+               .filter([](const frame& frame) {
+                   return !frame.empty();
+               })
+               .thenValue(frame_consume(pixel_consume));
     }
 
     folly::Future<media::frame>
-        frame_segmentor::defer_consume_once() const {
+    frame_segmentor::defer_consume_once() const {
         auto* impl = impl_.get();
-        return folly::async([impl] { return impl->try_consume_once(); })
-            .filter([](const frame& frame) { return !frame.empty(); });
+        return folly::async([impl] {
+                return impl->try_consume_once();
+            })
+            .filter([](const frame& frame) {
+                return !frame.empty();
+            });
     }
 }
