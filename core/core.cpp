@@ -3,6 +3,7 @@
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/ThreadedExecutor.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace core
 {
@@ -23,7 +24,8 @@ namespace core
         assert(is_directory(directory.root_directory()));
         const auto remove_count = std::filesystem::remove_all(directory);
         const auto create_success = std::filesystem::create_directories(directory);
-        return std::make_pair(boost::numeric_cast<size_t>(remove_count), create_success);
+        return std::make_pair(boost::numeric_cast<size_t>(remove_count),
+                              create_success);
     }
 
     std::filesystem::path tidy_directory_path(const std::filesystem::path& directory) {
@@ -67,9 +69,17 @@ namespace core
                                                                   std::string_view pool_name) {
         std::unique_ptr<folly::BlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>> task_queue;
         if (throw_if_full) {
-            task_queue = std::make_unique<folly::LifoSemMPMCQueue<folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::THROW>>(queue_size);
+            task_queue = std::make_unique<
+                folly::LifoSemMPMCQueue<
+                    folly::CPUThreadPoolExecutor::CPUTask,
+                    folly::QueueBehaviorIfFull::THROW>
+            >(queue_size);
         } else {
-            task_queue = std::make_unique<folly::LifoSemMPMCQueue<folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::BLOCK>>(queue_size);
+            task_queue = std::make_unique<
+                folly::LifoSemMPMCQueue<
+                    folly::CPUThreadPoolExecutor::CPUTask,
+                    folly::QueueBehaviorIfFull::BLOCK>
+            >(queue_size);
         }
         return std::make_shared<folly::CPUThreadPoolExecutor>(
             std::make_pair(concurrency, 1),
@@ -83,5 +93,21 @@ namespace core
             std::make_pair(concurrency, 1),
             std::make_unique<folly::UnboundedBlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>>(),
             std::make_shared<folly::NamedThreadFactory>(pool_name.data()));
+    }
+
+    auto atomic_index = [](const int init = 0) {
+        return std::make_unique<std::atomic<int64_t>>(init);
+    };
+
+    folly::Function<std::pair<int64_t,
+                              std::shared_ptr<spdlog::logger>>()>
+    index_logger_factory(std::string logger_group) {
+
+        return [logger_group = std::move(logger_group), indexer = atomic_index()] {
+            const auto logger_index = indexer->fetch_add(1);
+            const auto logger_name = fmt::format("{}${}", logger_group, logger_index);
+            return std::make_pair(logger_index,
+                                  spdlog::stdout_color_mt(logger_name));
+        };
     }
 }

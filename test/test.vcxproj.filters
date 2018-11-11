@@ -35,5 +35,14 @@
     <ClCompile Include="core-test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="re2-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="network-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="boost-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

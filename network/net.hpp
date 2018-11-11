@@ -2,12 +2,6 @@
 
 namespace net
 {
-    std::vector<boost::thread*> create_asio_threads(boost::asio::io_context& context,
-                                                    boost::thread_group& thread_group,
-                                                    uint32_t num = std::thread::hardware_concurrency());
-    std::vector<std::thread> create_asio_named_threads(boost::asio::io_context& context,
-                                                       uint32_t num = std::thread::hardware_concurrency());
-
     template<typename... Options>
     struct policy;
 
@@ -18,6 +12,7 @@ namespace net
     using boost::beast::http::file_body;
     using boost::beast::http::string_body;
     using boost::beast::http::dynamic_body;
+    using boost::beast::http::buffer_body;
     using boost::beast::multi_buffer;
     using boost::beast::flat_buffer;
 
@@ -25,8 +20,8 @@ namespace net
     {
         struct http
         {
-            static constexpr auto default_version = 11;
-            static constexpr auto default_method = boost::beast::http::verb::get;
+            constexpr static auto default_version = 11;
+            constexpr static auto default_method = boost::beast::http::verb::get;
 
             struct protocal_base
             {
@@ -120,14 +115,6 @@ namespace net
         };
     }
 
-    inline namespace tag
-    {
-        inline namespace encoding
-        {
-            inline struct use_chunk_t {} use_chunk;
-        }
-    }
-
     template<typename Body>
     boost::beast::http::request<Body> make_http_request(const std::string& host,
                                                         const std::string& target) {
@@ -145,10 +132,10 @@ namespace net
     }
 
     std::filesystem::path config_path() noexcept;
-    std::string config_entry(std::string_view entry_name);
+    std::string config_entry(std::initializer_list<std::string_view> entry_path);
 
     template<typename T>
-    T config_entry(std::string_view entry_name) {
+    T config_entry(std::initializer_list<std::string_view> entry_name) {
         auto entry = config_entry(entry_name);
         if constexpr (meta::is_within<T, std::string, std::string_view>::value) {
             return entry;
@@ -157,24 +144,12 @@ namespace net
         }
     }
 
-    class state_base
-    {
-        enum state_index { active, state_size };
-        folly::AtomicBitSet<state_size> state_;
-
-    protected:
-        bool is_active() const {
-            return state_.test(active, std::memory_order_acquire);
-        }
-
-        bool is_active(bool active) {
-            return state_.set(state_index::active, active, std::memory_order_release);
-        }
-    };
-
     struct asio_deleter;
 
-    std::shared_ptr<boost::asio::io_context> create_running_asio_pool(unsigned concurrency);
+    std::vector<std::thread> make_asio_threads(boost::asio::io_context& context,
+                                               unsigned concurrency = std::thread::hardware_concurrency());
+
+    std::shared_ptr<boost::asio::io_context> make_asio_pool(unsigned concurrency);
 }
 
 template<typename Protocal>
@@ -195,5 +170,25 @@ struct std::equal_to<boost::asio::basic_socket<Protocal>>
                     boost::asio::basic_socket<Protocal> const& sock2) const {
         return sock1.remote_endpoint() == sock2.remote_endpoint()
             && sock1.local_endpoint() == sock2.local_endpoint();
+    }
+};
+
+template<typename Protocal>
+struct std::hash<boost::asio::ip::basic_endpoint<Protocal>>
+{
+    using argument_type = boost::asio::ip::basic_endpoint<Protocal>;
+    using result_type = size_t;
+
+    [[nodiscard]] size_t operator()(const argument_type& endpoint) const {
+        size_t seed = 0;
+        if (auto&& address = endpoint.address(); address.is_v4()) {
+            boost::hash_combine(seed, address.to_v4().to_uint());
+        } else if (address.is_v6()) {
+            boost::hash_combine(seed, address.to_v6().to_bytes());
+        } else {
+            boost::hash_combine(seed, address.to_string());
+        }
+        boost::hash_combine(seed, endpoint.port());
+        return seed;
     }
 };

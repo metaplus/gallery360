@@ -57,7 +57,7 @@ using namespace std::literals;
 #include <boost/beast/core/multi_buffer.hpp>
 #include <boost/beast/core/ostream.hpp>
 #include <boost/container/small_vector.hpp>
-#include <boost/container_hash/hash.hpp>
+#include <boost/container_hash/hash_fwd.hpp>
 #include <boost/core/ignore_unused.hpp>
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
@@ -65,9 +65,8 @@ using namespace std::literals;
 //#include <boost/hana.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/logic/tribool_fwd.hpp>
-#include <boost/numeric/conversion/cast.hpp>
 #include <boost/stacktrace.hpp>
-#include <boost/thread.hpp>
+#include <boost/thread/future.hpp>
 #include <boost/type_index.hpp>
 
 //using namespace boost::hana::literals;
@@ -75,16 +74,21 @@ using namespace std::literals;
 #pragma warning(push)
 #pragma warning(disable:4267 4250)
 #define GLOG_NO_ABBREVIATED_SEVERITIES
-//#include <folly/AtomicBitSet.h>
 //#include <folly/AtomicHashMap.h>
+//#include <folly/AtomicBitSet.h>
+//#include <folly/AtomicLinkedList.h>
 //#include <folly/AtomicLinkedList.h>
 //#include <folly/AtomicUnorderedMap.h>
-//#include <folly/concurrency/ConcurrentHashMap.h>
+#pragma warning(push)
+#pragma warning(disable:4200 4305 4244)
+#include <folly/concurrency/ConcurrentHashMap.h>
+#pragma warning(pop)
 //#include <folly/concurrency/DynamicBoundedQueue.h>
 //#include <folly/concurrency/UnboundedQueue.h>
 //#include <folly/container/Access.h>
 #include <folly/container/Array.h>
 #include <folly/container/Foreach.h>
+#include <folly/container/Iterator.h>
 #include <folly/executors/Async.h>
 #include <folly/executors/GlobalExecutor.h>
 #include <folly/executors/ThreadedExecutor.h>
@@ -98,8 +102,6 @@ using namespace std::literals;
 #include <folly/MoveWrapper.h>
 //#include <folly/PackedSyncPtr.h>
 //#include <folly/ProducerConsumerQueue.h>
-#include <folly/small_vector.h>
-//#include <folly/stop_watch.h>
 #include <folly/Synchronized.h>
 //#include <folly/SynchronizedPtr.h>
 #include <folly/Uri.h>
@@ -107,6 +109,8 @@ using namespace std::literals;
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <spdlog/logger.h>
+
 //#include <fmt/time.h>
 //#include <fmt/ranges.h>
 using namespace fmt::literals;
