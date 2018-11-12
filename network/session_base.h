@@ -36,8 +36,9 @@ namespace detail
             template<typename> typename Container,
             typename Message,
             typename Exception
-        > void clear_promise_list(folly::Synchronized<Container<folly::Promise<Message>>>& promise_list,
-                                  const Exception& exception) {
+        >
+        void clear_promise_list(folly::Synchronized<Container<folly::Promise<Message>>>& promise_list,
+                                const Exception& exception) {
             promise_list.withWLock(
                 [this, &exception](Container<folly::Promise<Message>>& promise_list) {
                     for (folly::Promise<Message>& promise : promise_list) {
@@ -51,8 +52,8 @@ namespace detail
             socket_.shutdown(operation);
         }
 
-        void close_socket(boost::system::error_code errc, boost::asio::socket_base::shutdown_type operation) {
-            fmt::print(std::cerr, "session: socket close, errc {}, errmsg {}\n", errc, errc.message());
+        void close_socket(boost::system::error_code errc,
+                          boost::asio::socket_base::shutdown_type operation) {
             close_socket(operation);
         }
 
@@ -77,19 +78,23 @@ namespace detail
                                       boost::system::error_code errc,
                                       boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
             core::visit(promise,
-                        [errc](folly::Promise<U>& promise) { promise.setException(std::runtime_error{ errc.message() }); },
-                        [errc](boost::promise<U>& promise) { promise.set_exception(std::runtime_error{ errc.message() }); });
+                        [errc](folly::Promise<U>& promise) {
+                            promise.setException(std::runtime_error{ errc.message() });
+                        },
+                        [errc](boost::promise<U>& promise) {
+                            promise.set_exception(std::runtime_error{ errc.message() });
+                        });
             close_socket(errc, operation);
         }
 
-    #ifdef NET_USE_PROMISE_BASE
+        #ifdef NET_USE_PROMISE_BASE
         template<typename U>
         void fail_promise_then_close_socket(promise_base<U>& promise, boost::system::error_code errc,
                                             boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
             promise.set_exception(errc.message());
             close_socket(errc, operation);
         }
-    #endif
+        #endif
 
         boost::asio::ip::tcp::endpoint local_endpoint() const {
             return socket_.local_endpoint();

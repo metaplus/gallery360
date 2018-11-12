@@ -14,7 +14,6 @@ using ordinal = std::pair<int16_t, int16_t>;
 using io_context_ptr = std::invoke_result_t<decltype(&net::make_asio_pool), unsigned>;
 using net::component::dash_manager;
 using net::component::frame_consumer;
-using net::component::frame_builder;
 using net::component::frame_indexed_builder;
 
 namespace net::protocal
@@ -69,8 +68,6 @@ namespace net::component
         struct deleter : std::default_delete<impl>
         {
             void operator()(impl* impl) noexcept {
-                impl->io_context->stop();
-                impl->io_context = nullptr;
                 static_cast<default_delete&>(*this)(impl);
             }
         };
@@ -104,7 +101,7 @@ namespace net::component
         folly::SemiFuture<multi_buffer>
         request_send(dash::video_adaptation_set& video_set,
                      dash::represent& represent,
-                     bool initial) {
+                     bool initial = false) {
             const auto replace_suffix = [](std::string path,
                                            std::string&& suffix) {
                 if (path.empty()) {
@@ -146,13 +143,13 @@ namespace net::component
         tribool consume_tile(dash::video_adaptation_set& video_set,
                              bool poll,
                              bool reset = false) {
-            auto& context = *video_set.context;
             try {
                 assert(context.consumer_cycle.full());
-                if (context.drain) {
+                if (video_set.context->drain) {
                     core::throw_drained("consume_tile");
                 }
-                auto& consumer = context.consumer_cycle.front();
+                auto& consumer = video_set.context
+                                          ->consumer_cycle.front();
                 if (poll) {
                     if (!consumer.isReady()) {
                         return indeterminate;
@@ -162,7 +159,8 @@ namespace net::component
                 }
                 if (!consumer.value()()) {
                     assert(!reset);
-                    context.consumer_cycle.pop_front();
+                    video_set.context
+                             ->consumer_cycle.pop_front();
                     return consume_tile(video_set, poll, true);
                 }
                 return true;
@@ -194,10 +192,7 @@ namespace net::component
         dash_manager dash_manager{ std::move(mpd_url), concurrency };
         logger->info("create_parsed @{} establish session", std::this_thread::get_id());
         return dash_manager.impl_
-                           ->connector
-                           ->establish_session<http>(
-                               dash_manager.impl_->mpd_uri->host(),
-                               folly::to<std::string>(dash_manager.impl_->mpd_uri->port()))
+                           ->make_http_client()
                            .via(executor.get()).thenValue(
                                [dash_manager](http_session_ptr session) {
                                    logger->info("create_parsed @{} send request", std::this_thread::get_id());

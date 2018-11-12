@@ -26,8 +26,6 @@ namespace net::component
 {
     using ordinal = std::pair<int, int>;
     using frame_consumer = folly::Function<bool()>;
-    using frame_builder = folly::Function<frame_consumer(detail::multi_buffer&,
-                                                         detail::multi_buffer&&)>;
     using frame_indexed_builder = folly::Function<frame_consumer(std::pair<int, int>,
                                                                  detail::multi_buffer&,
                                                                  detail::multi_buffer&&)>;
@@ -42,9 +40,9 @@ namespace net::component
     public:
         dash_manager() = delete;
         dash_manager(dash_manager const&) = default;
-        dash_manager(dash_manager&&) = default;
+        dash_manager(dash_manager&&) noexcept = default;
         dash_manager& operator=(dash_manager const&) = default;
-        dash_manager& operator=(dash_manager&&) = default;
+        dash_manager& operator=(dash_manager&&) noexcept = default;
         ~dash_manager() = default;
 
         static folly::Future<dash_manager> create_parsed(std::string mpd_url,

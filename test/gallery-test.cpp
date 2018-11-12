@@ -4,7 +4,6 @@
 #include "multimedia/component.h"
 #include <folly/stop_watch.h>
 
-//#define STATIC_LIBRARY
 #include "unity/gallery/pch.h"
 
 using std::chrono::microseconds;
@@ -15,7 +14,6 @@ using boost::asio::const_buffer;
 using boost::beast::multi_buffer;
 using net::component::dash_manager;
 using net::component::frame_consumer;
-using net::component::frame_builder;
 using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
@@ -24,10 +22,10 @@ using media::component::pixel_consume;
 
 using namespace unity;
 
-namespace debug
+namespace tuning
 {
     constexpr auto verbose = false;
-    constexpr auto trace = false;
+    constexpr auto profile = false;
 }
 
 frame_indexed_builder create_frame_builder(pixel_consume& consume,
@@ -259,7 +257,7 @@ namespace gallery_test
                     }
                 }
             }
-            if constexpr (debug::verbose) {
+            if constexpr (tuning::verbose) {
                 EXPECT_EQ(pending.size() + poll_count, 9);
             }
             for (auto& task : pending) {
@@ -273,67 +271,79 @@ namespace gallery_test
     }
 }
 
-auto loop_poll_frame = [](unsigned codec_concurrency = 8) {
-    test::_nativeConfigConcurrency(codec_concurrency);
-    test::_nativeMockGraphic();
-    _nativeConfigExecutor();
-    _nativeDashCreate("http://localhost:8900/Output/NewYork/NewYork.mpd");
-    int col = 0, row = 0, width = 0, height = 0;
-    ASSERT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
-    ASSERT_EQ(col, 3);
-    ASSERT_EQ(row, 3);
-    ASSERT_EQ(width, 3840);
-    ASSERT_EQ(height, 1920);
-    auto iteration = 0;
-    std::vector<int> ref_index_range;
-    for (auto r = 0; r < row; ++r) {
-        for (auto c = 0; c < col; ++c) {
-            ref_index_range.push_back(r * col + c + 1);
-            _nativeDashSetTexture(c, r, nullptr, nullptr, nullptr);
-        }
-    }
-    folly::stop_watch<seconds> watch;
-    _nativeDashPrefetch();
-    auto index_range = ref_index_range;
-    auto begin_iter = index_range.begin();
-    auto remove_iter = index_range.end();
-    auto count = 0;
-    while (_nativeDashAvailable()) {
-        remove_iter = std::remove_if(
-            begin_iter, remove_iter,
-            [&](int index) {
-                const auto r = (index - 1) / col;
-                const auto c = (index - 1) % col;
-                const auto poll_success = _nativeDashTilePollUpdate(c, r);
-                if (poll_success) {
-                    _nativeGraphicGetRenderEventFunc()(index);
-                    count++;
-                }
-                return poll_success;
-            });
-        if (0 == std::distance(index_range.begin(), remove_iter)) {
-            iteration++;
-            if constexpr (debug::verbose) {
-                EXPECT_EQ(std::exchange(count, 0), 9);
+auto plugin_routine = [](std::string url) {
+    return [url](unsigned codec_concurrency = 8) {
+        std::this_thread::sleep_for(100ms);
+        test::_nativeConfigConcurrency(codec_concurrency);
+        test::_nativeMockGraphic();
+        _nativeConfigExecutor();
+        _nativeDashCreate("http://localhost:8900/Output/NewYork/NewYork.mpd");
+        int col = 0, row = 0, width = 0, height = 0;
+        ASSERT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
+        ASSERT_EQ(col, 3);
+        ASSERT_EQ(row, 3);
+        ASSERT_EQ(width, 3840);
+        ASSERT_EQ(height, 1920);
+        auto iteration = 0;
+        std::vector<int> ref_index_range;
+        for (auto r = 0; r < row; ++r) {
+            for (auto c = 0; c < col; ++c) {
+                ref_index_range.push_back(r * col + c + 1);
+                _nativeDashSetTexture(c, r, nullptr, nullptr, nullptr);
             }
-            index_range = ref_index_range;
-            begin_iter = index_range.begin();
-            remove_iter = index_range.end();
         }
-    }
-    const auto t1 = watch.elapsed();
-    fmt::print(std::cerr, "concurrency {} time {} fps {}\n", codec_concurrency, t1.count(), iteration / t1.count());
-    _nativeLibraryRelease();
-    EXPECT_LT(iteration, 3710);
+        folly::stop_watch<seconds> watch;
+        _nativeDashPrefetch();
+        auto index_range = ref_index_range;
+        auto begin_iter = index_range.begin();
+        auto remove_iter = index_range.end();
+        auto count = 0;
+        while (_nativeDashAvailable()) {
+            remove_iter = std::remove_if(
+                begin_iter, remove_iter,
+                [&](int index) {
+                    const auto r = (index - 1) / col;
+                    const auto c = (index - 1) % col;
+                    const auto poll_success = _nativeDashTilePollUpdate(c, r);
+                    if (poll_success) {
+                        _nativeGraphicGetRenderEventFunc()(index);
+                        count++;
+                    }
+                    return poll_success;
+                });
+            if (0 == std::distance(index_range.begin(), remove_iter)) {
+                iteration++;
+                if constexpr (tuning::verbose) {
+                    EXPECT_EQ(std::exchange(count, 0), 9);
+                }
+                index_range = ref_index_range;
+                begin_iter = index_range.begin();
+                remove_iter = index_range.end();
+            }
+        }
+        const auto t1 = watch.elapsed();
+        std::cerr << "-- profile parting line\n"
+            << "concurrency " << codec_concurrency << "\n"
+            << "iteration " << iteration << "\n"
+            << "time " << t1 << "\n"
+            << "fps " << iteration / t1.count() << "\n";
+        _nativeLibraryRelease();
+        EXPECT_GE(iteration, 3714);
+    };
 };
 
 namespace gallery_test
 {
-    TEST(Galley, PluginPoll) {
-        loop_poll_frame(8); // fps 71
-        loop_poll_frame(4); // fps 71
-        loop_poll_frame(3); // fps 71
-        loop_poll_frame(2); // fps 71
-        loop_poll_frame(1); // fps 71
+    TEST(Galley, PluginPollProfile) {
+        auto profile_codec_concurrency = plugin_routine("http://localhost:8900/Output/NewYork/NewYork.mpd");
+        if constexpr (tuning::profile) {
+            profile_codec_concurrency(8); // fps 154
+            profile_codec_concurrency(4); // fps 161
+            profile_codec_concurrency(3); // fps 161
+            profile_codec_concurrency(2); // fps 168
+            profile_codec_concurrency(1); // fps 168
+        } else {
+            profile_codec_concurrency(2);
+        }
     }
 }

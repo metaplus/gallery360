@@ -8,7 +8,6 @@
 
 using net::component::dash_manager;
 using net::component::frame_consumer;
-using net::component::frame_builder;
 using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
@@ -17,14 +16,6 @@ using media::component::pixel_consume;
 using boost::beast::multi_buffer;
 
 struct texture_context;
-
-std::shared_ptr<folly::ThreadPoolExecutor> cpu_executor;
-std::shared_ptr<folly::ThreadedExecutor> session_executor;
-folly::Future<dash_manager> manager = folly::Future<dash_manager>::makeEmpty();
-
-pixel_consume pixel_update;
-pixel_array pixels;
-media::frame tile_frame{ nullptr };
 
 inline namespace config
 {
@@ -56,6 +47,10 @@ inline namespace config
     const auto frame_capacity = 300ui64;
 }
 
+std::shared_ptr<folly::ThreadPoolExecutor> cpu_executor;
+std::shared_ptr<folly::ThreadedExecutor> session_executor;
+std::unique_ptr<folly::Future<dash_manager>> manager;
+
 auto unity_time = 0.f;
 std::shared_ptr<dll::graphic> dll_graphic;
 UnityGfxRenderer unity_device = kUnityGfxRendererNull;
@@ -63,7 +58,22 @@ IUnityInterfaces* unity_interface = nullptr;
 IUnityGraphics* unity_graphics = nullptr;
 std::map<std::pair<int, int>, texture_context> tile_textures;
 std::optional<boost::barrier> session_barrier;
+
 auto end_of_stream = false;
+std::pair<int, int> frame_grid;
+std::pair<int, int> frame_scale;
+auto tile_width = 0;
+auto tile_height = 0;
+
+namespace debug
+{
+    constexpr auto enable_null_texture = true;
+    constexpr auto enable_dump = false;
+    constexpr auto enable_legacy = false;
+    constexpr auto pixel_dump_col = 3;
+    constexpr auto pixel_dump_width = 1280;
+    constexpr auto pixel_dump_height = 640;
+}
 
 namespace state
 {
@@ -112,11 +122,6 @@ auto texture_at = [](int col, int row, bool construct = false) -> decltype(auto)
     return (state::texture_iterator->second);
 };
 
-std::pair<int, int> frame_grid;
-std::pair<int, int> frame_scale;
-auto tile_width = 0;
-auto tile_height = 0;
-
 auto tile_index = [](int x, int y) constexpr {
     return x + y * frame_grid.first + 1;
 };
@@ -126,16 +131,6 @@ auto tile_coordinate = [](int index) constexpr {
     const auto y = (index - 1) / frame_grid.first;
     return std::make_pair(x, y);
 };
-
-namespace debug
-{
-    constexpr auto enable_null_texture = true;
-    constexpr auto enable_dump = false;
-    constexpr auto enable_legacy = false;
-    constexpr auto pixel_dump_col = 3;
-    constexpr auto pixel_dump_width = 1280;
-    constexpr auto pixel_dump_height = 640;
-}
 
 namespace unity
 {
@@ -150,16 +145,20 @@ namespace unity
         tile_textures.clear();
     }
 
+    static_assert(std::is_move_constructible<dash_manager>::value);
+
     void DLLAPI unity::_nativeDashCreate(LPCSTR mpd_url) {
-        manager = dash_manager::create_parsed(std::string{ mpd_url }, asio_concurrency.value());
+        assert(!manager);
+        manager = std::make_unique<folly::Future<dash_manager>>(
+            dash_manager::create_parsed(std::string{ mpd_url },
+                                        asio_concurrency.value()));
     }
 
     BOOL DLLAPI _nativeDashGraphicInfo(INT& col, INT& row,
                                        INT& width, INT& height) {
-        manager.wait();
-        if (manager.hasValue()) {
-            frame_grid = manager.value().grid_size();
-            frame_scale = manager.value().scale_size();
+        if (manager->wait().hasValue()) {
+            frame_grid = manager->value().grid_size();
+            frame_scale = manager->value().scale_size();
             std::tie(col, row) = frame_grid;
             std::tie(width, height) = frame_scale;
             tile_width = frame_scale.first / frame_grid.first;
@@ -184,7 +183,7 @@ namespace unity
     void _nativeDashPrefetch() {
         assert(std::size(tile_textures) == frame_grid.first*frame_grid.second);
         assert(manager.hasValue());
-        auto& dash_manager = manager.value();
+        auto& dash_manager = manager->value();
         session_barrier.emplace(std::size(tile_textures) + 1);
         for (auto& [coordinate, texture_context] : tile_textures) {
             session_executor->add(
@@ -213,7 +212,7 @@ namespace unity
                     } catch (core::session_closed_error) {
                         texture_context.frame_queue.blockingWrite(media::frame{ nullptr });
                     } catch (...) {
-                        auto msg = boost::current_exception_diagnostic_information();
+                        auto diagnostic = boost::current_exception_diagnostic_information();
                         assert(!"session_executor catch unexpected exception");
                     }
                     session_barrier->wait();
@@ -224,23 +223,6 @@ namespace unity
     BOOL DLLAPI _nativeDashAvailable() {
         return !state::check_end_of_stream();
     }
-
-    auto pop_tile_frame_to_context = [](int col, int row, int poll) {
-        auto& texture_context = texture_at(col, row);
-        auto update_state = true;
-        if (poll) {
-            update_state = texture_context.frame_queue.readIfNotEmpty(texture_context.avail_frame);
-        } else {
-            texture_context.frame_queue.blockingRead(texture_context.avail_frame);
-        }
-        if (update_state) {
-            state::tile_col = col;
-            state::tile_row = row;
-            //state::check_end_of_stream(&texture_context.avail_frame);
-            return true;
-        }
-        return false;
-    };
 
     auto pop_tile_frame = [](int col, int row, auto read_queue) {
         auto& texture_context = texture_at(col, row);
@@ -256,7 +238,8 @@ namespace unity
         return pop_tile_frame(
             x, y,
             [](texture_context& texture_context) {
-                return texture_context.frame_queue.readIfNotEmpty(texture_context.avail_frame);
+                return texture_context.frame_queue
+                                      .readIfNotEmpty(texture_context.avail_frame);
             });
     }
 
@@ -264,7 +247,8 @@ namespace unity
         return pop_tile_frame(
             x, y,
             [](texture_context& texture_context) {
-                texture_context.frame_queue.blockingRead(texture_context.avail_frame);
+                texture_context.frame_queue
+                               .blockingRead(texture_context.avail_frame);
                 return true;
             });
     }
@@ -300,7 +284,7 @@ namespace unity
     void DLLAPI _nativeLibraryRelease() {
         session_barrier->wait();
         session_barrier = std::nullopt;
-        manager = folly::Future<dash_manager>::makeEmpty();
+        manager = nullptr;
         tile_textures.clear();
         end_of_stream = false;
     }
@@ -334,6 +318,7 @@ EXTERN_C void DLLAPI __stdcall UnityPluginUnload() {
 }
 
 static void __stdcall OnRenderEvent(int eventID) {
+    static media::frame tile_frame{ nullptr };
     if (eventID > 0) {
         if constexpr (debug::enable_dump) {
             const auto r = (eventID - 1) / debug::pixel_dump_col;
@@ -345,7 +330,8 @@ static void __stdcall OnRenderEvent(int eventID) {
         }
         auto& texture_context = state::texture_iterator->second;
         if (!state::check_end_of_stream(&texture_context.avail_frame)) {
-            dll_graphic->update_textures(texture_context.avail_frame, texture_context.texture);
+            dll_graphic->update_textures(texture_context.avail_frame,
+                                         texture_context.texture);
         }
     } else {
         dll_graphic->update_textures(tile_frame);

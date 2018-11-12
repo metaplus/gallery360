@@ -118,7 +118,8 @@ namespace net::client
         }
 
         auto on_recv_response() {
-            return [this](boost::system::error_code errc, std::size_t transfer_size) mutable {
+            return [this](boost::system::error_code errc,
+                          std::size_t transfer_size) mutable {
                 logger_->info("on_recv_response errc {} transfer {}", errc, transfer_size);
                 if (errc) {
                     logger_->error("on_recv_response failure");

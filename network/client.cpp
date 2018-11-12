@@ -5,7 +5,7 @@ namespace net::client
 {
     namespace http = boost::beast::http;
 
-    auto make_logger = core::index_logger_factory("net.client.session");
+    auto make_logger = core::console_logger_factory("net.client.session");
 
     http_session::session(socket_type&& socket,
                           boost::asio::io_context& context)
@@ -13,6 +13,9 @@ namespace net::client
         assert(socket_.is_open());
         std::tie(core::as_mutable(index_),
                  core::as_mutable(logger_)) = make_logger();
+        #ifdef NDEBUG
+        logger_->set_level(spdlog::level::warn);
+        #endif
         logger_->info("constructor socket endpoint client {} server {}", socket_.local_endpoint(), socket_.remote_endpoint());
         reserve_recvbuf_capacity();
     }

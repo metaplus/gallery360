@@ -263,6 +263,7 @@ namespace net
 
         void operator()(io_context* io_context) {
             guard = nullptr;
+            io_context->stop();
             const auto join_count = std::count_if(
                 threads.begin(), threads.end(),
                 [](std::thread& thread) {
