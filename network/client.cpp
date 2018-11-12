@@ -27,7 +27,7 @@ namespace net::client
     }
 
     void http_session::config_response_parser() {
-        response_parser_.emplace();
-        response_parser_->body_limit(std::numeric_limits<uint64_t>::max());
+        response_parser_.emplace()
+                        .body_limit(std::numeric_limits<uint64_t>::max());
     }
 }

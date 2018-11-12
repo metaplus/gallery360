@@ -48,6 +48,7 @@ namespace net::server
                 logger_->debug("on_recv_request request head {}", request->base());
                 if (errc || request->need_eof()) {
                     logger_->error("close_socket shutdown_receive");
+                    logger_->error("error message {}", errc ? errc.message() : "null");
                     return close_socket(boost::asio::socket_base::shutdown_receive);
                 }
                 auto target_path = concat_target_path(request->target());
@@ -84,6 +85,7 @@ namespace net::server
                 if (errc || response->need_eof()) {
                     logger_->error("on_send_response errmsg {}", errc.message());
                     logger_->error("close_socket shutdown_send");
+                    logger_->error("error message {}", errc ? errc.message() : "null");
                     return close_socket(boost::asio::socket_base::shutdown_send);
                 }
                 wait_request();

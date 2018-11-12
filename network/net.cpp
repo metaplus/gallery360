@@ -288,7 +288,7 @@ namespace net
         std::generate(threads.begin(), threads.end(),
                       [&io_context] {
                           return thread_factory()->newThread([&io_context] {
-                              const auto thread_id = boost::this_thread::get_id();
+                              const auto thread_id = std::this_thread::get_id();
                               try {
                                   logger->info("thread@{} start", thread_id);
                                   io_context.run();

@@ -4,15 +4,11 @@
 #include "multimedia/component.h"
 #include "multimedia/pch.h"
 #include "graphic.h"
-#include <boost/thread/barrier.hpp>
 
 using net::component::dash_manager;
-using net::component::frame_consumer;
 using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
-using media::component::pixel_array;
-using media::component::pixel_consume;
 using boost::beast::multi_buffer;
 
 struct texture_context;
@@ -49,7 +45,7 @@ inline namespace config
 
 std::shared_ptr<folly::ThreadPoolExecutor> cpu_executor;
 std::shared_ptr<folly::ThreadedExecutor> session_executor;
-std::unique_ptr<folly::Future<dash_manager>> manager;
+folly::Future<dash_manager> manager = folly::Future<dash_manager>::makeEmpty();
 
 auto unity_time = 0.f;
 std::shared_ptr<dll::graphic> dll_graphic;
@@ -57,7 +53,7 @@ UnityGfxRenderer unity_device = kUnityGfxRendererNull;
 IUnityInterfaces* unity_interface = nullptr;
 IUnityGraphics* unity_graphics = nullptr;
 std::map<std::pair<int, int>, texture_context> tile_textures;
-std::optional<boost::barrier> session_barrier;
+std::optional<folly::futures::Barrier> session_barrier;
 
 auto end_of_stream = false;
 std::pair<int, int> frame_grid;
@@ -135,13 +131,13 @@ auto tile_coordinate = [](int index) constexpr {
 namespace unity
 {
     void DLLAPI unity::_nativeConfigExecutor() {
-        end_of_stream = false;
         if (!cpu_executor) {
             cpu_executor = core::set_cpu_executor(executor_concurrency.value(), "PluginPool");
         }
         if (!session_executor) {
             session_executor = core::make_threaded_executor("SessionWorker");
         }
+        end_of_stream = false;
         tile_textures.clear();
     }
 
@@ -149,16 +145,15 @@ namespace unity
 
     void DLLAPI unity::_nativeDashCreate(LPCSTR mpd_url) {
         assert(!manager);
-        manager = std::make_unique<folly::Future<dash_manager>>(
-            dash_manager::create_parsed(std::string{ mpd_url },
-                                        asio_concurrency.value()));
+        manager = dash_manager::create_parsed(std::string{ mpd_url },
+                                              asio_concurrency.value());
     }
 
     BOOL DLLAPI _nativeDashGraphicInfo(INT& col, INT& row,
                                        INT& width, INT& height) {
-        if (manager->wait().hasValue()) {
-            frame_grid = manager->value().grid_size();
-            frame_scale = manager->value().scale_size();
+        if (manager.wait().hasValue()) {
+            frame_grid = manager.value().grid_size();
+            frame_scale = manager.value().scale_size();
             std::tie(col, row) = frame_grid;
             std::tie(width, height) = frame_scale;
             tile_width = frame_scale.first / frame_grid.first;
@@ -183,7 +178,7 @@ namespace unity
     void _nativeDashPrefetch() {
         assert(std::size(tile_textures) == frame_grid.first*frame_grid.second);
         assert(manager.hasValue());
-        auto& dash_manager = manager->value();
+        auto& dash_manager = manager.value();
         session_barrier.emplace(std::size(tile_textures) + 1);
         for (auto& [coordinate, texture_context] : tile_textures) {
             session_executor->add(
@@ -209,13 +204,15 @@ namespace unity
                         }
                     } catch (core::bad_response_error) {
                         texture_context.frame_queue.blockingWrite(media::frame{ nullptr });
-                    } catch (core::session_closed_error) {
+                    }
+                    catch (core::session_closed_error) {
                         texture_context.frame_queue.blockingWrite(media::frame{ nullptr });
-                    } catch (...) {
+                    }
+                    catch (...) {
                         auto diagnostic = boost::current_exception_diagnostic_information();
                         assert(!"session_executor catch unexpected exception");
                     }
-                    session_barrier->wait();
+                    session_barrier->wait().wait();
                 });
         }
     }
@@ -282,9 +279,9 @@ namespace unity
     }
 
     void DLLAPI _nativeLibraryRelease() {
-        session_barrier->wait();
+        session_barrier->wait().wait();
         session_barrier = std::nullopt;
-        manager = nullptr;
+        manager = folly::Future<dash_manager>::makeEmpty();
         tile_textures.clear();
         end_of_stream = false;
     }

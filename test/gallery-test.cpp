@@ -343,7 +343,7 @@ namespace gallery_test
             profile_codec_concurrency(2); // fps 168
             profile_codec_concurrency(1); // fps 168
         } else {
-            profile_codec_concurrency(2);
+            profile_codec_concurrency(2); // fps 154
         }
     }
 }

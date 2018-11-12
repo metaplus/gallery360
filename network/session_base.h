@@ -57,6 +57,7 @@ namespace detail
             close_socket(operation);
         }
 
+        #if __has_include(<!boost/thread/future.hpp>)
         template<typename U>
         void close_promise_and_socket(boost::promise<U>& promise,
                                       boost::system::error_code errc,
@@ -64,6 +65,7 @@ namespace detail
             promise.set_exception(std::runtime_error{ errc.message() });
             close_socket(errc, operation);
         }
+        #endif
 
         template<typename U>
         void close_promise_and_socket(folly::Promise<U>& promise,
@@ -73,6 +75,7 @@ namespace detail
             close_socket(errc, operation);
         }
 
+        #if __has_include(<!boost/thread/future.hpp>)
         template<typename U>
         void close_promise_and_socket(std::variant<boost::promise<U>, folly::Promise<U>>& promise,
                                       boost::system::error_code errc,
@@ -86,6 +89,7 @@ namespace detail
                         });
             close_socket(errc, operation);
         }
+        #endif
 
         #ifdef NET_USE_PROMISE_BASE
         template<typename U>

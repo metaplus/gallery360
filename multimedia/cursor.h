@@ -157,28 +157,4 @@ namespace media
 
         static std::shared_ptr<random_access_cursor> create(const detail::multi_buffer& buffer);
     };
-
-    struct forward_stream_cursor final : io_base
-    {
-        using buffer_supplier = folly::Function<boost::future<detail::multi_buffer>()>;
-
-        std::optional<detail::multi_buffer> current_buffer;
-        std::shared_ptr<random_access_cursor> io_base;
-        buffer_supplier on_future_buffer;
-        boost::future<detail::multi_buffer> future_buffer;
-        bool eof = false;
-
-        explicit forward_stream_cursor(buffer_supplier&& supplier);
-        ~forward_stream_cursor() override = default;
-
-        bool shift_next_buffer();
-
-        int read(uint8_t* buffer, int expect_size) override;
-        int write(uint8_t* buffer, int size) override;
-        int64_t seek(int64_t seek_offset, int whence) override;
-
-        bool readable() const override;
-
-        static std::shared_ptr<forward_stream_cursor> create(buffer_supplier&& supplier);
-    };
 }
