@@ -6,6 +6,7 @@
 #include <boost/process/system.hpp>
 #include <boost/range/adaptor/indexed.hpp>
 #include <tinyxml2.h>
+#include <re2/re2.h>
 
 using boost::process::system;
 using boost::process::exe;
@@ -139,21 +140,22 @@ namespace media
                 fmt::format("vbv-bufsize={}", bit_rate * 4),
                 fmt::format("fps={}", 30),
                 "scenecut=0"s,
-                "no-scenecut"s,
+                "no-scenecut=1"s,
                 "pass=1"s,
             });
     };
 
-    void command::crop_scale_transcode(const std::string_view input,
+    void command::crop_scale_transcode(const std::filesystem::path input,
                                        const filter_param filter,
                                        const rate_control rate,
                                        const pace_control pace) {
-        std::vector<std::filesystem::path> output_mesh_trace;
         if (pace.offset < filter.wcrop * filter.hcrop) {
-            std::vector<std::string> cmd_params{ "ffmpeg", "-i", input.data() };
+            std::vector<std::string> cmd_params{ "ffmpeg", "-i", input.string() };
             std::string crop_scale_map;
             {
-                const auto [width, height] = media::format_context{ media::source::path{ input.data() } }.demux(media::type::video).scale();
+                const auto [width, height] = media::format_context{
+                    media::source::path{ input.string().data() }
+                }.demux(media::type::video).scale();
                 const auto scale = fmt::format("scale={}:{}",
                                                ceil_even(width / filter.wcrop / filter.wscale),
                                                ceil_even(height / filter.hcrop / filter.hscale));
@@ -171,9 +173,17 @@ namespace media
                 crop_scale_map.pop_back();
             }
             cmd_params.emplace_back(fmt::format("-filter_complex \"{}\"", crop_scale_map));
-            const auto [file_stem, file_output_dir] = output_h264_directory(input, mesh_description(filter, rate));
-            const auto [remove_count, make_success] = core::make_empty_directory(file_output_dir);
-            assert(make_success);
+            const auto [file_stem, file_output_dir] = output_h264_directory(input.string(),
+                                                                            mesh_description(filter, rate));
+            {
+                auto make_success = false;
+                if (pace.offset) {
+                    make_success = create_directories(file_output_dir);
+                } else {
+                    std::tie(std::ignore, make_success) = core::make_empty_directory(file_output_dir);
+                    assert(make_success);
+                }
+            }
             const auto crop_tile_path = [&file_stem, &file_output_dir, &rate](int i, int j) {
                 return (file_output_dir / fmt::format("{}_c{}r{}_{}kbps.264", file_stem, i, j, rate.bit_rate)).generic_string();
             };
@@ -197,11 +207,22 @@ namespace media
         }
     }
 
-    void command::package_container(rate_control rate) {
-        for (auto& mesh_entry : std::filesystem::directory_iterator{ media::output_directory() }) {
-            assert(mesh_entry.is_directory());
-            const auto h264_directory = mesh_entry.path() / "h264";
-            const auto mp4_directory = mesh_entry.path() / "mp4";
+    auto mesh_directory = [](const filter_param filter) {
+        return core::filter_directory_entry(
+            media::output_directory(),
+            [filter](const std::filesystem::directory_entry& entry) {
+                const auto dirname = entry.path().filename().string();
+                const auto regex = fmt::format("{}x{}_\\d+", filter.wcrop, filter.hcrop);
+                return RE2::FullMatch(dirname, regex);
+            });
+    };
+
+    void command::package_container(const filter_param filter,
+                                    const rate_control rate) {
+        for (auto& mesh_entry : mesh_directory(filter)) {
+            assert(is_directory(mesh_entry));
+            const auto h264_directory = mesh_entry / "h264";
+            const auto mp4_directory = mesh_entry / "mp4";
             assert(is_directory(h264_directory));
             const auto [remove_count, make_success] = core::make_empty_directory(mp4_directory);
             assert(make_success);
@@ -221,11 +242,13 @@ namespace media
         }
     }
 
-    void command::dash_segment(const std::chrono::milliseconds duration) {
-        for (auto& mesh_entry : std::filesystem::directory_iterator{ media::output_directory() }) {
-            assert(mesh_entry.is_directory());
-            const auto mp4_directory = mesh_entry.path() / "mp4";
-            const auto dash_directory = mesh_entry.path() / "dash";
+    void command::dash_segment(const filter_param filter,
+                               const std::chrono::milliseconds duration) {
+
+        for (auto& mesh_path : mesh_directory(filter)) {
+            assert(is_directory(mesh_path));
+            const auto mp4_directory = mesh_path / "mp4";
+            const auto dash_directory = mesh_path / "dash";
             assert(is_directory(mp4_directory));
             const auto [remove_count, make_success] = core::make_empty_directory(dash_directory);
             assert(make_success);
@@ -295,6 +318,16 @@ namespace media
         };
     };
 
+    auto spatial_relationship = [](const filter_param filter,
+                                   const std::pair<int, int> coordinate) {
+        std::string srd;
+        folly::toAppendDelim(',', 0,
+                             coordinate.first, coordinate.second,
+                             1, 1, filter.wcrop, filter.hcrop,
+                             &srd);
+        return srd;
+    };
+
     void command::merge_dash_mpd(const filter_param filter) {
         XMLDocument dest_document;
         XMLDeclaration* declaration = nullptr;
@@ -303,7 +336,13 @@ namespace media
             return (core::check[tinyxml2::XML_SUCCESS]);
         });
         auto represent_index = 0;
-        const auto output_file_path = core::file_path_of_directory(output_directory, ".mpd");
+        auto dest_mpd_path = core::file_path_of_directory(output_directory, ".mpd");
+        core::make_empty_directory(dest_mpd_path
+                                   .replace_filename(
+                                       std::filesystem::path{
+                                           fmt::format("{}x{}", filter.wcrop, filter.hcrop)
+                                       } / dest_mpd_path.filename())
+                                   .parent_path());
         for (auto& [coordinate, mpd_paths] : tile_mpd_path_map(filter)) {
             XMLElement* adaptation_set = nullptr;
             for (auto& mpd_path : mpd_paths) {
@@ -317,17 +356,22 @@ namespace media
                 auto exchanged_element = clone_element_if_null(dest_document, src_document);
                 if (!exchanged_element(program_information, { "MPD", "ProgramInformation" })) {
                     program_information->FirstChildElement("Title")
-                                       ->SetText(output_file_path.filename().string().data());
+                                       ->SetText(dest_mpd_path.filename().string().data());
                 }
                 if (exchanged_element(adaptation_set, { "MPD", "Period", "AdaptationSet" })) {
                     adaptation_set->InsertEndChild(node_range(src_document, { "MPD", "Period", "AdaptationSet", "Representation" })
                                                    .back()
                                                    ->DeepClone(&dest_document));
+                } else {
+                    auto* supplemental = dest_document.NewElement("SupplementalProperty");
+                    supplemental->SetAttribute("schemeIdUri", "urn:mpeg:dash:srd:2014");
+                    supplemental->SetAttribute("value", spatial_relationship(filter, coordinate).data());
+                    adaptation_set->InsertFirstChild(supplemental);
                 }
                 adaptation_set->LastChildElement("Representation")
                               ->SetAttribute("id", ++represent_index);
             }
         }
-        xml_check() << dest_document.SaveFile(output_file_path.string().data());
+        xml_check() << dest_document.SaveFile(dest_mpd_path.string().data());
     }
 }

@@ -83,8 +83,8 @@ namespace media
         using pointer = AVCodecContext*;
         using resolution = std::pair<decltype(AVCodecContext::width), decltype(AVCodecContext::height)>;
 
-        codec_context(codec codec, stream stream, unsigned threads = boost::thread::hardware_concurrency());
-        codec_context(format_context& format, media::type type, unsigned threads = boost::thread::hardware_concurrency());
+        codec_context(codec codec, stream stream, unsigned threads = std::thread::hardware_concurrency());
+        codec_context(format_context& format, media::type type, unsigned threads = std::thread::hardware_concurrency());
 
         codec_context() = default;
         codec_context(codec_context const&) = default;

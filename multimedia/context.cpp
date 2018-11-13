@@ -14,7 +14,10 @@ namespace media
                 io_base_->readable() ? on_read_buffer : nullptr,
                 io_base_->writable() ? on_write_buffer : nullptr,
                 io_base_->seekable() ? on_seek_stream : nullptr),
-            [](pointer ptr) { av_freep(&ptr->buffer);  av_freep(&ptr); }) {
+            [](pointer ptr) {
+                av_freep(&ptr->buffer);
+                av_freep(&ptr);
+            }) {
         assert(io_base_ != nullptr);
         assert(io_handle_ != nullptr);
     }
@@ -42,7 +45,7 @@ namespace media
         return static_cast<std::shared_ptr<io_base>*>(opaque)->get()->seek(offset, whence);
     }
 
-#ifdef MULTIMEDIA_USE_LEGACY
+    #ifdef MULTIMEDIA_USE_LEGACY
     format_context::format_context(std::variant<source, sink> io)
         : format_handle_(nullptr)
         , io_handle_() {
@@ -54,16 +57,16 @@ namespace media
                 core::verify(avformat_open_input(&ptr, arg.url.c_str(), nullptr, nullptr));
                 format_handle_.reset(ptr, [](pointer p) { avformat_close_input(&p); });
                 core::verify(avformat_find_stream_info(ptr, nullptr));   // 60ms+
-            #ifdef _DEBUG
+    #ifdef _DEBUG
                 av_dump_format(ptr, 0, ptr->filename, 0);
-            #endif // define _DEBUG
+    #endif // define _DEBUG
             } else {
                 // TODO: SINK BRANCH
                 throw core::not_implemented_error{};
             }
         }, io);
     }
-#endif // define MULTIMEDIA_USE_LEGACY
+    #endif // define MULTIMEDIA_USE_LEGACY
 
     format_context::format_context(io_context io, source::format iformat)
         : format_handle_(nullptr)
@@ -71,13 +74,18 @@ namespace media
         auto format_ptr = avformat_alloc_context();
         format_ptr->pb = core::get_pointer(io_handle_);
         core::verify(avformat_open_input(&format_ptr, nullptr,
-                                         iformat.empty() ? nullptr : av_find_input_format(iformat.data()), nullptr));
+                                         iformat.empty()
+                                             ? nullptr
+                                             : av_find_input_format(iformat.data()),
+                                         nullptr));
         assert(format_ptr != nullptr);
-        format_handle_.reset(format_ptr, [](pointer p) { avformat_close_input(&p); });
+        format_handle_.reset(format_ptr, [](pointer p) {
+            avformat_close_input(&p);
+        });
         core::verify(avformat_find_stream_info(format_ptr, nullptr));
-    #ifdef _DEBUG
+        #ifdef _DEBUG
         //av_dump_format(format_ptr, 0, format_ptr->url, 0);
-    #endif
+        #endif
     }
 
     format_context::format_context(io_context io, sink::format oformat) {
@@ -85,20 +93,22 @@ namespace media
     }
 
     format_context::format_context(io_context io, bool source) {
-        *this = source ?
-            format_context{ std::move(io), source::format{""} } :
-            format_context{ std::move(io), sink::format{""} };
+        *this = source
+                    ? format_context{ std::move(io), source::format{ "" } }
+                    : format_context{ std::move(io), sink::format{ "" } };
     }
 
     format_context::format_context(source::path ipath)
         : format_handle_(nullptr) {
         pointer ptr = nullptr;
         core::verify(avformat_open_input(&ptr, ipath.data(), nullptr, nullptr));
-        format_handle_.reset(ptr, [](pointer p) { avformat_close_input(&p); });
-        core::verify(avformat_find_stream_info(ptr, nullptr));   // 60ms+
-    #ifdef _DEBUG
+        format_handle_.reset(ptr, [](pointer p) {
+            avformat_close_input(&p);
+        });
+        core::verify(avformat_find_stream_info(ptr, nullptr)); // 60ms+
+        #ifdef _DEBUG
         av_dump_format(ptr, 0, ptr->url, 0);
-    #endif
+        #endif
     }
 
     format_context::format_context(sink::path opath) {
@@ -122,8 +132,11 @@ namespace media
     }
 
     stream format_context::demux(type media_type) const {
-        return stream{ format_handle_->streams[
-            av_find_best_stream(format_handle_.get(), static_cast<AVMediaType>(media_type), -1, -1, nullptr, 0)] };
+        return stream{
+            format_handle_->streams[av_find_best_stream(format_handle_.get(),
+                                                        static_cast<AVMediaType>(media_type),
+                                                        -1, -1, nullptr, 0)]
+        };
     }
 
     std::pair<codec, stream> format_context::demux_with_codec(type media_type) const {
@@ -131,31 +144,39 @@ namespace media
         const auto format_ptr = format_handle_.get();
         const auto index = av_find_best_stream(format_ptr, static_cast<AVMediaType>(media_type), -1, -1, &cdc, 0);
         if (index >= 0) {
-            return std::make_pair(codec{ cdc }, stream{ format_ptr->streams[index] });
+            return std::make_pair(codec{ cdc },
+                                  stream{ format_ptr->streams[index] });
         }
-        return std::make_pair(codec{ cdc }, stream{ format_ptr->streams[0] });
+        return std::make_pair(codec{ cdc },
+                              stream{ format_ptr->streams[0] });
     }
 
     packet format_context::read(type media_type) const {
         packet packet;
         auto read_result = 0;
         while ((read_result = av_read_frame(format_handle_.get(), core::get_pointer(packet))) == 0
-               && media_type != type::unknown
-               && !core::underlying_same(media_type, format_handle_->streams[packet->stream_index]->codecpar->codec_type)) {
+            && media_type != type::unknown
+            && !core::underlying_same(media_type, format_handle_->streams[packet->stream_index]->codecpar->codec_type)) {
             packet.unreference();
         }
         return packet;
     }
 
     std::vector<packet> format_context::read(const size_t count, type media_type) const {
-        std::vector<packet> packets; packets.reserve(count);
+        std::vector<packet> packets;
+        packets.reserve(count);
         std::generate_n(std::back_inserter(packets), count,
-                        [this, media_type] { return read(media_type); });
+                        [this, media_type] {
+                            return read(media_type);
+                        });
         return packets;
     }
 
     codec_context::codec_context(codec codec, stream stream, unsigned threads)
-        : codec_handle_(avcodec_alloc_context3(core::get_pointer(codec)), [](pointer p) { avcodec_free_context(&p); })
+        : codec_handle_(avcodec_alloc_context3(core::get_pointer(codec)),
+                        [](pointer p) {
+                            avcodec_free_context(&p);
+                        })
         , format_stream_(stream) {
         core::verify(avcodec_parameters_to_context(codec_handle_.get(), format_stream_->codecpar));
         core::verify(av_opt_set_int(codec_handle_.get(), "refcounted_frames", 1, 0));
@@ -164,8 +185,8 @@ namespace media
     }
 
     codec_context::codec_context(format_context& format, type media_type, unsigned threads) {
-        auto[codec, stream] = format.demux_with_codec(media_type);
-        *this = codec_context{ codec,stream,threads };
+        auto [codec, stream] = format.demux_with_codec(media_type);
+        *this = codec_context{ codec, stream, threads };
     }
 
     codec_context::pointer codec_context::operator->() const {

@@ -101,13 +101,18 @@ namespace core
 
     folly::Function<std::pair<int64_t,
                               std::shared_ptr<spdlog::logger>>()>
-    index_logger_factory(std::string logger_group) {
+    console_logger_factory(std::string logger_group) {
 
         return [logger_group = std::move(logger_group), indexer = atomic_index()] {
             const auto logger_index = indexer->fetch_add(1);
             const auto logger_name = fmt::format("{}${}", logger_group, logger_index);
-            return std::make_pair(logger_index,
-                                  spdlog::stdout_color_mt(logger_name));
+            auto logger = spdlog::stdout_color_mt(logger_name);
+            #ifdef NDEBUG
+            logger->set_level(spdlog::level::info);
+            #else
+            logger->set_level(spdlog::level::debug);
+            #endif
+            return std::make_pair(logger_index, std::move(logger));
         };
     }
 }

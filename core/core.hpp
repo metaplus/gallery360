@@ -172,8 +172,10 @@ namespace core
             }
 
             template<typename T, typename ...Types>
-            auto hash_value_tuple(const T& head, const Types& ...tails) noexcept {
-                return std::tuple_cat(hash_value_tuple(head), hash_value_tuple(tails...));
+            auto hash_value_tuple(const T& head,
+                                  const Types& ...tails) noexcept {
+                return std::tuple_cat(hash_value_tuple(head),
+                                      hash_value_tuple(tails...));
             }
         }
 
@@ -181,7 +183,11 @@ namespace core
         size_t hash_value_from(Types const& ...args) noexcept {
             static_assert(sizeof...(Types) > 0);
             const auto tuple = detail::hash_value_tuple(args...);
-            return std::hash<std::string_view>{}(std::string_view{ reinterpret_cast<const char*>(&tuple), sizeof tuple });
+            return std::hash<std::string_view>{}(
+                std::string_view{
+                    reinterpret_cast<const char*>(&tuple),
+                    sizeof tuple
+                });
         }
 
         template<typename ...Types>
@@ -216,7 +222,8 @@ namespace core
     };
 
     template<typename Handle>
-    decltype(auto) get_pointer(Handle&& handle, std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr) {
+    decltype(auto) get_pointer(Handle&& handle,
+                               std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr) {
         return std::forward<Handle>(handle).operator->();
     }
 
@@ -288,6 +295,6 @@ namespace core
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
                                                                   std::string_view pool_name = "CorePool");
 
-    folly::Function<std::pair<int64_t, std::shared_ptr<spdlog::logger>>()> 
-    index_logger_factory(std::string logger_group);
+    folly::Function<std::pair<int64_t, std::shared_ptr<spdlog::logger>>()>
+    console_logger_factory(std::string logger_group);
 }

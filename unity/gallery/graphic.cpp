@@ -6,20 +6,18 @@ namespace dll
 {
     void graphic::process_event(const UnityGfxDeviceEventType event_type, IUnityInterfaces* interfaces) {
         switch (event_type) {
-        case kUnityGfxDeviceEventInitialize:
-        {
-            IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
-            clear();
-            //device_.reset(d3d->GetDevice(), deleter{});
-            const_cast<ID3D11Device*&>(device_) = d3d->GetDevice();
-            break;
-        }
-        case kUnityGfxDeviceEventShutdown:
-        {
-            clear();
-            break;
-        }
-        default:;
+            case kUnityGfxDeviceEventInitialize: {
+                IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
+                clear();
+                //device_.reset(d3d->GetDevice(), deleter{});
+                const_cast<ID3D11Device*&>(device_) = d3d->GetDevice();
+                break;
+            }
+            case kUnityGfxDeviceEventShutdown: {
+                clear();
+                break;
+            }
+            default: ;
         }
     }
 
@@ -58,6 +56,7 @@ namespace dll
                 auto* pixels = frame->data[index];
                 assert(pixels != nullptr);
                 texture->GetDesc(&desc);
+                //assert(desc.Width == index == 0 ? 1280 : 640); //!
                 context->UpdateSubresource(texture, 0, nullptr, pixels, desc.Width, 0);
             }
         }
@@ -72,7 +71,7 @@ namespace dll
     }
 
     std::unique_ptr<ID3D11DeviceContext, graphic::deleter>
-        graphic::context() const {
+    graphic::context() const {
         if (device_) {
             ID3D11DeviceContext* ctx = nullptr;
             const_cast<ID3D11Device*&>(device_)->GetImmediateContext(&ctx);

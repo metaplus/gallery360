@@ -1,6 +1,5 @@
 #pragma once
 
-// #include <msgpack.hpp>
 #include <WinSock2.h>
 #include <boost/asio.hpp>
 #pragma warning(push)

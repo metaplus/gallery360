@@ -40,8 +40,7 @@ namespace net::server
     private:
 
         template<typename Body>
-        folly::Function<void(boost::system::error_code, std::size_t)>
-        on_recv_request(request_ptr<Body> request) {
+        auto on_recv_request(request_ptr<Body> request) {
             namespace http = boost::beast::http;
             return [this, request = std::move(request)](boost::system::error_code errc,
                                                         std::size_t transfer_size) {
@@ -49,6 +48,7 @@ namespace net::server
                 logger_->debug("on_recv_request request head {}", request->base());
                 if (errc || request->need_eof()) {
                     logger_->error("close_socket shutdown_receive");
+                    logger_->error("error message {}", errc ? errc.message() : "null");
                     return close_socket(boost::asio::socket_base::shutdown_receive);
                 }
                 auto target_path = concat_target_path(request->target());
@@ -59,10 +59,7 @@ namespace net::server
                     http::async_write(socket_, response_ref, on_send_response(std::move(response_ptr)));
                 };
                 if (std::filesystem::exists(target_path)) {
-                    boost::system::error_code file_errc;
-                    file_body::value_type response_body;
-                    response_body.open(target_path.generic_string().c_str(), boost::beast::file_mode::scan, file_errc);
-                    assert(!file_errc);
+                    auto response_body = file_response_body(target_path);
                     auto response = std::make_unique<
                         http::response<file_body>>(http::status::ok,
                                                    request->version(),
@@ -72,6 +69,7 @@ namespace net::server
                     response->keep_alive(request->keep_alive());
                     send_response(std::move(response));
                 } else {
+                    logger_->error("on_recv_request target non-exist");
                     send_response(std::make_unique<
                         http::response<empty_body>>(http::status::bad_request,
                                                     request->version()));
@@ -80,14 +78,14 @@ namespace net::server
         }
 
         template<typename Body>
-        folly::Function<void(boost::system::error_code, std::size_t)>
-        on_send_response(response_ptr<Body> response) {
+        auto on_send_response(response_ptr<Body> response) {
             return [this, response = std::move(response)](boost::system::error_code errc,
                                                           std::size_t transfer_size) mutable {
                 logger_->info("on_send_response errc {} last {} transfer {}", errc, response->need_eof(), transfer_size);
                 if (errc || response->need_eof()) {
                     logger_->error("on_send_response errmsg {}", errc.message());
                     logger_->error("close_socket shutdown_send");
+                    logger_->error("error message {}", errc ? errc.message() : "null");
                     return close_socket(boost::asio::socket_base::shutdown_send);
                 }
                 wait_request();
@@ -97,6 +95,16 @@ namespace net::server
         std::filesystem::path concat_target_path(boost::beast::string_view request_target) const {
             return std::filesystem::path{ root_path_ }.concat(request_target.begin(),
                                                               request_target.end());
+        }
+
+        static auto file_response_body(std::filesystem::path& target) {
+            boost::system::error_code file_errc;
+            file_body::value_type response_body;
+            response_body.open(target.generic_string().c_str(),
+                               boost::beast::file_mode::scan,
+                               file_errc);
+            assert(!file_errc);
+            return response_body;
         }
     };
 }

@@ -15,13 +15,15 @@ namespace unity
     EXTERN_C INT64 DLLAPI _nativeMediaSessionCreateDashStream(LPCSTR url, INT row, INT column, INT64 last_tile_index);
     EXTERN_C void DLLAPI _nativeMediaSessionRelease(INT64 id);
     EXTERN_C void DLLAPI _nativeMediaSessionGetResolution(INT64 id, INT& width, INT& height);
-    EXTERN_C BOOL DLLAPI  _nativeMediaSessionHasNextFrame(INT64 id);
+    EXTERN_C BOOL DLLAPI _nativeMediaSessionHasNextFrame(INT64 id);
 
     namespace test
     {
         EXTERN_C BOOL DLLAPI _nativeMediaSessionDropFrame(INT64 id);
         EXTERN_C void DLLAPI _nativeMockGraphic();
-        EXTERN_C void DLLAPI _nativeConfigConcurrency(UINT codec, UINT net = 4);
+        EXTERN_C void DLLAPI _nativeConfigConcurrency(UINT codec, UINT net = 8);
+        EXTERN_C void DLLAPI _nativeConcurrencyValue(UINT& codec, UINT& net, UINT& executor);
+        EXTERN_C void DLLAPI _nativeCoordinateState(INT& col, INT& row);
     }
 
     EXTERN_C void DLLAPI _nativeConfigExecutor();
@@ -30,7 +32,7 @@ namespace unity
     EXTERN_C void DLLAPI _nativeDashSetTexture(INT x, INT y, HANDLE textureY, HANDLE textureU, HANDLE textureV);
     EXTERN_C void DLLAPI _nativeDashPrefetch();
     EXTERN_C BOOL DLLAPI _nativeDashAvailable();
-    EXTERN_C BOOL DLLAPI _nativeDashTilePollUpdate(INT x, INT y);
+    EXTERN_C BOOL DLLAPI _nativeDashTilePollUpdate(INT col, INT row);
     EXTERN_C BOOL DLLAPI _nativeDashTileWaitUpdate(INT x, INT y);
 
     EXTERN_C void DLLAPI _nativeGraphicSetTextures(HANDLE textureY, HANDLE textureU, HANDLE textureV);
@@ -38,7 +40,7 @@ namespace unity
     EXTERN_C void DLLAPI _nativeGraphicRelease();
     EXTERN_C UnityRenderingEvent DLLAPI __stdcall _nativeGraphicGetRenderEventFunc();
 
-#ifdef GALLERY_USE_LEGACY
+    #ifdef GALLERY_USE_LEGACY
     EXTERN_C BOOL DLLAPI global_create();
     EXTERN_C void DLLAPI global_release();
     EXTERN_C BOOL DLLAPI store_media_url(LPCSTR url);
@@ -48,5 +50,5 @@ namespace unity
     EXTERN_C UINT32 DLLAPI store_vr_cumulative_status(HANDLE vr_status);
     EXTERN_C void DLLAPI load_video_params(INT& width, INT& height);
     EXTERN_C BOOL DLLAPI is_video_available();
-#endif  // GALLERY_USE_LEGACY
+    #endif  // GALLERY_USE_LEGACY
 }

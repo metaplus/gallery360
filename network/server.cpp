@@ -12,7 +12,7 @@ namespace net::server
         , strand_(socket.get_executor().context()) {
         assert(socket_.is_open());
         assert(std::filesystem::is_directory(root_path_));
-        static auto make_logger = core::index_logger_factory("net.server.session");
+        static auto make_logger = core::console_logger_factory("net.server.session");
         std::tie(core::as_mutable(index_),
                  core::as_mutable(logger_)) = make_logger();
         logger_->info("socket peer endpoint {}/{}", socket_.local_endpoint(), socket_.remote_endpoint());

@@ -44,7 +44,7 @@ namespace meta
     template<typename T>
     using value = typename detail::value_trait<remove_cv_ref_t<T>>::type;
 
-#if __has_include(<!folly/futures/Future.h>)
+    #if __has_include(<!folly/futures/Future.h>)
     template<typename T>
     struct is_future : is_within<remove_cv_ref_t<T>, std::future<value<T>>, std::shared_future<value<T>>,
         folly::Future<value<T>>, folly::SemiFuture<value<T>>
@@ -53,9 +53,9 @@ namespace meta
     #endif //CORE_USE_BOOST_FIBER
     >
     {};
-#endif
+    #endif
 
-#if __has_include(<!folly/futures/Promise.h>)
+    #if __has_include(<!folly/futures/Promise.h>)
     template<typename T>
     struct is_promise : is_within<remove_cv_ref_t<T>, std::promise<value<T>>, folly::Promise<value<T>>
     #ifdef CORE_USE_BOOST_FIBER
@@ -63,13 +63,15 @@ namespace meta
     #endif //CORE_USE_BOOST_FIBER
     >
     {};
-#endif
+    #endif
 
     template<typename T>
-    struct is_atomic : std::is_same<remove_cv_ref_t<T>, std::atomic<value<T>>> {};
+    struct is_atomic : std::is_same<remove_cv_ref_t<T>,
+                                    std::atomic<value<T>>> {};
 
     template<template<bool> typename B>
-    struct is_bool_constant : std::conjunction<std::is_same<B<true>, std::true_type>, std::is_same<B<false>, std::false_type>> {};
+    struct is_bool_constant : std::conjunction<std::is_same<B<true>, std::true_type>,
+                                               std::is_same<B<false>, std::false_type>> {};
 
     template<typename T>
     struct is_packaged_task : std::false_type {};
@@ -77,11 +79,14 @@ namespace meta
     template<typename Result, typename ...Args>
     struct is_packaged_task<std::packaged_task<Result(Args ...)>> : std::true_type {};
 
+    #if __has_include(<!boost/thread/future.hpp>)
     template<typename Result, typename ...Args>
     struct is_packaged_task<boost::packaged_task<Result(Args ...)>> : std::true_type {};
+    #endif
 
     template<typename T, typename ...Types>
-    struct max_size : std::integral_constant<size_t, std::max<size_t>(max_size<T>::value, max_size<Types...>::value)> {};
+    struct max_size : std::integral_constant<size_t, std::max<size_t>(max_size<T>::value,
+                                                                      max_size<Types...>::value)> {};
 
     template<typename T>
     struct max_size<T> : std::integral_constant<size_t, sizeof(T)> {};
@@ -111,22 +116,20 @@ namespace meta
     struct is_hashable : std::false_type {};
 
     template<typename T>
-    struct is_hashable < T, std::void_t<decltype(std::hash<std::decay_t<T>>{}(std::declval<std::decay_t<T>&>())) >
-    > : std::true_type
-    {};
+    struct is_hashable<T, std::void_t<decltype(std::hash<std::decay_t<T>>{}(std::declval<std::decay_t<T>&>()))>
+        > : std::true_type {};
 
     template<typename Handle, typename = void>
     struct has_operator_dereference : std::false_type {};
 
     template<typename Handle>
     struct has_operator_dereference<Handle, std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
-    > : std::true_type
-    {};
+        > : std::true_type {};
 
     template<typename Exception>
     struct is_exception : std::disjunction<
-        std::is_base_of<std::exception, Exception>,
-        std::is_base_of<boost::exception, Exception>> {};
+            std::is_base_of<std::exception, Exception>,
+            std::is_base_of<boost::exception, Exception>> {};
 
     template<typename V>
     struct is_variant : std::false_type {};

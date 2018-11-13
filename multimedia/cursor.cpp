@@ -219,7 +219,7 @@ namespace media
             case SEEK_END: //fmt::print("SEEK_END OFFSET {}\n", seek_offset);
                 seek_offset += full_size_;
                 break;
-            case SEEK_CUR:  //fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
+            case SEEK_CUR: //fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
                 seek_offset += full_offset_;
                 break;
             case AVSEEK_SIZE: //fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
@@ -269,68 +269,13 @@ namespace media
         return full_size_ - full_offset_;
     }
 
-    std::shared_ptr<buffer_list_cursor> buffer_list_cursor::create(const multi_buffer& buffer) {
+    std::shared_ptr<buffer_list_cursor>
+    buffer_list_cursor::create(const multi_buffer& buffer) {
         return std::make_shared<buffer_list_cursor>(core::split_buffer_sequence(buffer));
     }
 
-    std::shared_ptr<buffer_list_cursor> buffer_list_cursor::create(std::list<const_buffer>&& buffer_list) {
+    std::shared_ptr<buffer_list_cursor>
+    buffer_list_cursor::create(std::list<const_buffer>&& buffer_list) {
         return std::make_shared<buffer_list_cursor>(std::move(buffer_list));
-    }
-
-    //-- forward_stream_cursor
-    forward_stream_cursor::forward_stream_cursor(buffer_supplier&& supplier)
-        : on_future_buffer(std::move(supplier))
-        , future_buffer(on_future_buffer()) {}
-
-    bool forward_stream_cursor::shift_next_buffer() {
-        try {
-            current_buffer = future_buffer.get(); // exception point
-            io_base = random_access_cursor::create(current_buffer.value());
-            future_buffer = on_future_buffer();
-        } catch (...) {
-            return false;
-        }
-        return true;
-    }
-
-    int forward_stream_cursor::read(uint8_t* buffer, int expect_size) {
-        if (eof || !current_buffer.has_value() && !shift_next_buffer()) {
-            fmt::print("----- eof\n");
-            return AVERROR_EOF;
-        }
-        auto total_read_size = 0;
-        auto increment_read_size = 0;
-        fmt::print("----- start expect {}\n", expect_size);
-        while (total_read_size < expect_size) {
-            increment_read_size = io_base->read(buffer + total_read_size, expect_size - total_read_size);
-            if (increment_read_size == AVERROR_EOF) {
-                fmt::print("rebuild\n");
-                if (!shift_next_buffer()) {
-                    eof = true;
-                    break;
-                }
-                increment_read_size = io_base->read(buffer + total_read_size, expect_size - total_read_size);
-            }
-            assert(increment_read_size > 0);
-            total_read_size += increment_read_size;
-        }
-        fmt::print("----- end total read {}\n", total_read_size);
-        return total_read_size;
-    }
-
-    int forward_stream_cursor::write(uint8_t* buffer, int size) {
-        throw core::not_implemented_error{ "TBD" };
-    }
-
-    int64_t forward_stream_cursor::seek(int64_t seek_offset, int whence) {
-        throw core::not_implemented_error{ "TBD" };
-    }
-
-    bool forward_stream_cursor::readable() const {
-        return true;
-    }
-
-    std::shared_ptr<forward_stream_cursor> forward_stream_cursor::create(buffer_supplier&& supplier) {
-        return std::make_shared<forward_stream_cursor>(std::move(supplier));
     }
 }

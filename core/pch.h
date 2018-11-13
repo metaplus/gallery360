@@ -55,7 +55,6 @@ using namespace std::literals;
 #include <boost/asio/buffer.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
-#include <boost/beast/core/ostream.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/container_hash/hash_fwd.hpp>
 #include <boost/core/ignore_unused.hpp>
@@ -66,20 +65,16 @@ using namespace std::literals;
 #include <boost/lexical_cast.hpp>
 #include <boost/logic/tribool_fwd.hpp>
 #include <boost/stacktrace.hpp>
-#include <boost/thread/future.hpp>
 #include <boost/type_index.hpp>
 
 //using namespace boost::hana::literals;
-
+#define GLOG_NO_ABBREVIATED_SEVERITIES
 #pragma warning(push)
 #pragma warning(disable:4267 4250)
-#define GLOG_NO_ABBREVIATED_SEVERITIES
 //#include <folly/AtomicHashMap.h>
 //#include <folly/AtomicBitSet.h>
 //#include <folly/AtomicLinkedList.h>
-//#include <folly/AtomicLinkedList.h>
 //#include <folly/AtomicUnorderedMap.h>
-#pragma warning(push)
 #pragma warning(disable:4200 4305 4244)
 #include <folly/concurrency/ConcurrentHashMap.h>
 #pragma warning(pop)
@@ -124,8 +119,8 @@ using namespace fmt::literals;
 #include "core/exception.hpp"
 #include "core/guard.hpp"
 #include "core/verify.hpp"
-#include "concurrency/async_chain.hpp"
-#include "concurrency/barrier.hpp"
-#include "concurrency/latch.hpp"
-#include "concurrency/synchronize.hpp"
+//#include "concurrency/async_chain.hpp"
+//#include "concurrency/barrier.hpp"
+//#include "concurrency/latch.hpp"
+//#include "concurrency/synchronize.hpp"
 using namespace core::literals;
