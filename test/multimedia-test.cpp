@@ -454,66 +454,66 @@ namespace media_test
 
     TEST_F(Command, PackageMp4) {
         MakeDirectory("F:/Output/NewYork/");
-        media::command::package_container({ 3, 3 }, { -1, 60 });
+        media::command::package_container({ -1, 60 });
     }
 
     TEST_F(Command, DashSegmental) {
         MakeDirectory("F:/Output/NewYork/");
-        media::command::dash_segment({ 3, 3 }, 1000ms);
+        media::command::dash_segment(1000ms);
     }
 
     TEST_F(Command, MergeDashMpd) {
         MakeDirectory("F:/Output/NewYork/");
         EXPECT_THAT("NewYork_c0r0_1000kbps.mpd", MatchesRegex(R"(\w+_c\d+r\d+_\d+kbps.mpd)"));
-        media::command::merge_dash_mpd({ 3, 3 });
+        media::command::merge_dash_mpd();
     }
 
-    auto command_environment = [](std::filesystem::path output_directory) {
+    auto command_environment = [](std::filesystem::path output_directory,
+                                  std::pair<int, int> crop) {
         ASSERT_TRUE(is_directory(output_directory.root_directory()));
         create_directories(output_directory);
         ASSERT_TRUE(is_directory(output_directory));
         media::command::output_directory = output_directory;
+        media::command::wcrop = crop.first;
+        media::command::hcrop = crop.second;
     };
 
     TEST(Pipeline, NewYork5x4) {
-        command_environment("F:/Output/");
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 5, 4 }, { 3000 });
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 5, 4 }, { 2000 });
-        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 5, 4 }, { 1000 });
-        command_environment("F:/Output/NewYork/");
-        media::command::package_container({ 5, 4 }, { -1, 60 });
-        media::command::dash_segment({ 5, 4 }, 1000ms);
-        media::command::merge_dash_mpd({ 5, 4 });
+        command_environment("F:/Output/", { 5, 4 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 3000 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 2000 });
+        media::command::crop_scale_transcode("F:/Gpac/NewYork.mp4", { 1000 });
+        command_environment("F:/Output/NewYork/", { 5, 4 });
+        media::command::package_container({ -1, 60 });
+        media::command::dash_segment(1000ms);
+        media::command::merge_dash_mpd();
     }
 
     auto command_batch = [](std::filesystem::path input,
                             std::filesystem::path output_directory,
+                            std::pair<int, int> crop,
                             bool trancode = true) {
         EXPECT_TRUE(std::filesystem::is_regular_file(input));
         EXPECT_TRUE(std::filesystem::is_directory(output_directory));
-        return [input, output_directory, trancode](int wcrop,
-                                                   int hcrop,
-                                                   std::initializer_list<int> bitrates,
-                                                   std::chrono::milliseconds duration = 1000ms) {
+        EXPECT_GT(crop.first, 0);
+        EXPECT_GT(crop.second, 0);
+        return [input, output_directory, trancode, crop](std::initializer_list<int> bitrates,
+                                                         std::chrono::milliseconds duration = 1000ms) {
+            auto[wcrop, hcrop] = crop;
             if (trancode) {
-                command_environment(output_directory);
+                command_environment(output_directory, crop);
                 for (const auto bitrate : bitrates) {
-                    media::command::crop_scale_transcode(input,
-                                                         { wcrop, hcrop },
-                                                         { bitrate });
+                    media::command::crop_scale_transcode(input, { bitrate });
                 }
             }
-            command_environment(output_directory / input.stem());
-            media::command::package_container({ wcrop, hcrop }, { -1, 60 });
-            media::command::dash_segment({ wcrop, hcrop }, duration);
-            media::command::merge_dash_mpd({ wcrop, hcrop });
+            command_environment(output_directory / input.stem(), crop);
+            media::command::package_container({ -1, 60 });
+            media::command::dash_segment(duration);
+            media::command::merge_dash_mpd();
         };
     };
 
     TEST(CommandBatch, NewYork4x4) {
-        //command_batch("F:/Gpac/NewYork.mp4", "F:/Output/", true)(3, 3, { 5000, 3000, 1000 });
-        //command_batch("F:/Gpac/NewYork.mp4", "F:/Output/", true)(5, 4, { 3000, 2000, 1000 });
-        //command_batch("F:/Gpac/NewYork.mp4", "F:/Output/", true)(4, 3, { 4000, 2000, 1000 });
-        command_batch("F:/Gpac/NewYork.mp4", "F:/Output/", true)(5, 3, { 3000, 2000, 1000 });
+        command_batch("F:/Gpac/NewYork.mp4", "F:/Output/", { 4,4 }, true)({ 3000, 2000, 1000 });
     }
 }
