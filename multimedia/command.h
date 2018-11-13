@@ -27,7 +27,7 @@ namespace media
     public:
         struct pace_control final
         {
-            const int stride = 16;
+            const int stride = 4;
             const int offset = 0;
         };
 
@@ -37,14 +37,16 @@ namespace media
         static void resize(std::string_view input,
                            size_param size);
 
-        static void crop_scale_transcode(std::string_view input,
+        static void crop_scale_transcode(std::filesystem::path input,
                                          filter_param filter,
                                          rate_control rate = {},
                                          pace_control pace = {});
 
-        static void package_container(rate_control rate);
+        static void package_container(filter_param filter,
+                                      rate_control rate);
 
-        static void dash_segment(std::chrono::milliseconds duration);
+        static void dash_segment(filter_param filter,
+                                 std::chrono::milliseconds duration);
 
         static void merge_dash_mpd(filter_param filter);
     };

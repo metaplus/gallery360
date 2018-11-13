@@ -221,7 +221,7 @@ namespace gallery_test
         std::cout << (t5 = profile_by_concurrency(8)); //6.15min
     }
 
-    TEST(Galley, Plugin) {
+    TEST(Gallery, Plugin) {
         auto* render_event_func = _nativeGraphicGetRenderEventFunc();
         EXPECT_TRUE(render_event_func != nullptr);
         folly::stop_watch<seconds> watch;
@@ -277,18 +277,21 @@ auto plugin_routine = [](std::string url) {
         test::_nativeConfigConcurrency(codec_concurrency);
         test::_nativeMockGraphic();
         _nativeConfigExecutor();
-        _nativeDashCreate("http://localhost:8900/Output/NewYork/NewYork.mpd");
+        _nativeDashCreate(url.data());
         int col = 0, row = 0, width = 0, height = 0;
         ASSERT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
-        ASSERT_EQ(col, 3);
-        ASSERT_EQ(row, 3);
+        EXPECT_EQ(col, 5);
+        EXPECT_EQ(row, 3);
         ASSERT_EQ(width, 3840);
         ASSERT_EQ(height, 1920);
         auto iteration = 0;
         std::vector<int> ref_index_range;
+        std::map<int, std::pair<int, int>> coordinate_map;
         for (auto r = 0; r < row; ++r) {
             for (auto c = 0; c < col; ++c) {
-                ref_index_range.push_back(r * col + c + 1);
+                const auto index = r * col + c + 1;
+                ref_index_range.push_back(index);
+                coordinate_map[index] = std::make_pair(c, r);
                 _nativeDashSetTexture(c, r, nullptr, nullptr, nullptr);
             }
         }
@@ -302,10 +305,15 @@ auto plugin_routine = [](std::string url) {
             remove_iter = std::remove_if(
                 begin_iter, remove_iter,
                 [&](int index) {
-                    const auto r = (index - 1) / col;
-                    const auto c = (index - 1) % col;
+                    const auto [c, r] = coordinate_map.at(index);
                     const auto poll_success = _nativeDashTilePollUpdate(c, r);
                     if (poll_success) {
+                        if constexpr (tuning::verbose) {
+                            auto cc = 0, rr = 0;
+                            test::_nativeCoordinateState(cc, rr);
+                            EXPECT_EQ(cc, c);
+                            EXPECT_EQ(rr, r);
+                        }
                         _nativeGraphicGetRenderEventFunc()(index);
                         count++;
                     }
@@ -334,8 +342,8 @@ auto plugin_routine = [](std::string url) {
 
 namespace gallery_test
 {
-    TEST(Galley, PluginPollProfile) {
-        auto profile_codec_concurrency = plugin_routine("http://localhost:8900/Output/NewYork/NewYork.mpd");
+    TEST(Gallery, PluginPollProfile) {
+        auto profile_codec_concurrency = plugin_routine("http://localhost:8900/Output/NewYork/5x3/NewYork.mpd");
         if constexpr (tuning::profile) {
             profile_codec_concurrency(8); // fps 154
             profile_codec_concurrency(4); // fps 161
@@ -343,7 +351,20 @@ namespace gallery_test
             profile_codec_concurrency(2); // fps 168
             profile_codec_concurrency(1); // fps 168
         } else {
-            profile_codec_concurrency(2); // fps 154
+            profile_codec_concurrency(1); // fps 154
         }
+    }
+
+    TEST(Gallery, Concurrency) {
+        unsigned codec = 0, net = 0, executor = 0;
+        test::_nativeConcurrencyValue(codec, net, executor);
+        EXPECT_EQ(codec, 2);
+        EXPECT_EQ(net, 8);
+        EXPECT_EQ(executor, 8);
+        test::_nativeConfigConcurrency(4, 4);
+        test::_nativeConcurrencyValue(codec, net, executor);
+        EXPECT_EQ(codec, 4);
+        EXPECT_EQ(net, 4);
+        EXPECT_EQ(executor, 8);
     }
 }

@@ -2,7 +2,6 @@
 #include "net.hpp"
 #include <folly/executors/thread_factory/NamedThreadFactory.h>
 #include <tinyxml2.h>
-#include <boost/multi_array.hpp>
 #include <re2/re2.h>
 
 namespace net
@@ -16,7 +15,10 @@ namespace net
     {
         struct dash::parser::impl
         {
-            std::vector<video_adaptation_set> video_adaptation_sets;
+            std::unordered_map<
+                std::pair<int, int>,
+                video_adaptation_set
+            > video_adaptation_sets;
             audio_adaptation_set audio_adaptation_set;
             std::string title;
             std::chrono::milliseconds min_buffer_time;
@@ -53,39 +55,49 @@ namespace net
 
             void parse_video_adaptation_set(std::vector<tinyxml2::XMLElement*>::iterator element_begin,
                                             std::vector<tinyxml2::XMLElement*>::iterator element_end) {
-                video_adaptation_sets.resize(std::distance(element_begin, element_end));
-                std::transform(
-                    std::execution::par,
+                auto make_video_set = [](tinyxml2::XMLElement* element) {
+                    video_adaptation_set adaptation_set;
+                    auto represents = list_next_sibling("Representation", element->FirstChildElement("Representation"));
+                    adaptation_set.codecs = represents.front()->Attribute("codecs");
+                    adaptation_set.mime_type = represents.front()->Attribute("mimeType");
+                    adaptation_set.width = folly::to<int>(element->Attribute("maxWidth"));
+                    adaptation_set.height = folly::to<int>(element->Attribute("maxHeight"));
+                    auto [x, y, w, h, total_w, total_h] = split_spatial_description(element->FirstChildElement("SupplementalProperty")
+                                                                                           ->Attribute("value"));
+                    adaptation_set.col = x;
+                    adaptation_set.row = y;
+                    adaptation_set.represents.resize(represents.size());
+                    std::transform(
+                        std::execution::par,
+                        represents.begin(), represents.end(),
+                        adaptation_set.represents.begin(),
+                        [](tinyxml2::XMLElement* element) {
+                            const auto format = [](const char* str) {
+                                static const std::regex media_regex{ "\\$Number\\$" };
+                                return std::regex_replace(str, media_regex, "{}");
+                            };
+                            represent represent;
+                            represent.id = folly::to<int>(element->Attribute("id"));
+                            represent.bandwidth = folly::to<int>(element->Attribute("bandwidth"));
+                            represent.media = format(element->FirstChildElement("SegmentTemplate")->Attribute("media"));
+                            represent.initial = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
+                            return represent;
+                        });
+                    return adaptation_set;
+                };
+                video_adaptation_sets = std::reduce(
                     element_begin, element_end,
-                    video_adaptation_sets.begin(),
-                    [](tinyxml2::XMLElement* element) {
-                        video_adaptation_set adaptation_set;
-                        auto represents = list_next_sibling("Representation", element->FirstChildElement("Representation"));
-                        adaptation_set.codecs = represents.front()->Attribute("codecs");
-                        adaptation_set.mime_type = represents.front()->Attribute("mimeType");
-                        adaptation_set.width = folly::to<int>(element->Attribute("maxWidth"));
-                        adaptation_set.height = folly::to<int>(element->Attribute("maxHeight"));
-                        auto [x, y, w, h, total_w, total_h] = split_spatial_description(element->FirstChildElement("SupplementalProperty")
-                                                                                               ->Attribute("value"));
-                        adaptation_set.x = x;
-                        adaptation_set.y = y;
-                        adaptation_set.represents.resize(represents.size());
-                        std::transform(
-                            std::execution::par, represents.begin(), represents.end(), adaptation_set.represents.begin(),
-                            [](tinyxml2::XMLElement* element) {
-                                const auto format = [](const char* str) {
-                                    static const std::regex media_regex{ "\\$Number\\$" };
-                                    return std::regex_replace(str, media_regex, "{}");
-                                };
-                                represent represent;
-                                represent.id = folly::to<int>(element->Attribute("id"));
-                                represent.bandwidth = folly::to<int>(element->Attribute("bandwidth"));
-                                represent.media = format(element->FirstChildElement("SegmentTemplate")->Attribute("media"));
-                                represent.initial = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
-                                return represent;
-                            });
-                        return adaptation_set;
-                    });
+                    decltype(video_adaptation_sets){},
+                    [&make_video_set](decltype(video_adaptation_sets)&& reduce,
+                                      tinyxml2::XMLElement* element) {
+                        auto video_set = make_video_set(element);
+                        auto [iterator, success] = reduce.try_emplace(
+                            std::make_pair(video_set.col, video_set.row),
+                            std::move(video_set));
+                        assert(success);
+                        return std::move(reduce);
+                    }
+                );
             }
 
             void parse_audio_adaptation_set(tinyxml2::XMLElement* element) {
@@ -122,10 +134,10 @@ namespace net
                             sum.second + increment.second
                         };
                     },
-                    [](video_adaptation_set& adaptation_set) {
+                    [](decltype(video_adaptation_sets)::reference adaptation_set) {
                         return scale_pair{
-                            adaptation_set.width,
-                            adaptation_set.height
+                            adaptation_set.second.width,
+                            adaptation_set.second.height
                         };
                     });
                 scale_width /= grid_height;
@@ -190,13 +202,9 @@ namespace net
                                   impl_->scale_height);
         }
 
-        std::vector<dash::video_adaptation_set>& dash::parser::video_set() const {
-            return impl_->video_adaptation_sets;
-        }
-
-        dash::video_adaptation_set& dash::parser::video_set(int column, int row) const {
-            const auto index = column + row * grid_size().first;
-            return impl_->video_adaptation_sets.at(index);
+        dash::video_adaptation_set& dash::parser::video_set(int col, int row) const {
+            const auto index = col + row * impl_->grid_width;
+            return impl_->video_adaptation_sets.at(std::make_pair(col, row));
         }
 
         dash::audio_adaptation_set& dash::parser::audio_set() const {

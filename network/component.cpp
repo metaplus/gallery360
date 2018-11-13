@@ -74,7 +74,7 @@ namespace net::component
 
         void mark_drained(dash::video_adaptation_set& video_set) {
             if (!std::exchange(video_set.context->drain, true)) {
-                logger->warn("video_set drained[x:{}, y:{}]", video_set.x, video_set.y);
+                logger->warn("video_set drained[col{} row{}]", video_set.col, video_set.row);
             }
             drain_count++;
         }
@@ -83,7 +83,7 @@ namespace net::component
             const auto predict_index = [this, &video_set]() {
                 const auto represent_size = std::size(video_set.represents);
                 return std::min(folly::to<size_t>(
-                                    represent_size * std::invoke(predictor, video_set.x, video_set.y)),
+                                    represent_size * std::invoke(predictor, video_set.col, video_set.row)),
                                 represent_size - 1);
             };
             const auto represent_index = predict_index();
@@ -110,7 +110,7 @@ namespace net::component
                 assert(path.front() == '/');
                 return path.replace(path.rfind('/') + 1,
                                     path.size(),
-                                    fmt::format("dash/{}", suffix));
+                                    suffix);
             };
             const auto suffix = [&video_set, &represent](bool initial) {
                 return initial
@@ -144,7 +144,7 @@ namespace net::component
                              bool poll,
                              bool reset = false) {
             try {
-                assert(context.consumer_cycle.full());
+                assert(video_set.context->consumer_cycle.full());
                 if (video_set.context->drain) {
                     core::throw_drained("consume_tile");
                 }
@@ -243,11 +243,14 @@ namespace net::component
     folly::SemiFuture<buffer_context>
     dash_manager::request_tile_context(int col, int row) const {
         auto& video_set = impl_->mpd_parser->video_set(col, row);
+        assert(video_set.col == col);
+        assert(video_set.row == row);
         if (!video_set.context) {
             core::access(video_set.context)->trace.reserve(1024);
         }
         if (video_set.context->drain) {
-            return folly::makeSemiFuture<buffer_context>(core::stream_drained_error{ __FUNCTION__ });
+            return folly::makeSemiFuture<buffer_context>(
+                core::stream_drained_error{ __FUNCTION__ });
         }
         if (!video_set.context->tile_client.valid()) {
             video_set.context->tile_client = impl_->make_http_client();

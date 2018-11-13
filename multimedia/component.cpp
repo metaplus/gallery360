@@ -44,7 +44,8 @@ namespace media::component
         }
     };
 
-    frame_segmentor::frame_segmentor(std::list<const_buffer> buffer_list, unsigned concurrency)
+    frame_segmentor::frame_segmentor(std::list<const_buffer> buffer_list,
+                                     unsigned concurrency)
         : impl_(std::make_shared<impl>()) {
         parse_context(std::move(buffer_list), concurrency);
     }
@@ -53,7 +54,8 @@ namespace media::component
         return impl_.operator bool();
     }
 
-    void frame_segmentor::parse_context(std::list<const_buffer> buffer_list, unsigned concurrency) {
+    void frame_segmentor::parse_context(std::list<const_buffer> buffer_list,
+                                        unsigned concurrency) {
         if (!impl_) {
             impl_ = std::make_shared<impl>();
         }
@@ -81,10 +83,10 @@ namespace media::component
     }
 
     void frame_segmentor::reset_buffer_list(std::list<const_buffer> buffer_list) {
-        [[maybe_unused]] auto old_cursor = std::exchange(impl_->cursor,
-                                                         buffer_list_cursor::create(std::move(buffer_list)));
-        [[maybe_unused]] auto old_cursor2 = impl_->io_context
-                                                 ->exchange_cursor(impl_->cursor);
+        [[maybe_unused]] const auto old_cursor = std::exchange(impl_->cursor,
+                                                               buffer_list_cursor::create(std::move(buffer_list)));
+        [[maybe_unused]] const auto old_cursor2 = impl_->io_context
+                                                       ->exchange_cursor(impl_->cursor);
         assert(old_cursor == old_cursor2);
     }
 

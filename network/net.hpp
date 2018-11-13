@@ -76,8 +76,8 @@ namespace net
 
             struct video_adaptation_set : adaptation_set
             {
-                int x = 0;
-                int y = 0;
+                int col = 0;
+                int row = 0;
                 int width = 0;
                 int height = 0;
                 struct context;
@@ -106,8 +106,7 @@ namespace net
                 std::pair<int, int> grid_size() const;
                 std::pair<int, int> scale_size() const;
 
-                std::vector<video_adaptation_set>& video_set() const;
-                video_adaptation_set& video_set(int column, int row) const;
+                video_adaptation_set& video_set(int col, int row) const;
                 audio_adaptation_set& audio_set() const;
 
                 static std::chrono::milliseconds parse_duration(std::string_view duration);
