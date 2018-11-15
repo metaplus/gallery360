@@ -131,18 +131,6 @@ auto tile_coordinate = [](int index) constexpr {
 
 namespace unity
 {
-    void DLLAPI unity::_nativeConfigExecutor() {
-        if (!cpu_executor) {
-            cpu_executor = core::set_cpu_executor(executor_concurrency.value(), "PluginPool");
-        }
-        if (!session_executor) {
-            session_executor = core::make_threaded_executor("SessionWorker");
-        }
-        state::stream_available(nullptr);
-    }
-
-    static_assert(std::is_move_constructible<dash_manager>::value);
-
     void DLLAPI unity::_nativeDashCreate(LPCSTR mpd_url) {
         manager = dash_manager::create_parsed(std::string{ mpd_url },
                                               asio_concurrency.value());
@@ -282,6 +270,16 @@ namespace unity
             row = state::tile_row;
             assert(state::texture_iterator->first == std::make_pair(state::tile_col, state::tile_row));
         }
+    }
+
+    void DLLAPI _nativeLibraryInitialize() {
+        if (!cpu_executor) {
+            cpu_executor = core::set_cpu_executor(executor_concurrency.value(), "PluginPool");
+        }
+        if (!session_executor) {
+            session_executor = core::make_threaded_executor("SessionWorker");
+        }
+        state::stream_available(nullptr);
     }
 
     void DLLAPI _nativeLibraryRelease() {
