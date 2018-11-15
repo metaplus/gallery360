@@ -1,6 +1,8 @@
 #include "pch.h"
+#include <folly/dynamic.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
+#include <folly/json.h>
 #include <folly/stop_watch.h>
 #include <boost/beast/core/ostream.hpp>
 
@@ -700,5 +702,17 @@ namespace folly_test
             EXPECT_TRUE(t2.hasValue());
             EXPECT_EQ(*t2.value(), 2);
         }
+    }
+
+    TEST(Dynamic,Json) {
+        auto document = R"({"key":12,"key2":[false,null,true,"yay"]})"s;
+        auto parsed = folly::parseJson(document);
+        EXPECT_EQ(parsed["key"], 12);
+        EXPECT_EQ(parsed["key2"][0], false);
+        EXPECT_EQ(parsed["key2"][1], nullptr);
+        folly::dynamic dyn = folly::dynamic::object
+            ("key2", folly::dynamic::array(false, nullptr, true, "yay"))
+            ("key", 12);
+        EXPECT_EQ(folly::toJson(dyn), document);
     }
 }

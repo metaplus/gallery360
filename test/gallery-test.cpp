@@ -108,11 +108,11 @@ namespace gallery_test
             return watch.elapsed();
         };
         std::cout << (t0 = profile_by_concurrency(1));
-        std::cout << (t1 = profile_by_concurrency(1)); //59s
-        std::cout << (t2 = profile_by_concurrency(2)); //42s
-        std::cout << (t3 = profile_by_concurrency(3)); //38s   
-        std::cout << (t4 = profile_by_concurrency(4)); //37s
-        std::cout << (t5 = profile_by_concurrency(8)); //38s
+        std::cout << (t1 = profile_by_concurrency(1)); // 59s
+        std::cout << (t2 = profile_by_concurrency(2)); // 42s
+        std::cout << (t3 = profile_by_concurrency(3)); // 38s   
+        std::cout << (t4 = profile_by_concurrency(4)); // 37s
+        std::cout << (t5 = profile_by_concurrency(8)); // 38s
     }
 }
 
@@ -214,18 +214,18 @@ namespace gallery_test
             EXPECT_EQ(std::move(async_count).get(), 17616);
             return watch.elapsed();
         };
-        std::cout << (t1 = profile_by_concurrency(1)); //6.15min
-        std::cout << (t2 = profile_by_concurrency(2)); //6.26min
-        std::cout << (t3 = profile_by_concurrency(3)); //6.27min  
-        std::cout << (t4 = profile_by_concurrency(4)); //6.15min
-        std::cout << (t5 = profile_by_concurrency(8)); //6.15min
+        std::cout << (t1 = profile_by_concurrency(1)); // 6.15min
+        std::cout << (t2 = profile_by_concurrency(2)); // 6.26min
+        std::cout << (t3 = profile_by_concurrency(3)); // 6.27min  
+        std::cout << (t4 = profile_by_concurrency(4)); // 6.15min
+        std::cout << (t5 = profile_by_concurrency(8)); // 6.15min
     }
 
     TEST(Gallery, Plugin) {
         auto* render_event_func = _nativeGraphicGetRenderEventFunc();
         EXPECT_TRUE(render_event_func != nullptr);
         folly::stop_watch<seconds> watch;
-        _nativeConfigExecutor();
+        _nativeLibraryInitialize();
         _nativeDashCreate("http://localhost:8900/dash/NewYork/5k/NewYork_5k.mpd");
         int col = 0, row = 0, width = 0, height = 0;
         EXPECT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
@@ -276,7 +276,7 @@ auto plugin_routine = [](std::string url) {
         std::this_thread::sleep_for(100ms);
         test::_nativeConfigConcurrency(codec_concurrency);
         test::_nativeMockGraphic();
-        _nativeConfigExecutor();
+        _nativeLibraryInitialize();
         _nativeDashCreate(url.data());
         int col = 0, row = 0, width = 0, height = 0;
         ASSERT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
