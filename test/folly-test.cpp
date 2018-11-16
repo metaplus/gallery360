@@ -2,6 +2,7 @@
 #include <folly/dynamic.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
+#include <folly/logging/xlog.h>
 #include <folly/json.h>
 #include <folly/stop_watch.h>
 #include <boost/beast/core/ostream.hpp>
@@ -714,5 +715,14 @@ namespace folly_test
             ("key2", folly::dynamic::array(false, nullptr, true, "yay"))
             ("key", 12);
         EXPECT_EQ(folly::toJson(dyn), document);
+    }
+
+    TEST(Log, XLog) {
+        XLOG(INFO) << "hello world!";
+        folly::Logger eventLogger("eden.events");
+        //FB_LOG(eventLogger, INFO) << "something happened";
+        XLOG(INFO, "the number is ", 2 + 2);
+        XLOG(INFO, "the number is ") << (2 + 2);
+        XLOGF(DBG1, "cannot engage {} thruster: {}", "name", "err");
     }
 }
