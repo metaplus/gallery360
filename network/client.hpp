@@ -14,12 +14,11 @@ namespace net::client
     class session<protocal::http> : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
                                     protocal::http::protocal_base
     {
-        using request_param = std::variant<
-            std::monostate,
-            response<dynamic_body>,
-            core::bad_request_error,
-            core::bad_response_error,
-            core::session_closed_error>;
+        using request_param = std::variant<std::monostate,
+                                           response<dynamic_body>,
+                                           core::bad_request_error,
+                                           core::bad_response_error,
+                                           core::session_closed_error>;
         using request_list = std::list<folly::Function<void(request_param)>>;
 
         folly::Synchronized<request_list> request_list_;

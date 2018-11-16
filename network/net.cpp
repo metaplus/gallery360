@@ -231,7 +231,7 @@ namespace net
         return config_path;
     }
 
-    std::string config_entry(std::initializer_list<std::string_view> entry_path) {
+    std::string config_entry(std::vector<std::string> entry_path) {
         static std::optional<tinyxml2::XMLDocument> config_document;
         if (!config_document) {
             const auto load_success = config_document.emplace()
@@ -241,7 +241,7 @@ namespace net
         tinyxml2::XMLNode* config_node = &config_document.value();
         for (auto& node_name : entry_path) {
             assert(config_node);
-            config_node = config_node->FirstChildElement(std::data(node_name));
+            config_node = config_node->FirstChildElement(node_name.data());
         }
         return config_node->ToElement()
                           ->GetText();
