@@ -39,14 +39,14 @@ namespace net::component
 
     public:
         dash_manager() = delete;
-        dash_manager(dash_manager const&) = default;
+        dash_manager(const dash_manager&) = default;
         dash_manager(dash_manager&&) noexcept = default;
-        dash_manager& operator=(dash_manager const&) = default;
+        dash_manager& operator=(const dash_manager&) = default;
         dash_manager& operator=(dash_manager&&) noexcept = default;
         ~dash_manager() = default;
 
         static folly::Future<dash_manager> create_parsed(std::string mpd_url,
-                                                         unsigned concurrency = std::thread::hardware_concurrency() / 2);
+                                                         unsigned concurrency = std::thread::hardware_concurrency());
 
         std::pair<int, int> scale_size() const;
         std::pair<int, int> grid_size() const;

@@ -102,8 +102,11 @@ using namespace std::literals;
 #include <folly/Uri.h>
 #pragma warning(pop)
 
+#include <nlohmann/json.hpp>
+
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+
 #include <spdlog/logger.h>
 
 //#include <fmt/time.h>

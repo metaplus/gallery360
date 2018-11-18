@@ -3,6 +3,8 @@
 #include <folly/futures/Future.h>
 #include <folly/stop_watch.h>
 #include "network/component.h"
+#include "network/pch.h"
+#include "network/net.hpp"
 
 using net::component::dash_manager;
 
@@ -41,5 +43,16 @@ namespace net_test
         };
         EXPECT_EQ(path_regex(path, 1), "tile9-576p-1500kbps_dash1.m4s");
         EXPECT_EQ(path_regex(path, 10), "tile9-576p-1500kbps_dash10.m4s");
+    }
+
+    TEST(Config, Port) {
+        {
+            auto port = net::config_json_entry({ "net","server","port" });
+            EXPECT_EQ(8900, port.get<unsigned>());
+        }
+        {
+            auto port = net::config_entry<unsigned>("net.server.port");;
+            EXPECT_EQ(8900, port);
+        }
     }
 }

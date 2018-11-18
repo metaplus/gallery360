@@ -130,19 +130,15 @@ namespace net
         return request;
     }
 
-    std::filesystem::path config_path() noexcept;
-    std::string config_entry(std::vector<std::string> entry_path);
+    const std::filesystem::path& config_path(bool json = true) noexcept;
+    std::string config_xml_entry(std::vector<std::string> entry_path);
+    nlohmann::json::reference config_json_entry(std::vector<std::string> entry_path);
 
     template<typename T>
     T config_entry(std::string_view entry_name) {
         std::vector<std::string> entry_path;
         folly::split('.', entry_name, entry_path);
-        auto entry = config_entry(entry_path);
-        if constexpr (meta::is_within<T, std::string, std::string_view>::value) {
-            return entry;
-        } else {
-            return folly::to<T>(entry);
-        }
+        return config_json_entry(entry_path).get<T>();
     }
 
     struct asio_deleter;
