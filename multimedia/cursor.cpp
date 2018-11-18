@@ -30,7 +30,7 @@ namespace media
     int64_t cursor::buffer_size() const {
         //auto const size = boost::asio::buffer_size(*buffer_iter);
         auto const size = buffer_sizes.at(std::distance(buffer_begin, buffer_iter));
-        return boost::numeric_cast<int64_t>(size);
+        return folly::to<int64_t>(size);
     }
 
     int64_t cursor::sequence_size() const {
@@ -92,10 +92,10 @@ namespace media
                 buffer_iter.operator++();
                 buffer_offset = 0;
             }
-            total_read_size += boost::numeric_cast<int>(read_size);
+            total_read_size += folly::to<int>(read_size);
         }
         fmt::print("read_size {}, expect_size {}, sequence{}/{}\n", total_read_size, expect_size, sequence_offset, sequence_size());
-        return boost::numeric_cast<int>(total_read_size);
+        return folly::to<int>(total_read_size);
     }
 
     int random_access_cursor::write(uint8_t* buffer, int size) {
@@ -203,7 +203,7 @@ namespace media
             //           read_size, expect_size, full_offset_, full_size_);
             full_offset_ += read_size;
             full_read_size_ += read_size;
-            return boost::numeric_cast<int>(read_size);
+            return folly::to<int>(read_size);
         }
         return AVERROR_EOF;
     }
@@ -236,7 +236,7 @@ namespace media
         buffer_iter_ = std::find_if(
             buffer_list_.begin(), buffer_list_.end(),
             [&partial_sum, &seek_offset](const_buffer& buffer) {
-                const auto buffer_size = boost::numeric_cast<int64_t>(buffer.size());
+                const auto buffer_size = folly::to<int64_t>(buffer.size());
                 const auto next_buffer_offset = partial_sum + buffer_size;
                 if (next_buffer_offset <= seek_offset) {
                     partial_sum = next_buffer_offset;

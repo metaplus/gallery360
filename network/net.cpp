@@ -2,6 +2,7 @@
 #include "net.hpp"
 #include <tinyxml2.h>
 #include <re2/re2.h>
+#include <fstream>
 
 namespace net
 {
@@ -72,8 +73,11 @@ namespace net
                         adaptation_set.represents.begin(),
                         [](tinyxml2::XMLElement* element) {
                             const auto format = [](const char* str) {
-                                static const std::regex media_regex{ "\\$Number\\$" };
-                                return std::regex_replace(str, media_regex, "{}");
+                                static const RE2 media_regex{ "\\$Number\\$" };
+                                std::string media_url_pattern{ str };
+                                auto replace_success = RE2::Replace(&media_url_pattern, media_regex, "{}");
+                                assert(replace_success);
+                                return media_url_pattern;
                             };
                             represent represent;
                             represent.id = folly::to<int>(element->Attribute("id"));
@@ -228,6 +232,12 @@ namespace net
         static const auto config_path = folly::lazy(
             [] {
                 std::array<std::filesystem::path, 2> config_path_array;
+                std::filesystem::path work_path{ _NET_CONFIG_DIR };
+                if (!std::filesystem::is_directory(work_path)) {
+                    work_path = std::filesystem::current_path();
+                }
+                logger->info("config directory {}", work_path.generic_string());
+                assert(std::filesystem::is_directory(work_path));
                 config_path_array[false] = std::filesystem::path{ _NET_CONFIG_DIR } / "config.xml";
                 config_path_array[true] = std::filesystem::path{ _NET_CONFIG_DIR } / "config.json";
                 assert(std::filesystem::is_regular_file(config_path_array[true]));
@@ -239,11 +249,11 @@ namespace net
     std::string config_xml_entry(std::vector<std::string> entry_path) {
         static const auto config_document = folly::lazy(
             [] {
-            auto config_document = std::make_unique<tinyxml2::XMLDocument>();
-            const auto load_success = config_document->LoadFile(config_path(false).string().data());
-            assert(load_success == tinyxml2::XML_SUCCESS);
-            return config_document;
-        });
+                auto config_document = std::make_unique<tinyxml2::XMLDocument>();
+                const auto load_success = config_document->LoadFile(config_path(false).string().data());
+                assert(load_success == tinyxml2::XML_SUCCESS);
+                return config_document;
+            });
         tinyxml2::XMLNode* config_node = config_document().get();
         for (auto& node_name : entry_path) {
             assert(config_node);

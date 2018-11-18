@@ -67,14 +67,18 @@ namespace media
         return fmt::format("{}x{}_{}", filter.wcrop, filter.hcrop, rate.bit_rate);
     };
 
+    static_assert(!std::is_copy_constructible<RE2>::value);
+    static_assert(!std::is_move_constructible<RE2>::value);
+
     auto mesh_regex = [](media::filter_param filter)-> decltype(auto) {
-        static std::map<std::pair<int, int>, std::regex> cache_mesh_regex;
+        static std::map<std::pair<int, int>, RE2> cache_mesh_regex;
         auto cache_key = std::make_pair(filter.wcrop, filter.hcrop);
         if (const auto regex_iter = cache_mesh_regex.find(cache_key); regex_iter != cache_mesh_regex.end()) {
             return (regex_iter->second);
         }
         const auto regex_content = fmt::format(R"({}x{}_(\d+))", filter.wcrop, filter.hcrop);
-        return (cache_mesh_regex.emplace(cache_key, std::regex{ regex_content }).first->second);
+        return (cache_mesh_regex.try_emplace(cache_key, regex_content)
+                                .first->second);
     };
 
     auto mesh_directories = [](media::filter_param filter) {
@@ -82,17 +86,16 @@ namespace media
             output_directory(),
             [filter](const std::filesystem::directory_entry& mesh_dir) {
                 const auto mesh_desc = mesh_dir.path().stem().generic_string();
-                return std::regex_match(mesh_desc, mesh_regex(filter));
+                return RE2::FullMatch(mesh_desc, mesh_regex(filter));
             });
     };
 
+    // Todo: test
     auto tile_mpd_coordinate = [](std::string_view filename) {
-        static const std::regex mpd_regex{ R"(\w+_c(\d+)r(\d+)_\d+kbps.mpd)" };
-        std::cmatch coordinate;
-        if (std::regex_match(filename.data(), coordinate, mpd_regex)) {
-            return std::make_pair(
-                boost::lexical_cast<int>(coordinate[1]),
-                boost::lexical_cast<int>(coordinate[2]));
+        static const RE2 mpd_regex{ R"(\w+_c(\d+)r(\d+)_\d+kbps.mpd)" };
+        auto col = 0, row = 0;
+        if (RE2::FullMatch(filename.data(), mpd_regex, &col, &row)) {
+            return std::make_pair(col, row);
         }
         core::throw_unreachable(__FUNCTION__);
     };

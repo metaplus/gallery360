@@ -725,4 +725,28 @@ namespace folly_test
         XLOG(INFO, "the number is ") << (2 + 2);
         XLOGF(DBG1, "cannot engage {} thruster: {}", "name", "err");
     }
+
+    TEST(Random, Double) {
+        const auto loop_many_times = [](auto task) {
+            auto i = 10000;
+            while (--i >= 0) {
+                task();
+            }
+        };
+        loop_many_times([] {
+            auto res= folly::Random::randDouble(-1, 2);
+            EXPECT_GE(res, -1);
+            EXPECT_LT(res, 2);
+        });
+        loop_many_times([] {
+            auto res = folly::Random::randDouble01();
+            EXPECT_GE(res, 0);
+            EXPECT_LT(res, 1);
+        });
+        loop_many_times([] {
+            auto res = folly::Random::secureRandDouble01();
+            EXPECT_GE(res, 0);
+            EXPECT_LT(res, 1);
+        });
+    }
 }
