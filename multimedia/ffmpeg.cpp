@@ -35,7 +35,7 @@ media::packet::packet(std::basic_string_view<uint8_t> buffer)
 }
 
 media::packet::packet(std::string_view buffer)
-    : packet(std::basic_string_view<uint8_t>{reinterpret_cast<uint8_t const*>(buffer.data()), buffer.size()}) {}
+    : packet(std::basic_string_view<uint8_t>{ reinterpret_cast<uint8_t const*>(buffer.data()), buffer.size() }) {}
 
 media::packet::packet()
     : handle_(av_packet_alloc(), deleter{}) {}
@@ -49,7 +49,10 @@ size_t media::packet::size() const {
 }
 
 std::basic_string_view<uint8_t> media::packet::buffer() const {
-    return { handle_->data, boost::numeric_cast<size_t>(handle_->size) };
+    return {
+        handle_->data,
+        folly::to<size_t>(handle_->size)
+    };
 }
 
 #ifdef MULTIMEDIA_USE_MSGPACK
@@ -96,7 +99,7 @@ media::codec::parameter media::stream::params() const {
 }
 
 media::type media::stream::media() const {
-    return  static_cast<media::type>(get().codecpar->codec_type);
+    return static_cast<media::type>(get().codecpar->codec_type);
 }
 
 std::pair<int, int> media::stream::scale() const {

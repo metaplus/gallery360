@@ -19,13 +19,14 @@ namespace net::server
         const int64_t index_ = 0;
         const std::shared_ptr<spdlog::logger> logger_;
         const std::filesystem::path root_path_;
+        const folly::Function<void() const> error_callback_;
         mutable boost::asio::io_context::strand strand_;
 
     public:
         session(boost::asio::ip::tcp::socket&& socket,
                 boost::asio::io_context& context,
                 std::filesystem::path root,
-                bool chunked = false);
+                folly::Function<void() const> error_callback);
 
         using session_base::local_endpoint;
         using session_base::remote_endpoint;
@@ -35,7 +36,7 @@ namespace net::server
         static http_session_ptr create(socket_type&& socket,
                                        boost::asio::io_context& context,
                                        std::filesystem::path root,
-                                       bool chunked = false);
+                                       folly::Function<void() const> error_callback = nullptr);
 
     private:
 
@@ -47,9 +48,7 @@ namespace net::server
                 logger_->info("on_recv_request errc {} transfer {}", errc, transfer_size);
                 logger_->debug("on_recv_request request head {}", request->base());
                 if (errc || request->need_eof()) {
-                    logger_->error("close_socket shutdown_receive");
-                    logger_->error("error message {}", errc ? errc.message() : "null");
-                    return close_socket(boost::asio::socket_base::shutdown_receive);
+                    return close_socket_then_callback(errc, boost::asio::socket_base::shutdown_receive);
                 }
                 auto target_path = concat_target_path(request->target());
                 logger_->info("on_recv_request {} {}", target_path, exists(target_path) ? "valid" : "invalid");
@@ -83,28 +82,19 @@ namespace net::server
                                                           std::size_t transfer_size) mutable {
                 logger_->info("on_send_response errc {} last {} transfer {}", errc, response->need_eof(), transfer_size);
                 if (errc || response->need_eof()) {
-                    logger_->error("on_send_response errmsg {}", errc.message());
-                    logger_->error("close_socket shutdown_send");
-                    logger_->error("error message {}", errc ? errc.message() : "null");
-                    return close_socket(boost::asio::socket_base::shutdown_send);
+                    return close_socket_then_callback(errc, boost::asio::socket_base::shutdown_send);
                 }
                 wait_request();
             };
         }
 
-        std::filesystem::path concat_target_path(boost::beast::string_view request_target) const {
-            return std::filesystem::path{ root_path_ }.concat(request_target.begin(),
-                                                              request_target.end());
-        }
+        std::filesystem::path concat_target_path(boost::beast::string_view request_target) const;
 
-        static auto file_response_body(std::filesystem::path& target) {
-            boost::system::error_code file_errc;
-            file_body::value_type response_body;
-            response_body.open(target.generic_string().c_str(),
-                               boost::beast::file_mode::scan,
-                               file_errc);
-            assert(!file_errc);
-            return response_body;
-        }
+        static file_body::value_type file_response_body(std::filesystem::path& target);
+
+        void close_socket_then_callback(boost::system::error_code errc,
+                                        boost::asio::socket_base::shutdown_type shutdown_type);
+
+        void error_callback() const;
     };
 }

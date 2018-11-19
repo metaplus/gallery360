@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "net.hpp"
-#include <folly/executors/thread_factory/NamedThreadFactory.h>
 #include <tinyxml2.h>
 #include <re2/re2.h>
+#include <fstream>
 
 namespace net
 {
@@ -73,8 +73,11 @@ namespace net
                         adaptation_set.represents.begin(),
                         [](tinyxml2::XMLElement* element) {
                             const auto format = [](const char* str) {
-                                static const std::regex media_regex{ "\\$Number\\$" };
-                                return std::regex_replace(str, media_regex, "{}");
+                                static const RE2 media_regex{ "\\$Number\\$" };
+                                std::string media_url_pattern{ str };
+                                auto replace_success = RE2::Replace(&media_url_pattern, media_regex, "{}");
+                                assert(replace_success);
+                                return media_url_pattern;
                             };
                             represent represent;
                             represent.id = folly::to<int>(element->Attribute("id"));
@@ -225,26 +228,61 @@ namespace net
         throw impl::duration_parse_mismatch{ __FUNCTION__ };
     }
 
-    std::filesystem::path config_path() noexcept {
-        const auto config_path = std::filesystem::path{ _NET_CONFIG_DIR } / "config.xml";
-        core::verify(std::filesystem::is_regular_file(config_path));
-        return config_path;
+    const std::filesystem::path& config_path(bool json) noexcept {
+        static const auto config_path = folly::lazy(
+            [] {
+                std::array<std::filesystem::path, 2> config_path_array;
+                std::filesystem::path work_path{ _NET_CONFIG_DIR };
+                if (!std::filesystem::is_directory(work_path)) {
+                    work_path = std::filesystem::current_path();
+                }
+                logger->info("config directory {}", work_path.generic_string());
+                assert(std::filesystem::is_directory(work_path));
+                config_path_array[false] = std::filesystem::path{ _NET_CONFIG_DIR } / "config.xml";
+                config_path_array[true] = std::filesystem::path{ _NET_CONFIG_DIR } / "config.json";
+                assert(std::filesystem::is_regular_file(config_path_array[true]));
+                return config_path_array;
+            });
+        return config_path()[folly::to<size_t>(json)];
     }
 
-    std::string config_entry(std::initializer_list<std::string_view> entry_path) {
-        static std::optional<tinyxml2::XMLDocument> config_document;
-        if (!config_document) {
-            const auto load_success = config_document.emplace()
-                                                     .LoadFile(config_path().string().data());
-            assert(load_success == tinyxml2::XML_SUCCESS);
-        }
-        tinyxml2::XMLNode* config_node = &config_document.value();
+    std::string config_xml_entry(std::vector<std::string> entry_path) {
+        static const auto config_document = folly::lazy(
+            [] {
+                auto config_document = std::make_unique<tinyxml2::XMLDocument>();
+                const auto load_success = config_document->LoadFile(config_path(false).string().data());
+                assert(load_success == tinyxml2::XML_SUCCESS);
+                return config_document;
+            });
+        tinyxml2::XMLNode* config_node = config_document().get();
         for (auto& node_name : entry_path) {
             assert(config_node);
-            config_node = config_node->FirstChildElement(std::data(node_name));
+            config_node = config_node->FirstChildElement(node_name.data());
         }
         return config_node->ToElement()
                           ->GetText();
+    }
+
+    nlohmann::json::reference config_json_entry(std::vector<std::string> entry_path) {
+        static auto config_json = folly::lazy(
+            [] {
+                nlohmann::json config_json;
+                std::ifstream config_stream{ config_path().string().data() };
+                assert(config_stream.good());
+                config_stream >> config_json;
+                return config_json;
+            });
+        auto& entry = config_json()[entry_path.front()];
+        if (entry_path.size() > 1) {
+            return
+                *std::reduce(
+                    std::next(entry_path.begin(), 1), entry_path.end(), &entry,
+                    [](decltype(&entry) entry_ptr, std::string& name) {
+                        assert(entry_ptr != nullptr);
+                        return &(*entry_ptr)[name];
+                    });
+        }
+        return entry;
     }
 
     using boost::asio::io_context;

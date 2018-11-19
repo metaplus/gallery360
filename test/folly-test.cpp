@@ -1,6 +1,9 @@
 #include "pch.h"
+#include <folly/dynamic.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
+#include <folly/logging/xlog.h>
+#include <folly/json.h>
 #include <folly/stop_watch.h>
 #include <boost/beast/core/ostream.hpp>
 
@@ -700,5 +703,50 @@ namespace folly_test
             EXPECT_TRUE(t2.hasValue());
             EXPECT_EQ(*t2.value(), 2);
         }
+    }
+
+    TEST(Dynamic,Json) {
+        auto document = R"({"key":12,"key2":[false,null,true,"yay"]})"s;
+        auto parsed = folly::parseJson(document);
+        EXPECT_EQ(parsed["key"], 12);
+        EXPECT_EQ(parsed["key2"][0], false);
+        EXPECT_EQ(parsed["key2"][1], nullptr);
+        folly::dynamic dyn = folly::dynamic::object
+            ("key2", folly::dynamic::array(false, nullptr, true, "yay"))
+            ("key", 12);
+        EXPECT_EQ(folly::toJson(dyn), document);
+    }
+
+    TEST(Log, XLog) {
+        XLOG(INFO) << "hello world!";
+        folly::Logger eventLogger("eden.events");
+        //FB_LOG(eventLogger, INFO) << "something happened";
+        XLOG(INFO, "the number is ", 2 + 2);
+        XLOG(INFO, "the number is ") << (2 + 2);
+        XLOGF(DBG1, "cannot engage {} thruster: {}", "name", "err");
+    }
+
+    TEST(Random, Double) {
+        const auto loop_many_times = [](auto task) {
+            auto i = 10000;
+            while (--i >= 0) {
+                task();
+            }
+        };
+        loop_many_times([] {
+            auto res= folly::Random::randDouble(-1, 2);
+            EXPECT_GE(res, -1);
+            EXPECT_LT(res, 2);
+        });
+        loop_many_times([] {
+            auto res = folly::Random::randDouble01();
+            EXPECT_GE(res, 0);
+            EXPECT_LT(res, 1);
+        });
+        loop_many_times([] {
+            auto res = folly::Random::secureRandDouble01();
+            EXPECT_GE(res, 0);
+            EXPECT_LT(res, 1);
+        });
     }
 }

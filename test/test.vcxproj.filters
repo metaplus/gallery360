@@ -47,5 +47,8 @@
     <ClCompile Include="gallery-test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="json-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

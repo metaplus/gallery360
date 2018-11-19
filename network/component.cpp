@@ -68,6 +68,7 @@ namespace net::component
         struct deleter : std::default_delete<impl>
         {
             void operator()(impl* impl) noexcept {
+                logger->info("destructor deleting io_context");
                 static_cast<default_delete&>(*this)(impl);
             }
         };
@@ -271,7 +272,7 @@ namespace net::component
 
     folly::Function<size_t(int, int)>
     dash_manager::represent_indexer(folly::Function<double(int, int)> probability) {
-        return [this, probability = std::move(probability)](int x, int y) mutable {
+        return [this, probability    = std::move(probability)](int x, int y) mutable {
             auto& video_set = impl_->mpd_parser->video_set(x, y);
             const auto represent_size = video_set.represents.size();
             const auto predict_index = folly::to<size_t>(represent_size * probability(x, y));

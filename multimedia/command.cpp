@@ -67,14 +67,18 @@ namespace media
         return fmt::format("{}x{}_{}", filter.wcrop, filter.hcrop, rate.bit_rate);
     };
 
+    static_assert(!std::is_copy_constructible<RE2>::value);
+    static_assert(!std::is_move_constructible<RE2>::value);
+
     auto mesh_regex = [](media::filter_param filter)-> decltype(auto) {
-        static std::map<std::pair<int, int>, std::regex> cache_mesh_regex;
+        static std::map<std::pair<int, int>, RE2> cache_mesh_regex;
         auto cache_key = std::make_pair(filter.wcrop, filter.hcrop);
         if (const auto regex_iter = cache_mesh_regex.find(cache_key); regex_iter != cache_mesh_regex.end()) {
             return (regex_iter->second);
         }
         const auto regex_content = fmt::format(R"({}x{}_(\d+))", filter.wcrop, filter.hcrop);
-        return (cache_mesh_regex.emplace(cache_key, std::regex{ regex_content }).first->second);
+        return (cache_mesh_regex.try_emplace(cache_key, regex_content)
+                                .first->second);
     };
 
     auto mesh_directories = [](media::filter_param filter) {
@@ -82,17 +86,16 @@ namespace media
             output_directory(),
             [filter](const std::filesystem::directory_entry& mesh_dir) {
                 const auto mesh_desc = mesh_dir.path().stem().generic_string();
-                return std::regex_match(mesh_desc, mesh_regex(filter));
+                return RE2::FullMatch(mesh_desc, mesh_regex(filter));
             });
     };
 
+    // Todo: test
     auto tile_mpd_coordinate = [](std::string_view filename) {
-        static const std::regex mpd_regex{ R"(\w+_c(\d+)r(\d+)_\d+kbps.mpd)" };
-        std::cmatch coordinate;
-        if (std::regex_match(filename.data(), coordinate, mpd_regex)) {
-            return std::make_pair(
-                boost::lexical_cast<int>(coordinate[1]),
-                boost::lexical_cast<int>(coordinate[2]));
+        static const RE2 mpd_regex{ R"(\w+_c(\d+)r(\d+)_\d+kbps.mpd)" };
+        auto col = 0, row = 0;
+        if (RE2::FullMatch(filename.data(), mpd_regex, &col, &row)) {
+            return std::make_pair(col, row);
         }
         core::throw_unreachable(__FUNCTION__);
     };
@@ -146,10 +149,9 @@ namespace media
     };
 
     void command::crop_scale_transcode(const std::filesystem::path input,
-                                       const filter_param filter,
                                        const rate_control rate,
                                        const pace_control pace) {
-        if (pace.offset < filter.wcrop * filter.hcrop) {
+        if (pace.offset < wcrop * hcrop) {
             std::vector<std::string> cmd_params{ "ffmpeg", "-i", input.string() };
             std::string crop_scale_map;
             {
@@ -157,16 +159,16 @@ namespace media
                     media::source::path{ input.string().data() }
                 }.demux(media::type::video).scale();
                 const auto scale = fmt::format("scale={}:{}",
-                                               ceil_even(width / filter.wcrop / filter.wscale),
-                                               ceil_even(height / filter.hcrop / filter.hscale));
-                for (auto i = 0; i != filter.wcrop; ++i) {
-                    for (auto j = 0; j != filter.hcrop; ++j) {
-                        if (i * filter.hcrop + j < pace.offset || i * filter.hcrop + j >= pace.offset + pace.stride) {
+                                               ceil_even(width / wcrop / wscale),
+                                               ceil_even(height / hcrop / hscale));
+                for (auto i = 0; i != wcrop; ++i) {
+                    for (auto j = 0; j != hcrop; ++j) {
+                        if (i * hcrop + j < pace.offset || i * hcrop + j >= pace.offset + pace.stride) {
                             continue;
                         }
                         const auto crop = fmt::format("crop={}:{}:{}:{}",
-                                                      width / filter.wcrop, height / filter.hcrop,
-                                                      width * i / filter.wcrop, height * j / filter.hcrop);
+                                                      width / wcrop, height / hcrop,
+                                                      width * i / wcrop, height * j / hcrop);
                         crop_scale_map += fmt::format("[0:v]{},{}[v{}:{}];", crop, scale, i, j);
                     }
                 }
@@ -174,7 +176,7 @@ namespace media
             }
             cmd_params.emplace_back(fmt::format("-filter_complex \"{}\"", crop_scale_map));
             const auto [file_stem, file_output_dir] = output_h264_directory(input.string(),
-                                                                            mesh_description(filter, rate));
+                                                                            mesh_description({ wcrop, hcrop }, rate));
             {
                 auto make_success = false;
                 if (pace.offset) {
@@ -187,9 +189,9 @@ namespace media
             const auto crop_tile_path = [&file_stem, &file_output_dir, &rate](int i, int j) {
                 return (file_output_dir / fmt::format("{}_c{}r{}_{}kbps.264", file_stem, i, j, rate.bit_rate)).generic_string();
             };
-            for (auto i = 0; i != filter.wcrop; ++i) {
-                for (auto j = 0; j != filter.hcrop; ++j) {
-                    if (i * filter.hcrop + j < pace.offset || i * filter.hcrop + j >= pace.offset + pace.stride) {
+            for (auto i = 0; i != wcrop; ++i) {
+                for (auto j = 0; j != hcrop; ++j) {
+                    if (i * hcrop + j < pace.offset || i * hcrop + j >= pace.offset + pace.stride) {
                         continue;
                     }
                     cmd_params.emplace_back(fmt::format("-map [v{}:{}]", i, j));
@@ -203,7 +205,7 @@ namespace media
             }
             cmd_params.emplace_back("-y");
             system(folly::join(' ', cmd_params));
-            crop_scale_transcode(input, filter, rate, { pace.stride, pace.offset + pace.stride });
+            crop_scale_transcode(input, rate, { pace.stride, pace.offset + pace.stride });
         }
     }
 
@@ -217,9 +219,8 @@ namespace media
             });
     };
 
-    void command::package_container(const filter_param filter,
-                                    const rate_control rate) {
-        for (auto& mesh_entry : mesh_directory(filter)) {
+    void command::package_container(const rate_control rate) {
+        for (auto& mesh_entry : mesh_directory({ wcrop, hcrop })) {
             assert(is_directory(mesh_entry));
             const auto h264_directory = mesh_entry / "h264";
             const auto mp4_directory = mesh_entry / "mp4";
@@ -242,10 +243,9 @@ namespace media
         }
     }
 
-    void command::dash_segment(const filter_param filter,
-                               const std::chrono::milliseconds duration) {
+    void command::dash_segment(const std::chrono::milliseconds duration) {
 
-        for (auto& mesh_path : mesh_directory(filter)) {
+        for (auto& mesh_path : mesh_directory({ wcrop, hcrop })) {
             assert(is_directory(mesh_path));
             const auto mp4_directory = mesh_path / "mp4";
             const auto dash_directory = mesh_path / "dash";
@@ -328,7 +328,7 @@ namespace media
         return srd;
     };
 
-    void command::merge_dash_mpd(const filter_param filter) {
+    void command::merge_dash_mpd() {
         XMLDocument dest_document;
         XMLDeclaration* declaration = nullptr;
         XMLElement* program_information = nullptr;
@@ -340,10 +340,10 @@ namespace media
         core::make_empty_directory(dest_mpd_path
                                    .replace_filename(
                                        std::filesystem::path{
-                                           fmt::format("{}x{}", filter.wcrop, filter.hcrop)
+                                           fmt::format("{}x{}", wcrop, hcrop)
                                        } / dest_mpd_path.filename())
                                    .parent_path());
-        for (auto& [coordinate, mpd_paths] : tile_mpd_path_map(filter)) {
+        for (auto& [coordinate, mpd_paths] : tile_mpd_path_map({ wcrop, hcrop })) {
             XMLElement* adaptation_set = nullptr;
             for (auto& mpd_path : mpd_paths) {
                 XMLDocument src_document;
@@ -365,7 +365,7 @@ namespace media
                 } else {
                     auto* supplemental = dest_document.NewElement("SupplementalProperty");
                     supplemental->SetAttribute("schemeIdUri", "urn:mpeg:dash:srd:2014");
-                    supplemental->SetAttribute("value", spatial_relationship(filter, coordinate).data());
+                    supplemental->SetAttribute("value", spatial_relationship({ wcrop, hcrop }, coordinate).data());
                     adaptation_set->InsertFirstChild(supplemental);
                 }
                 adaptation_set->LastChildElement("Representation")

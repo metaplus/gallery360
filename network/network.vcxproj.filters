@@ -70,8 +70,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Xml Include="config.xml">
+    <None Include="config.json">
       <Filter>Resource Files</Filter>
-    </Xml>
+    </None>
   </ItemGroup>
 </Project>

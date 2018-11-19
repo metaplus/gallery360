@@ -33,21 +33,22 @@ namespace media
 
         static inline std::filesystem::path input_directory;
         static inline std::filesystem::path output_directory;
+        static inline auto wcrop = 0;
+        static inline auto hcrop = 0;
+        static inline auto wscale = 1;
+        static inline auto hscale = 1;
 
         static void resize(std::string_view input,
                            size_param size);
 
         static void crop_scale_transcode(std::filesystem::path input,
-                                         filter_param filter,
                                          rate_control rate = {},
                                          pace_control pace = {});
 
-        static void package_container(filter_param filter,
-                                      rate_control rate);
+        static void package_container(rate_control rate);
 
-        static void dash_segment(filter_param filter,
-                                 std::chrono::milliseconds duration);
+        static void dash_segment(std::chrono::milliseconds duration);
 
-        static void merge_dash_mpd(filter_param filter);
+        static void merge_dash_mpd();
     };
 }

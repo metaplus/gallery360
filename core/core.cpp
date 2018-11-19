@@ -24,7 +24,7 @@ namespace core
         assert(is_directory(directory.root_directory()));
         const auto remove_count = std::filesystem::remove_all(directory);
         const auto create_success = std::filesystem::create_directories(directory);
-        return std::make_pair(boost::numeric_cast<size_t>(remove_count),
+        return std::make_pair(folly::to<size_t>(remove_count),
                               create_success);
     }
 

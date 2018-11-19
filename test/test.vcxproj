@@ -174,6 +174,7 @@
     <ClCompile Include="core-test.cpp" />
     <ClCompile Include="folly-test.cpp" />
     <ClCompile Include="gallery-test.cpp" />
+    <ClCompile Include="json-test.cpp" />
     <ClCompile Include="multimedia-test.cpp" />
     <ClCompile Include="network-test.cpp" />
     <ClCompile Include="pch.cpp">

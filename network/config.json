@@ -1,0 +1,12 @@
+﻿{
+  "net": {
+    "protocal": "http",
+    "server": {
+      "port": 33666,
+      "directories": {
+        "root": "D:/Media",
+        "log": null
+      }
+    }
+  }
+}
