@@ -6,7 +6,7 @@ namespace net::client
     class connector;
 
     template<>
-    class connector<protocal::tcp> : protocal::tcp::protocal_base
+    class connector<protocal::tcp> : protocal::base<protocal::tcp>
     {
         struct entry
         {

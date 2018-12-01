@@ -26,7 +26,7 @@ namespace media
 
     class frame final
     {
-        struct deleter
+        struct deleter final
         {
             void operator()(AVFrame* object) const {
                 if (object != nullptr) {
@@ -55,7 +55,7 @@ namespace media
 
     class packet final
     {
-        struct deleter
+        struct deleter final
         {
             void operator()(AVPacket* object) const {
                 if (object != nullptr) {
@@ -112,30 +112,30 @@ namespace media
         std::pair<int, int> scale() const;
     };
 
-    struct source
+    struct source final
     {
-        struct format : std::string_view
+        struct format final : std::string_view
         {
             using std::string_view::string_view;
             using std::string_view::operator=;
         };
 
-        struct path : std::string_view
+        struct path final : std::string_view
         {
             using std::string_view::string_view;
             using std::string_view::operator=;
         };
     };
 
-    struct sink
+    struct sink final
     {
-        struct format : std::string_view
+        struct format final : std::string_view
         {
             using std::string_view::string_view;
             using std::string_view::operator=;
         };
 
-        struct path : std::string_view
+        struct path final : std::string_view
         {
             using std::string_view::string_view;
             using std::string_view::operator=;

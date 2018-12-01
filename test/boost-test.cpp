@@ -34,8 +34,10 @@ namespace boost_test
         EXPECT_EQ(cb.size(), 0);
         EXPECT_NE(cb.max_size(), 2);
         EXPECT_EQ(cb.capacity(), 2);
+        EXPECT_TRUE(cb.empty());
         cb.push_back(2);
         cb.push_front(1);
+        EXPECT_TRUE(cb.full());
         EXPECT_EQ(cb.front(), 1);
         EXPECT_EQ(cb.at(0), 1);
         EXPECT_EQ(cb.at(1), 2);
@@ -46,6 +48,49 @@ namespace boost_test
         EXPECT_EQ(cb.at(0), 1);
         EXPECT_EQ(cb.at(1), 4);
         EXPECT_TRUE(cb.full());
+    }
+
+    TEST(CircularBuffer, Rotate) {
+        boost::circular_buffer<int> cb(5);
+        cb.push_back(3);
+        cb.push_front(2);
+        cb.push_back(4);
+        EXPECT_EQ(cb.front(), 2);
+        EXPECT_EQ(cb.back(), 4);
+        cb.push_back(5);
+        cb.push_front(1);
+        EXPECT_EQ(cb.front(), 1);
+        EXPECT_EQ(cb.back(), 5);
+        EXPECT_EQ(cb.at(2), 3);
+        EXPECT_TRUE(cb.full());
+        cb.push_back(6);
+        EXPECT_EQ(cb[0], 2);
+        EXPECT_EQ(cb[1], 3);
+        EXPECT_EQ(cb[2], 4);
+        EXPECT_EQ(cb[3], 5);
+        EXPECT_EQ(cb[4], 6);
+        cb.push_front(0);
+        EXPECT_EQ(cb[0], 0);
+        EXPECT_EQ(cb[1], 2);
+        EXPECT_EQ(cb[2], 3);
+        EXPECT_EQ(cb[3], 4);
+        EXPECT_EQ(cb[4], 5);
+        const auto iter = cb.begin() + 3;
+        EXPECT_EQ(4, *iter);
+        cb.rotate(cb.begin() + 2);
+        EXPECT_EQ(cb[0], 3);
+        EXPECT_EQ(cb[1], 4);
+        EXPECT_EQ(cb[2], 5);
+        EXPECT_EQ(cb[3], 0);
+        EXPECT_EQ(cb[4], 2);
+        EXPECT_EQ(4, *iter);
+        cb.rotate(iter);
+        EXPECT_EQ(cb[0], 4);
+        EXPECT_EQ(cb[1], 5);
+        EXPECT_EQ(cb[2], 0);
+        EXPECT_EQ(cb[3], 2);
+        EXPECT_EQ(cb[4], 3);
+        EXPECT_EQ(4, *iter);
     }
 
     TEST(Tribool, Base) {

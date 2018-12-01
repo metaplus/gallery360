@@ -99,8 +99,10 @@ namespace core
         return std::make_unique<std::atomic<int64_t>>(init);
     };
 
-    folly::Function<std::pair<int64_t,
-                              std::shared_ptr<spdlog::logger>>()>
+    folly::Function<
+        std::pair<int64_t, std::shared_ptr<spdlog::logger>
+        >()
+    >
     console_logger_factory(std::string logger_group) {
 
         return [logger_group = std::move(logger_group), indexer = atomic_index()] {
@@ -113,6 +115,23 @@ namespace core
             logger->set_level(spdlog::level::debug);
             #endif
             return std::make_pair(logger_index, std::move(logger));
+        };
+    }
+
+    folly::Function<
+        std::shared_ptr<spdlog::logger>&()>
+    console_logger_access(std::string logger_name,
+                          folly::Function<void(spdlog::logger&)> post_process) {
+        auto res = post_process.operator bool();
+        auto generate_logger = [logger_name, process = std::move(post_process)]() mutable {
+            auto logger = spdlog::stdout_color_mt(logger_name);
+            if (process != nullptr) {
+                process(*logger);
+            }
+            return logger;
+        };
+        return [logger = folly::lazy(std::move(generate_logger))]() mutable -> decltype(auto) {
+            return logger();
         };
     }
 }

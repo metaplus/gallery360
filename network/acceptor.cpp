@@ -25,8 +25,7 @@ namespace net::server
         return acceptor_.local_endpoint().port();
     }
 
-    folly::SemiFuture<protocal::tcp::protocal_base::socket_type>
-    acceptor<boost::asio::ip::tcp>::accept_socket() {
+    auto acceptor<boost::asio::ip::tcp>::accept_socket() -> folly::SemiFuture<socket_type> {
         auto [promise_socket, future_socket] = folly::makePromiseContract<socket_type>();
         accept_list_.withWLock([this, &promise_socket](std::list<acceptor::entry>& accept_list) {
             accept_list.emplace_back(std::move(promise_socket));

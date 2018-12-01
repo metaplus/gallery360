@@ -1,11 +1,6 @@
 #include "stdafx.h"
 #include "ffmpeg.h"
 
-#ifdef MULTIMEDIA_USE_MSGPACK
-#include <msgpack.hpp>
-#include <msgpack/adaptor/define_decl.hpp>
-#endif // MULTIMEDIA_USE_MSGPACK
-
 media::frame::frame()
     : handle_(av_frame_alloc(), deleter{}) {}
 
@@ -103,7 +98,8 @@ media::type media::stream::media() const {
 }
 
 std::pair<int, int> media::stream::scale() const {
-    return std::make_pair(get().codecpar->width, get().codecpar->height);
+    return std::make_pair(get().codecpar->width,
+                          get().codecpar->height);
 }
 
 media::stream::pointer media::stream::operator->() const {

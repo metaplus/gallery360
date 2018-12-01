@@ -55,9 +55,6 @@ namespace net::component
 
         bool available() const;
 
-        bool poll_tile_consumed(int col, int row) const;
-        bool wait_tile_consumed(int col, int row) const;
-
         folly::SemiFuture<buffer_context> request_tile_context(int col, int row) const;
 
     private:

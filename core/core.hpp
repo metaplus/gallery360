@@ -295,6 +295,12 @@ namespace core
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
                                                                   std::string_view pool_name = "CorePool");
 
-    folly::Function<std::pair<int64_t, std::shared_ptr<spdlog::logger>>()>
+    folly::Function<
+        std::pair<int64_t, std::shared_ptr<spdlog::logger>>()>
     console_logger_factory(std::string logger_group);
+
+    folly::Function<
+        std::shared_ptr<spdlog::logger>&()>
+    console_logger_access(std::string logger_name,
+                          folly::Function<void(spdlog::logger&)> post_process = nullptr);
 }

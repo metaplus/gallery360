@@ -104,7 +104,6 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;GALLERY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(Include);../../;../;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
@@ -142,7 +141,6 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;GALLERY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(Include);../../;../;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
@@ -160,6 +158,7 @@
     <ClInclude Include="..\detail\IUnityGraphicsD3D11.h" />
     <ClInclude Include="..\detail\IUnityInterface.h" />
     <ClInclude Include="..\detail\PlatformBase.h" />
+    <ClInclude Include="context.h" />
     <ClInclude Include="export.h" />
     <ClInclude Include="graphic.h" />
     <ClInclude Include="openvr.h" />

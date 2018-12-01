@@ -12,7 +12,7 @@ namespace net::client
 
     template<>
     class session<protocal::http> : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
-                                    protocal::http::protocal_base
+                                    protocal::base<protocal::http>
     {
         using request_param = std::variant<std::monostate,
                                            response<dynamic_body>,

@@ -233,7 +233,7 @@ namespace gallery_test
         EXPECT_EQ(row, 3);
         EXPECT_EQ(width, 3840);
         EXPECT_EQ(height, 1920);
-        _nativeGraphicSetTextures(nullptr, nullptr, nullptr);
+        _nativeGraphicSetTextures(nullptr, nullptr, nullptr, false);
         _nativeDashPrefetch();
         auto iteration = 0;
         while (_nativeDashAvailable()) {
@@ -242,7 +242,7 @@ namespace gallery_test
             for (auto r = 0; r < row; ++r) {
                 for (auto c = 0; c < col; ++c) {
                     auto index = r * col + c + 1;
-                    if (_nativeDashTilePollUpdate(c, r)) {
+                    if (_nativeDashTilePollUpdate(c, r, iteration)) {
                         poll_count++;
                         render_event_func(-1);
                     } else {
@@ -292,7 +292,7 @@ auto plugin_routine = [](std::string url) {
                 const auto index = r * col + c + 1;
                 ref_index_range.push_back(index);
                 coordinate_map[index] = std::make_pair(c, r);
-                _nativeDashSetTexture(c, r, nullptr, nullptr, nullptr);
+                _nativeDashSetTexture(c, r, index, nullptr, nullptr, nullptr);
             }
         }
         folly::stop_watch<seconds> watch;
@@ -306,7 +306,7 @@ auto plugin_routine = [](std::string url) {
                 begin_iter, remove_iter,
                 [&](int index) {
                     const auto [c, r] = coordinate_map.at(index);
-                    const auto poll_success = _nativeDashTilePollUpdate(c, r);
+                    const auto poll_success = _nativeDashTilePollUpdate(c, r, iteration);
                     if (poll_success) {
                         if constexpr (tuning::verbose) {
                             auto cc = 0, rr = 0;
@@ -366,5 +366,18 @@ namespace gallery_test
         EXPECT_EQ(codec, 4);
         EXPECT_EQ(net, 4);
         EXPECT_EQ(executor, 8);
+    }
+
+    TEST(Test, ManagedString) {
+        {
+            auto str = test::_nativeTestString();
+            EXPECT_GT(std::strlen(str), 0);
+            CoTaskMemFree(str);
+        }
+        {
+            auto str = test::_nativeTestFile();
+            EXPECT_GT(std::strlen(str), 0);
+            CoTaskMemFree(str);
+        }
     }
 }

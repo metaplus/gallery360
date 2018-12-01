@@ -18,38 +18,52 @@ namespace net
 
     namespace protocal
     {
+        template<typename Protocal>
+        struct base;
+
         struct http
         {
             constexpr static auto default_version = 11;
             constexpr static auto default_method = boost::beast::http::verb::get;
-
-            struct protocal_base
-            {
-                template<typename Body>
-                using response = boost::beast::http::response<Body, boost::beast::http::fields>;
-                template<typename Body>
-                using request = boost::beast::http::request<Body, boost::beast::http::fields>;
-                template<typename Body>
-                using response_parser = boost::beast::http::response_parser<Body>;
-                template<typename Body>
-                using request_parser = boost::beast::http::request_parser<Body>;
-                template<typename Body>
-                using response_ptr = std::unique_ptr<response<Body>>;
-                template<typename Body>
-                using request_ptr = std::unique_ptr<request<Body>>;
-                using under_protocal_type = boost::asio::ip::tcp;
-                using socket_type = boost::asio::ip::tcp::socket;
-            };
         };
 
-        struct tcp
+        template<>
+        struct base<http>
         {
-            struct protocal_base
-            {
-                using protocal_type = boost::asio::ip::tcp;
-                using socket_type = boost::asio::ip::tcp::socket;
-                using context_type = boost::asio::io_context;
-            };
+            template<typename Body>
+            using response = boost::beast::http::response<Body, boost::beast::http::fields>;
+            template<typename Body>
+            using request = boost::beast::http::request<Body, boost::beast::http::fields>;
+            template<typename Body>
+            using response_parser = boost::beast::http::response_parser<Body>;
+            template<typename Body>
+            using request_parser = boost::beast::http::request_parser<Body>;
+            template<typename Body>
+            using response_ptr = std::unique_ptr<response<Body>>;
+            template<typename Body>
+            using request_ptr = std::unique_ptr<request<Body>>;
+            using under_protocal_type = boost::asio::ip::tcp;
+            using socket_type = boost::asio::ip::tcp::socket;
+        };
+
+        struct tcp { };
+        struct udp { };
+        struct icmp { };
+
+        template<>
+        struct base<tcp>
+        {
+            using protocal_type = boost::asio::ip::tcp;
+            using socket_type = boost::asio::ip::tcp::socket;
+            using context_type = boost::asio::io_context;
+        };
+
+        template<>
+        struct base<udp>
+        {
+            using protocal_type = boost::asio::ip::udp;
+            using socket_type = boost::asio::ip::udp::socket;
+            using context_type = boost::asio::io_context;
         };
 
         struct dash : http

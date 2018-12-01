@@ -21,7 +21,6 @@ namespace net::protocal
     struct dash::video_adaptation_set::context
     {
         std::vector<size_t> trace;
-        boost::circular_buffer<folly::Future<frame_consumer>> consumer_cycle{ 3 };
         folly::SemiFuture<http_session_ptr> tile_client = folly::SemiFuture<http_session_ptr>::makeEmpty();
         bool drain = false;
     };
@@ -58,7 +57,7 @@ namespace net::component
         std::optional<dash::parser> mpd_parser;
         std::optional<client::connector<protocal::tcp>> connector;
         folly::Function<double(int, int)> predictor = [](auto, auto) {
-            return 1;
+            return folly::Random::randDouble01();
         };
         folly::Function<size_t(int, int)> indexer;
         folly::ThreadPoolExecutor& executor = dynamic_cast<folly::ThreadPoolExecutor&>(*folly::getCPUExecutor());
@@ -83,8 +82,9 @@ namespace net::component
         dash::represent& predict_represent(dash::video_adaptation_set& video_set) {
             const auto predict_index = [this, &video_set]() {
                 const auto represent_size = std::size(video_set.represents);
-                return std::min(folly::to<size_t>(
-                                    represent_size * std::invoke(predictor, video_set.col, video_set.row)),
+                const auto probability = std::invoke(predictor, video_set.col, video_set.row);;
+                const auto predict_index = represent_size * probability;
+                return std::min(static_cast<size_t>(predict_index),
                                 represent_size - 1);
             };
             const auto represent_index = predict_index();
@@ -139,36 +139,6 @@ namespace net::component
             }
             return represent.initial_buffer
                             ->getSemiFuture();
-        }
-
-        tribool consume_tile(dash::video_adaptation_set& video_set,
-                             bool poll,
-                             bool reset = false) {
-            try {
-                assert(video_set.context->consumer_cycle.full());
-                if (video_set.context->drain) {
-                    core::throw_drained("consume_tile");
-                }
-                auto& consumer = video_set.context
-                                          ->consumer_cycle.front();
-                if (poll) {
-                    if (!consumer.isReady()) {
-                        return indeterminate;
-                    }
-                } else {
-                    consumer.wait();
-                }
-                if (!consumer.value()()) {
-                    assert(!reset);
-                    video_set.context
-                             ->consumer_cycle.pop_front();
-                    return consume_tile(video_set, poll, true);
-                }
-                return true;
-            } catch (...) {
-                mark_drained(video_set);
-                return false;
-            }
         }
 
         folly::SemiFuture<http_session_ptr> make_http_client() {
@@ -227,20 +197,6 @@ namespace net::component
         return impl_->drain_count == 0;
     }
 
-    bool dash_manager::poll_tile_consumed(int col, int row) const {
-        auto& video_set = impl_->mpd_parser
-                               ->video_set(col, row);
-        const auto result = impl_->consume_tile(video_set, true);
-        return result == true;
-    }
-
-    bool dash_manager::wait_tile_consumed(int col, int row) const {
-        auto& video_set = impl_->mpd_parser
-                               ->video_set(col, row);
-        const auto result = impl_->consume_tile(video_set, false);
-        return result == true;
-    }
-
     folly::SemiFuture<buffer_context>
     dash_manager::request_tile_context(int col, int row) const {
         auto& video_set = impl_->mpd_parser->video_set(col, row);
@@ -260,9 +216,11 @@ namespace net::component
         auto initial_segment = impl_->request_initial_if_null(video_set, represent);
         auto tile_segment = impl_->request_send(video_set, represent, false);
         return folly::collectAllSemiFuture(initial_segment, tile_segment)
-            .deferValue(
-                [](std::tuple<folly::Try<std::shared_ptr<multi_buffer>>,
-                              folly::Try<multi_buffer>>&& buffer_tuple) {
+            .deferValue([](
+                std::tuple<
+                    folly::Try<std::shared_ptr<multi_buffer>>,
+                    folly::Try<multi_buffer>
+                >&& buffer_tuple) {
                     auto& [initial_buffer, data_buffer] = buffer_tuple;
                     data_buffer.throwIfFailed();
                     return buffer_context{ **initial_buffer, std::move(*data_buffer) };
@@ -272,7 +230,7 @@ namespace net::component
 
     folly::Function<size_t(int, int)>
     dash_manager::represent_indexer(folly::Function<double(int, int)> probability) {
-        return [this, probability    = std::move(probability)](int x, int y) mutable {
+        return [this, probability = std::move(probability)](int x, int y) mutable {
             auto& video_set = impl_->mpd_parser->video_set(x, y);
             const auto represent_size = video_set.represents.size();
             const auto predict_index = folly::to<size_t>(represent_size * probability(x, y));

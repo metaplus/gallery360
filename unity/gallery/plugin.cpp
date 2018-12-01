@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "export.h"
+#include "context.h"
 #include "network/component.h"
 #include "multimedia/component.h"
-#include "multimedia/pch.h"
 #include "graphic.h"
 #include <fstream>
 
@@ -11,46 +11,21 @@ using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
 using boost::beast::multi_buffer;
-using dll::graphic;
-
-struct texture_context;
 
 inline namespace config
 {
-    template<typename T>
-    class alternate
-    {
-        T value_ = 0;
-        mutable std::optional<T> alternate_;
-
-    public:
-        constexpr explicit alternate(T&& value)
-            : value_(std::forward<T>(value)) {}
-
-        constexpr T value() const {
-            return alternate_.value_or(value_);
-        }
-
-        std::optional<T> alter(const T& alter) const {
-            return std::exchange(alternate_,
-                                 std::make_optional(alter));
-        }
-    };
-
     using concurrency = alternate<unsigned>;
 
     const concurrency asio_concurrency{ std::thread::hardware_concurrency() };
     const concurrency executor_concurrency{ std::thread::hardware_concurrency() };
-    constexpr concurrency decoder_concurrency{ 2u };
-    constexpr auto frame_capacity = 180ui64;
-    constexpr auto texture_capacity = 3ui64;
+    const concurrency decoder_concurrency{ 2u };
 }
 
 std::shared_ptr<folly::ThreadPoolExecutor> cpu_executor;
 std::shared_ptr<folly::ThreadedExecutor> session_executor;
-std::shared_ptr<dll::graphic> dll_graphic;
-std::unordered_map<std::pair<int, int>, texture_context> tile_textures;
+std::optional<graphic> dll_graphic;
 std::optional<folly::futures::Barrier> session_barrier;
+std::unordered_map<std::pair<int, int>, stream_context> tile_textures;
 folly::Future<dash_manager> manager = folly::Future<dash_manager>::makeEmpty();
 
 UnityGfxRenderer unity_device = kUnityGfxRendererNull;
@@ -61,6 +36,7 @@ std::pair<int, int> frame_grid;
 std::pair<int, int> frame_scale;
 auto tile_width = 0;
 auto tile_height = 0;
+auto tile_count = 0;
 
 namespace debug
 {
@@ -76,45 +52,28 @@ namespace state
     auto tile_index = 0;
     decltype(tile_textures)::iterator texture_iterator;
     auto unity_time = 0.f;
-    std::atomic<bool> running{ false };
-    auto update_count = 0;
 
-    bool stream_available(std::optional<media::frame*> frame = std::nullopt) {
-        static auto end_of_stream = false;
-        if (frame.has_value()) {
-            if (auto& frame_ptr = frame.value(); frame_ptr != nullptr) {
-                end_of_stream = frame.value()->empty();
-            } else {
-                end_of_stream = false;
+    struct stream final
+    {
+        static inline std::atomic<bool> running{ false };
+
+        static bool available(std::optional<media::frame*> frame = std::nullopt) {
+            static auto end_of_stream = false;
+            if (frame.has_value()) {
+                if (auto& frame_ptr = frame.value(); frame_ptr != nullptr) {
+                    end_of_stream = frame.value()->empty();
+                } else {
+                    end_of_stream = false;
+                }
             }
+            return !end_of_stream;
         }
-        return !end_of_stream;
-    }
+    };
+
+    std::unique_ptr<folly::UMPMCQueue<update_batch::tile_render_context, false>> render_tile_queue;
 }
 
-struct texture_context
-{
-    graphic::texture_array texture{};
-    media::frame avail_frame{ nullptr };
-    folly::MPMCQueue<media::frame> frame_queue{ frame_capacity };
-
-    int col = 0;
-    int row = 0;
-    bool stop = false;
-    int64_t decode_count = 0;
-    int width_offset = 0;
-    int height_offset = 0;
-    int index = 0;
-
-    texture_context() = default;
-    texture_context(const texture_context&) = delete;
-    texture_context(texture_context&&) = delete;
-    texture_context& operator=(const texture_context&) = delete;
-    texture_context& operator=(texture_context&&) = delete;
-    ~texture_context() = default;
-};
-
-auto texture_at = [](int col, int row, bool construct = false) {
+auto stream_at = [](int col, int row, bool construct = false) {
     const auto tile_key = std::make_pair(col, row);
     auto tile_iterator = tile_textures.find(tile_key);
     if (tile_iterator == tile_textures.end()) {
@@ -155,9 +114,12 @@ namespace unity
             std::tie(width, height) = frame_scale;
             tile_width = frame_scale.first / frame_grid.first;
             tile_height = frame_scale.second / frame_grid.second;
+            tile_count = frame_grid.first * frame_grid.second;
             decoder_concurrency.alter(
-                std::max(1u, std::thread::hardware_concurrency() / frame_grid.first / frame_grid.second));
+                std::max(1u, std::thread::hardware_concurrency() / tile_count));
             assert(decoder_concurrency.value() >= 1);
+            assert(asio_concurrency.value() >= 4);
+            assert(executor_concurrency.value() >= 4);
             return true;
         }
         return false;
@@ -167,101 +129,102 @@ namespace unity
                                       HANDLE tex_y, HANDLE tex_u, HANDLE tex_v) {
         assert(manager.isReady());
         assert(manager.hasValue());
-        auto& tile_texture = texture_at(col, row, true)->second;
+        auto& tile_texture = stream_at(col, row, true)->second;
         tile_texture.col = col;
         tile_texture.row = row;
-        tile_texture.texture[0] = static_cast<ID3D11Texture2D*>(tex_y);
-        tile_texture.texture[1] = static_cast<ID3D11Texture2D*>(tex_u);
-        tile_texture.texture[2] = static_cast<ID3D11Texture2D*>(tex_v);
+        tile_texture.texture_array[0] = static_cast<ID3D11Texture2D*>(tex_y);
+        tile_texture.texture_array[1] = static_cast<ID3D11Texture2D*>(tex_u);
+        tile_texture.texture_array[2] = static_cast<ID3D11Texture2D*>(tex_v);
         tile_texture.width_offset = col * tile_width;
         tile_texture.height_offset = row * tile_height;
         tile_texture.index = index;
     }
 
-    void _nativeDashPrefetch() {
+    auto stream_mpeg_dash = [](std::pair<int, int> coordinate,
+                               stream_context& texture_context) {
+        auto& dash_manager = manager.value();
+        return [coordinate, &texture_context, &dash_manager] {
+            auto [col, row] = coordinate;
+            auto future_tile = dash_manager.request_tile_context(col, row);
+            try {
+                while (true) {
+                    auto tile_context = std::move(future_tile).get();
+                    future_tile = dash_manager.request_tile_context(col, row);
+                    frame_segmentor frame_segmentor{
+                        decoder_concurrency.value(),
+                        tile_context.initial,
+                        tile_context.data
+                    };
+                    assert(frame_segmentor.context_valid());
+                    while (frame_segmentor.codec_valid()) {
+                        auto running = false;
+                        for (auto& frame : frame_segmentor.try_consume()) {
+                            assert(frame->width > 600 && frame->height > 300);
+                            do {
+                                running = std::atomic_load(&state::stream::running);
+                            }
+                            while (running && !texture_context.frame_queue
+                                                              .tryWriteUntil(std::chrono::steady_clock::now() + 80ms,
+                                                                             std::move(frame)));
+                            if (!running) {
+                                throw std::runtime_error{ "abort running" };
+                            }
+                            texture_context.decode_count++;
+                        }
+                    }
+                }
+            } catch (core::bad_response_error) {
+                texture_context.frame_queue.blockingWrite(media::frame{ nullptr });
+            } catch (core::session_closed_error) {
+                assert(!"session_executor catch unexpected session_closed_error");
+            } catch (std::runtime_error) {
+                assert(std::atomic_load(&state::stream::running) == false);
+            } catch (...) {
+                //auto diagnostic = boost::current_exception_diagnostic_information();
+                //assert(!"session_executor catch unexpected exception");
+            }
+            session_barrier->wait().wait();
+        };
+    };
+
+    void DLLAPI _nativeDashPrefetch() {
         assert(std::size(tile_textures) == frame_grid.first*frame_grid.second);
         assert(manager.hasValue());
-        assert(state::stream_available());
-        auto& dash_manager = manager.value();
+        assert(state::stream::available());
         session_barrier.emplace(std::size(tile_textures) + 1);
         for (auto& [coordinate, texture_context] : tile_textures) {
             assert(coordinate == std::make_pair(texture_context.col, texture_context.row));
-            session_executor->add(
-                [coordinate, &texture_context, &dash_manager] {
-                    auto [col, row] = coordinate;
-                    auto future_tile = dash_manager.request_tile_context(col, row);
-                    try {
-                        while (true) {
-                            auto tile_context = std::move(future_tile).get();
-                            future_tile = dash_manager.request_tile_context(col, row);
-                            frame_segmentor frame_segmentor{
-                                decoder_concurrency.value(),
-                                tile_context.initial,
-                                tile_context.data
-                            };
-                            assert(frame_segmentor.context_valid());
-                            while (frame_segmentor.codec_valid()) {
-                                auto running = false;
-                                for (auto& frame : frame_segmentor.try_consume()) {
-                                    assert(frame->width > 700);
-                                    assert(frame->height > 300);
-                                    do {
-                                        running = std::atomic_load(&state::running);
-                                    }
-                                    while (running && !texture_context.frame_queue
-                                                                      .tryWriteUntil(std::chrono::steady_clock::now() + 80ms,
-                                                                                     std::move(frame)));
-
-                                    if (!running) {
-                                        throw std::runtime_error{ "abort running" };
-                                    }
-                                    texture_context.decode_count++;
-                                }
-                            }
-                        }
-                    } catch (core::bad_response_error) {
-                        texture_context.frame_queue.blockingWrite(media::frame{ nullptr });
-                    } catch (core::session_closed_error) {
-                        assert(!"session_executor catch unexpected session_closed_error");
-                        texture_context.frame_queue.blockingWrite(media::frame{ nullptr });
-                    } catch (std::runtime_error) {
-                        assert(std::atomic_load(&state::running) == false);
-                    } catch (...) {
-                        //auto diagnostic = boost::current_exception_diagnostic_information();
-                        //assert(!"session_executor catch unexpected exception");
-                    }
-                    session_barrier->wait().wait();
-                });
+            session_executor->add(stream_mpeg_dash(coordinate, texture_context));
         }
     }
 
     BOOL DLLAPI _nativeDashAvailable() {
-        return state::stream_available();
+        return state::stream::available();
     }
 
-    BOOL DLLAPI _nativeDashTilePollUpdate(INT col, INT row) {
-        auto texture_context = texture_at(col, row);
-        assert(col == texture_context->second.col);
-        assert(row == texture_context->second.row);
-        assert(std::make_pair(col, row) == texture_context->first);
-        const auto poll_success = texture_context->second.frame_queue
-                                                 .readIfNotEmpty(texture_context->second.avail_frame);
-        if (poll_success) {
-            //    state::tile_col = texture_context->second.col;
-            //    state::tile_row = texture_context->second.row;
-            //    state::texture_iterator = texture_context;
+    static_assert(std::is_move_constructible<update_batch::tile_render_context>::value);
+
+    BOOL DLLAPI _nativeDashTilePollUpdate(const INT col, const INT row,
+                                          const INT64 frame_index, const INT64 batch_index) {
+        auto& stream_context = stream_at(col, row)->second;
+        assert(stream_context.col == col && stream_context.row == row);
+        media::frame tile_frame{ nullptr };
+        const auto read_frame_success = stream_context.frame_queue.read(tile_frame);
+        if (read_frame_success) {
+            state::render_tile_queue->enqueue(
+                update_batch::tile_render_context{
+                    stream_context.width_offset,
+                    stream_context.height_offset,
+                    std::move(tile_frame),
+                    &stream_context.texture_array,
+                    frame_index,
+                    batch_index
+                });
         }
-        return poll_success;
+        return read_frame_success;
     }
 
-    BOOL _nativeDashTileWaitUpdate(INT x, INT y) {
-        core::throw_unimplemented();
-    }
-
-    void _nativeGraphicSetTextures(HANDLE tex_y,
-                                   HANDLE tex_u,
-                                   HANDLE tex_v,
-                                   BOOL temp) {
+    void DLLAPI _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp) {
         if constexpr (!debug::enable_null_texture) {
             assert(tex_y != nullptr);
             assert(tex_u != nullptr);
@@ -274,21 +237,15 @@ namespace unity
         }
     }
 
-    HANDLE DLLAPI _nativeGraphicCreateTextures(INT width, INT height) {
-        return dll_graphic->make_shader_resource(width, height)
+    HANDLE DLLAPI _nativeGraphicCreateTextures(INT width, INT height, CHAR value) {
+        return dll_graphic->make_shader_resource(width, height, value)
                           .shader;
-    }
-
-    void _nativeGraphicRelease() {
-        if (dll_graphic) {
-            dll_graphic->clean_up();
-        }
     }
 
     namespace test
     {
         void _nativeMockGraphic() {
-            core::access(dll_graphic);
+            dll_graphic.emplace();
             assert(dll_graphic);
         }
 
@@ -306,18 +263,32 @@ namespace unity
         void _nativeCoordinateState(INT& col, INT& row) {
             col = state::tile_col;
             row = state::tile_row;
-            //assert(state::texture_iterator->first == std::make_pair(state::tile_col, state::tile_row));
         }
 
-        auto managed_string = [](std::string_view string) {
+        auto unmanaged_ansi_string = [](std::string_view string) {
             assert(!string.empty());
-            auto* allocate = reinterpret_cast<char*>(CoTaskMemAlloc(string.size() + 1));
+            const auto allocate = reinterpret_cast<LPSTR>(CoTaskMemAlloc(string.size() + 1));
             *std::copy(string.begin(), string.end(), allocate) = '\0';
             return allocate;
         };
 
-        void _nativeTestString(LPSTR& str) {
-            str = managed_string("Hello World Test");
+        auto unmanaged_unicode_string = [](std::string_view string) {
+            return SysAllocStringByteLen(string.data(),
+                                         folly::to<UINT>(string.length()));
+        };
+
+        LPSTR DLLAPI _nativeTestString() {
+            return unmanaged_ansi_string("Hello World Test"s);
+        }
+
+        LPSTR DLLAPI _nativeTestFile() {
+            std::ifstream istream{ "C:\\bdlog.txt" };
+            assert(istream.is_open());
+            std::string string{
+                std::istreambuf_iterator<char>{ istream },
+                std::istreambuf_iterator<char>{}
+            };
+            return unmanaged_ansi_string(string);
         }
     }
 
@@ -326,16 +297,17 @@ namespace unity
             manager = folly::Future<dash_manager>::makeEmpty();
             tile_textures.clear();
         }
-        state::stream_available(nullptr);
+        state::stream::available(nullptr);
+        state::render_tile_queue = std::make_unique<decltype(state::render_tile_queue)::element_type>();
     };
 
     void DLLAPI _nativeLibraryInitialize() {
         reset_resource();
-        state::running = true;
+        state::stream::running = true;
     }
 
     void DLLAPI _nativeLibraryRelease() {
-        state::running = false;
+        state::stream::running = false;
         session_barrier->wait().wait();
         session_barrier = std::nullopt;
         reset_resource();
@@ -344,17 +316,17 @@ namespace unity
 
 static void __stdcall OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
     if (eventType == kUnityGfxDeviceEventInitialize) {
-        core::verify(unity_graphics->GetRenderer() == kUnityGfxRendererD3D11);
+        assert(unity_graphics->GetRenderer() == kUnityGfxRendererD3D11);
         state::unity_time = 0;
-        dll_graphic = std::make_shared<dll::graphic>();
+        dll_graphic.emplace();
         unity_device = kUnityGfxRendererD3D11;
     }
-    if (dll_graphic != nullptr) {
+    if (dll_graphic) {
         dll_graphic->process_event(eventType, unity_interface);
     }
     if (eventType == kUnityGfxDeviceEventShutdown) {
         unity_device = kUnityGfxRendererNull;
-        dll_graphic = nullptr;
+        dll_graphic.reset();
     }
 }
 
@@ -369,52 +341,46 @@ EXTERN_C void DLLAPI __stdcall UnityPluginLoad(IUnityInterfaces* unityInterfaces
 
 EXTERN_C void DLLAPI __stdcall UnityPluginUnload() {
     unity_graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
+    cpu_executor->stop();
 }
 
-static void __stdcall OnRenderEvent(int eventID) {
-    if (eventID == -1) {
-        return dll_graphic->overwrite_main_texture();
-    }
+auto dequeue_render_context = [](int count) {
+    std::vector<update_batch::tile_render_context> tile_render_contexts;
+    tile_render_contexts.reserve(count);
+    std::generate_n(
+        std::back_inserter(tile_render_contexts), count,
+        [] {
+            update_batch::tile_render_context context;
+            state::render_tile_queue->dequeue(context);
+            return context;
+        });
+    return tile_render_contexts;
+};
 
-    auto texture_iter = std::find_if(tile_textures.begin(), tile_textures.end(),
-                                     [eventID](decltype(tile_textures)::reference texture_context) {
-                                         return texture_context.second.index == eventID;
-                                     });
-    assert(texture_iter != tile_textures.end());
-    auto& texture_context = texture_iter->second;
-    if (state::stream_available(&texture_context.avail_frame)) {
-        dll_graphic->update_textures(texture_context.avail_frame,
-                                     texture_context.texture,
-                                     texture_context.width_offset,
-                                     texture_context.height_offset);
-
-        if constexpr (debug::enable_dump) {
-            const auto file = []()-> decltype(auto) {
-                static std::map<std::pair<int, int>, std::ofstream> file_map;
-                const auto file_key = std::make_pair(state::tile_col, state::tile_row);
-                auto file_iter = file_map.find(file_key);
-                if (file_iter == file_map.end()) {
-                    auto success = false;
-                    std::tie(file_iter, success) = file_map.try_emplace(
-                        file_key,
-                        std::ofstream{
-                            fmt::format("F:/Debug/ny_c{}_r{}.yuv", state::tile_col, state::tile_row),
-                            std::ios::trunc | std::ios::binary
-                        });
-                }
-                auto& file_stream = file_iter->second;
-                assert(file_stream.good());
-                file_stream.flush();
-                return (file_stream);
-            };
-            file().write(reinterpret_cast<const char*>(texture_context.avail_frame->data[0]), tile_width * tile_height);
-            file().write(reinterpret_cast<const char*>(texture_context.avail_frame->data[1]), tile_width * tile_height / 4);
-            file().write(reinterpret_cast<const char*>(texture_context.avail_frame->data[2]), tile_width * tile_height / 4);
+static void __stdcall on_render_event(const int event_id) {
+    auto graphic_context = folly::lazy([] {
+        return dll_graphic->update_context();
+    });
+    if (const auto update_tile_count = std::abs(event_id); update_tile_count > 0) {
+        for (auto& tile_render_context : dequeue_render_context(update_tile_count)) {
+            if (!tile_render_context.frame.empty()) {
+                dll_graphic->update_frame_texture(
+                    *graphic_context(),
+                    *tile_render_context.texture_array,
+                    tile_render_context.frame);
+                dll_graphic->copy_temp_texture_region(
+                    *graphic_context(),
+                    *tile_render_context.texture_array,
+                    tile_render_context.width_offset,
+                    tile_render_context.height_offset);
+            }
         }
     }
-
+    if (const auto update_main_texture = event_id <= 0; update_main_texture) {
+        dll_graphic->overwrite_main_texture();
+    }
 }
 
 UnityRenderingEvent unity::_nativeGraphicGetRenderEventFunc() {
-    return OnRenderEvent;
+    return on_render_event;
 }

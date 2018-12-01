@@ -1,89 +1,97 @@
 ﻿#pragma once
 
-namespace media
+inline namespace plugin
 {
-    class frame;
-}
-
-namespace dll
-{
-    class graphic
+    class graphic final
     {
-        struct deleter
-        {
-            template<typename T>
-            std::enable_if_t<std::is_base_of_v<IUnknown, T>> operator()(T* p) {
-                if (p != nullptr) {
-                    p->Release();
-                }
-            }
-        };
-
-        ID3D11Device* device_ = nullptr;
-        std::array<ID3D11Texture2D*, 3> alphas_{};
-        std::array<ID3D11Texture2D*, 3> alphas_temp_{};
-        mutable std::vector<std::function<void()>> cleanup_;
-        mutable std::uint64_t update_index_ = 0;
-
     public:
-        struct resource
+        struct resource final
         {
             ID3D11ShaderResourceView* shader = nullptr;
             ID3D11Texture2D* texture = nullptr;
+        };
 
-            void release() const {
-                shader->Release();
-                texture->Release();
+        struct deleter final
+        {
+            template<typename T>
+            std::enable_if_t<std::is_base_of_v<IUnknown, T>> operator()(T* object) {
+                if (object != nullptr) {
+                    object->Release();
+                }
+            }
+
+            void operator()(resource* resource) {
+                operator()(resource->shader);
+                operator()(resource->texture);
             }
         };
 
         using texture_array = std::array<ID3D11Texture2D*, 3>;
         using resource_array = std::array<resource, 3>;
+        using resource_array_iterator = boost::circular_buffer<resource_array>::iterator;
+
+    private:
+        ID3D11Device* device_ = nullptr;
+        texture_array alphas_{};
+        texture_array alphas_temp_{};
+        boost::circular_buffer<resource_array> textures_ring_{ 3 };
+        std::optional<decltype(textures_ring_)::iterator> render_texture_iterator_;
+        mutable std::uint64_t update_index_ = 0;
+
+    public:
 
         texture_array make_texture_array(media::frame& frame) const;
 
         resource_array make_resource_array(media::frame& frame) const;
 
-        void process_event(UnityGfxDeviceEventType type, IUnityInterfaces* interfaces);
+        void process_event(UnityGfxDeviceEventType type,
+                           IUnityInterfaces* interfaces);
 
-        void store_textures(HANDLE texY, HANDLE texU, HANDLE texV);
+        void store_textures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v);
 
-        void store_temp_textures(HANDLE texY, HANDLE texU, HANDLE texV);
+        void store_temp_textures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v);
 
-        resource make_shader_resource(int width,
-                                      int height,
-                                      void* data = nullptr) const;
+        resource make_shader_resource(int width, int height, void* data) const;
 
-        void update_textures(media::frame& frame,
-                             texture_array& texture_array,
-                             unsigned width_offset,
-                             unsigned height_offset) const;
+        resource make_shader_resource(int width, int height, char value) const;
 
-        void copy_temp_textures(resource_array resource_array,
-                                unsigned width_offset,
-                                unsigned height_offset);
+        void update_frame_texture(ID3D11DeviceContext& context,
+                                  texture_array& texture_array,
+                                  media::frame& frame) const;
+
+        void copy_backward_texture_region(ID3D11DeviceContext& context,
+                                          texture_array& texture_array,
+                                          unsigned width_offset,
+                                          unsigned height_offset);
+
+        void copy_temp_texture_region(ID3D11DeviceContext& context,
+                                      texture_array& texture_array,
+                                      unsigned width_offset,
+                                      unsigned height_offset);
+
+        size_t available_texture_slot() const;
 
         void overwrite_main_texture();
 
-        void clean_up() const;
+        std::optional<resource_array> rotate_ring_front_if_full();
 
-        graphic() = default;
+        std::unique_ptr<ID3D11DeviceContext, deleter> update_context() const;
+
+        resource_array& emplace_ring_back_if_vacant(int width, int height);
+
+        bool has_rendered_texture() const;
 
     private:
         void clear();
 
-        std::unique_ptr<ID3D11DeviceContext, deleter> context() const;
+        ID3D11Texture2D* make_dynamic_texture(int width, int height) const;
 
-        ID3D11Texture2D* make_dynamic_texture(int width,
-                                              int height) const;
+        ID3D11Texture2D* make_default_texture(int width, int height, void* data) const;
 
-        ID3D11Texture2D* make_default_texture(int width,
-                                              int height,
-                                              void* data) const;
+        ID3D11ShaderResourceView* make_shader_resource(ID3D11Texture2D* texture) const;
 
         static void map_texture_data(ID3D11DeviceContext* context,
                                      ID3D11Texture2D* texture,
-                                     void* data,
-                                     size_t size);
+                                     void* data, size_t size);
     };
 }

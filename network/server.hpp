@@ -14,7 +14,7 @@ namespace net::server
 
     template<>
     class session<protocal::http> : detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
-                                    protocal::http::protocal_base
+                                    protocal::base<protocal::http>
     {
         const int64_t index_ = 0;
         const std::shared_ptr<spdlog::logger> logger_;

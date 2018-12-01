@@ -249,7 +249,9 @@ namespace folly_test
         EXPECT_EQ(t5, 4s);
     }
 
-    void set_cpu_executor(int concurrency, int queue_size, std::string_view pool_name = "CorePool") {
+    void set_cpu_executor(int concurrency,
+                          int queue_size,
+                          std::string_view pool_name = "CorePool") {
         static auto executor = std::make_shared<folly::CPUThreadPoolExecutor>(
             std::make_pair(concurrency, 1),
             std::make_unique<folly::LifoSemMPMCQueue<folly::CPUThreadPoolExecutor::CPUTask, folly::QueueBehaviorIfFull::BLOCK>>(queue_size),
@@ -257,7 +259,8 @@ namespace folly_test
         folly::setCPUExecutor(executor);
     }
 
-    void set_cpu_executor(int concurrency, std::string_view pool_name = "CorePool") {
+    void set_cpu_executor(int concurrency,
+                          std::string_view pool_name = "CorePool") {
         static auto executor = std::make_shared<folly::CPUThreadPoolExecutor>(
             std::make_pair(concurrency, 2),
             std::make_unique<folly::UnboundedBlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>>(),
@@ -734,7 +737,7 @@ namespace folly_test
             }
         };
         loop_many_times([] {
-            auto res= folly::Random::randDouble(-1, 2);
+            auto res = folly::Random::randDouble(-1, 2);
             EXPECT_GE(res, -1);
             EXPECT_LT(res, 2);
         });
