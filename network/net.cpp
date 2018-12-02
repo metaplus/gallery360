@@ -6,14 +6,14 @@
 
 namespace net
 {
-    const auto logger = spdlog::stdout_color_mt("net.asio");
+    auto logger = core::console_logger_access("net.asio");
     const auto thread_factory = folly::lazy([] {
         return std::make_unique<folly::NamedThreadFactory>("NetAsio");
     });
 
     namespace protocal
     {
-        struct dash::parser::impl
+        struct dash::parser::impl final
         {
             std::unordered_map<
                 std::pair<int, int>,
@@ -228,18 +228,30 @@ namespace net
         throw impl::duration_parse_mismatch{ __FUNCTION__ };
     }
 
+    std::vector<std::filesystem::path> config_paths{ std::filesystem::current_path(),_NET_CONFIG_DIR };
+
+    void add_config_path(std::filesystem::path&& path) {
+        if(std::filesystem::is_directory(path)) {
+            config_paths.push_back(std::move(path));
+        }
+    }
+
     const std::filesystem::path& config_path(bool json) noexcept {
         static const auto config_path = folly::lazy(
             [] {
                 std::array<std::filesystem::path, 2> config_path_array;
-                std::filesystem::path work_path{ _NET_CONFIG_DIR };
-                if (!std::filesystem::is_directory(work_path)) {
-                    work_path = std::filesystem::current_path();
+                const auto config_dir = std::find_if(
+                    config_paths.rbegin(), config_paths.rend(),
+                    [](std::filesystem::path& dir) {
+                        return std::filesystem::is_directory(dir);
+                    });
+                assert(config_dir != config_paths.rend());
+                if (config_dir == std::prev(config_paths.rend())) {
+                    logger()->warn("config directory uses default work path");
                 }
-                logger->info("config directory {}", work_path.generic_string());
-                assert(std::filesystem::is_directory(work_path));
-                config_path_array[false] = std::filesystem::path{ _NET_CONFIG_DIR } / "config.xml";
-                config_path_array[true] = std::filesystem::path{ _NET_CONFIG_DIR } / "config.json";
+                logger()->info("config directory {}", config_dir->generic_string());
+                config_path_array[false] = *config_dir / "config.xml";
+                config_path_array[true] = *config_dir / "config.json";
                 assert(std::filesystem::is_regular_file(config_path_array[true]));
                 return config_path_array;
             });
@@ -320,9 +332,9 @@ namespace net
                     return false;
                 }
             );
-            logger->info("threads join {} of {}", join_count, std::size(threads));
+            logger()->info("threads join {} of {}", join_count, std::size(threads));
             static_cast<default_delete&>(*this)(io_context);
-            logger->info("io_context destruct");
+            logger()->info("io_context destruct");
         }
     };
 
@@ -336,21 +348,21 @@ namespace net
                           return thread_factory()->newThread([&io_context] {
                               const auto thread_id = std::this_thread::get_id();
                               try {
-                                  logger->info("thread@{} start", thread_id);
+                                  logger()->info("thread@{} start", thread_id);
                                   io_context.run();
-                                  logger->info("thread@{} finish", thread_id);
+                                  logger()->info("thread@{} finish", thread_id);
                               } catch (...) {
                                   const auto message = boost::current_exception_diagnostic_information();
-                                  logger->error("thread@{} error {}", thread_id, message);
+                                  logger()->error("thread@{} error {}", thread_id, message);
                               }
-                              logger->info("thread@{} exit", thread_id);
+                              logger()->info("thread@{} exit", thread_id);
                           });
                       });
         return threads;
     }
 
     std::shared_ptr<io_context> make_asio_pool(unsigned concurrency) {
-        logger->info("make_asio_pool");
+        logger()->info("make_asio_pool");
         auto* io_context_ptr = new io_context{};
         return std::shared_ptr<io_context>{
             io_context_ptr, asio_deleter{ io_context_ptr, concurrency }

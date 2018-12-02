@@ -8,7 +8,7 @@ namespace net
         using boost::beast::multi_buffer;
     }
 
-    struct buffer_context
+    struct buffer_context final
     {
         detail::multi_buffer& initial;
         detail::multi_buffer data;

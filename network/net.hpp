@@ -144,6 +144,7 @@ namespace net
         return request;
     }
 
+    void add_config_path(std::filesystem::path&& path);
     const std::filesystem::path& config_path(bool json = true) noexcept;
     std::string config_xml_entry(std::vector<std::string> entry_path);
     nlohmann::json::reference config_json_entry(std::vector<std::string> entry_path);

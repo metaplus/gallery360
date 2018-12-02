@@ -3,14 +3,14 @@
 
 namespace net::client
 {
-    const auto logger = spdlog::stdout_color_mt("net.connector");
+    auto logger = core::console_logger_access("net.connector");
 
     connector<protocal::tcp>::connector(boost::asio::io_context& context)
         : context_(context)
         , resolver_(context) {}
 
     void connector<protocal::tcp>::shutdown_and_reject_request(boost::system::error_code errc) {
-        logger->error("close errc {} errmsg {}", errc, errc.message());
+        logger()->error("close errc {} errmsg {}", errc, errc.message());
         resolver_.cancel();
         for (auto& entry : *resolve_list_.wlock()) {
             entry.socket.setException(std::runtime_error{ errc.message() });
@@ -22,7 +22,7 @@ namespace net::client
     connector<protocal::tcp>::on_resolve(std::list<entry>::iterator entry_iter) {
         return [this, entry_iter](boost::system::error_code errc,
                                   boost::asio::ip::tcp::resolver::results_type endpoints) {
-            logger->info("on_resolve errc {} errmsg {}", errc, errc.message());
+            logger()->info("on_resolve errc {} errmsg {}", errc, errc.message());
             if (errc) {
                 entry_iter->socket.setException(std::runtime_error{ errc.message() });
                 return shutdown_and_reject_request(errc);
@@ -33,7 +33,7 @@ namespace net::client
                 socket_ref, endpoints,
                 [this, socket_ptr = std::move(socket_ptr), entry = std::move(*entry_iter)](boost::system::error_code errc,
                                                                                            boost::asio::ip::tcp::endpoint endpoint) mutable {
-                    logger->info("on_connect errc {} errmsg {}", errc, errc.message());
+                    logger()->info("on_connect errc {} errmsg {}", errc, errc.message());
                     if (errc) {
                         entry.socket.setException(std::runtime_error{ errc.message() });
                         return shutdown_and_reject_request(errc);
