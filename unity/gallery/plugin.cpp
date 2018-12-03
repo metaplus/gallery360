@@ -4,6 +4,7 @@
 #include "network/component.h"
 #include "multimedia/component.h"
 #include "graphic.h"
+#include "database.h"
 #include <fstream>
 
 using net::component::dash_manager;
@@ -19,10 +20,13 @@ inline namespace config
     const concurrency asio_concurrency{ std::thread::hardware_concurrency() };
     const concurrency executor_concurrency{ std::thread::hardware_concurrency() };
     const concurrency decoder_concurrency{ 2u };
+    const std::filesystem::path database_directory{ "F:/Debug/TraceDb" };
 }
 
 std::shared_ptr<folly::ThreadPoolExecutor> cpu_executor;
 std::shared_ptr<folly::ThreadedExecutor> session_executor;
+std::shared_ptr<folly::ThreadedExecutor> database_executor;
+std::shared_ptr<database> dll_database;
 std::optional<graphic> dll_graphic;
 std::optional<folly::futures::Barrier> session_barrier;
 std::unordered_map<std::pair<int, int>, stream_context> tile_textures;
@@ -196,6 +200,7 @@ namespace unity
             assert(coordinate == std::make_pair(texture_context.col, texture_context.row));
             session_executor->add(stream_mpeg_dash(coordinate, texture_context));
         }
+        database_executor->add(dll_database->consume_task());
     }
 
     BOOL DLLAPI _nativeDashAvailable() {
@@ -303,11 +308,13 @@ namespace unity
 
     void DLLAPI _nativeLibraryInitialize() {
         reset_resource();
+        dll_database = database::make_ptr(database_directory.string());
         state::stream::running = true;
     }
 
     void DLLAPI _nativeLibraryRelease() {
         state::stream::running = false;
+        dll_database = nullptr;
         session_barrier->wait().wait();
         session_barrier = std::nullopt;
         reset_resource();
@@ -337,6 +344,7 @@ EXTERN_C void DLLAPI __stdcall UnityPluginLoad(IUnityInterfaces* unityInterfaces
     OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
     cpu_executor = core::set_cpu_executor(executor_concurrency.value(), "PluginPool");
     session_executor = core::make_threaded_executor("SessionWorker");
+    database_executor = core::make_threaded_executor("DatabaseWorker");
 }
 
 EXTERN_C void DLLAPI __stdcall UnityPluginUnload() {

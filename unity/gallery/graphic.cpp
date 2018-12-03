@@ -2,7 +2,7 @@
 #include "multimedia/pch.h"
 #include "graphic.h"
 
-namespace plugin
+inline namespace plugin
 {
     auto texture_cast = [](auto* tex) {
         return tex ? static_cast<ID3D11Texture2D*>(tex) : nullptr;
@@ -163,7 +163,7 @@ namespace plugin
                                    void* data,
                                    size_t size) {
         D3D11_MAPPED_SUBRESOURCE mapped_resource{};
-        context->Map(texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+        context->Map(texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);     //D3D11_MAP_WRITE_NO_OVERWRITE 
         std::copy_n(static_cast<const char*>(data), size,
                     static_cast<char*>(mapped_resource.pData));
         context->Unmap(texture, 0);

@@ -44,20 +44,6 @@
 
 using namespace std::literals;
 
-#include <boost/asio/buffer.hpp>
-#include <boost/beast/core/flat_buffer.hpp>
-#include <boost/beast/core/multi_buffer.hpp>
-#include <boost/container/small_vector.hpp>
-#include <boost/container_hash/hash_fwd.hpp>
-#include <boost/core/ignore_unused.hpp>
-#include <boost/core/null_deleter.hpp>
-#include <boost/cstdlib.hpp>
-#include <boost/exception/all.hpp>
-//#include <boost/hana.hpp>
-#include <boost/logic/tribool_fwd.hpp>
-#include <boost/stacktrace.hpp>
-#include <boost/type_index.hpp>
-
 //using namespace boost::hana::literals;
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #pragma warning(push)
@@ -100,7 +86,20 @@ using namespace std::literals;
 #include <folly/Synchronized.h>
 //#include <folly/SynchronizedPtr.h>
 #include <folly/Uri.h>
-#pragma warning(pop)
+
+#include <boost/asio/buffer.hpp>
+#include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/core/multi_buffer.hpp>
+#include <boost/container/small_vector.hpp>
+#include <boost/container_hash/hash_fwd.hpp>
+#include <boost/core/ignore_unused.hpp>
+#include <boost/core/null_deleter.hpp>
+#include <boost/cstdlib.hpp>
+#include <boost/exception/all.hpp>
+//#include <boost/hana.hpp>
+#include <boost/logic/tribool_fwd.hpp>
+#include <boost/stacktrace.hpp>
+#include <boost/type_index.hpp>
 
 #include <nlohmann/json.hpp>
 

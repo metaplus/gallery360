@@ -1,6 +1,10 @@
 #include "pch.h"
 #include <boost/circular_buffer.hpp>
 #include <boost/logic/tribool.hpp>
+#include <boost/date_time/microsec_time_clock.hpp>
+#include <boost/date_time/posix_time/ptime.hpp>
+#include <boost/date_time/posix_time/posix_time_io.hpp>
+#include <boost/date_time/posix_time/time_parsers.hpp>
 
 namespace boost_test
 {
@@ -93,6 +97,38 @@ namespace boost_test
         EXPECT_EQ(4, *iter);
     }
 
+    TEST(CircularBuffer, Array) {
+        boost::circular_buffer<int> cb{ 3 };
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        EXPECT_TRUE(cb.full());
+        auto a1 = cb.array_one();
+        auto a2 = cb.array_two();
+        EXPECT_EQ(*a1.first, 1);
+        EXPECT_EQ(a1.second, 3);
+        EXPECT_EQ(a2.second, 0);
+        EXPECT_TRUE(cb.is_linearized());
+        cb.push_back(4);
+        a1 = cb.array_one();
+        a2 = cb.array_two();
+        EXPECT_EQ(*a1.first, 2);
+        EXPECT_EQ(a1.second, 2);
+        EXPECT_EQ(a2.second, 1);
+        cb.push_back(5);
+        a1 = cb.array_one();
+        a2 = cb.array_two();
+        EXPECT_EQ(*a1.first, 3);
+        EXPECT_EQ(a1.second, 1);
+        EXPECT_EQ(a2.second, 2);
+        cb.push_back(6);
+        a1 = cb.array_one();
+        a2 = cb.array_two();
+        EXPECT_EQ(*a1.first, 4);
+        EXPECT_EQ(a1.second, 3);
+        EXPECT_EQ(a2.second, 0);
+    }
+
     TEST(Tribool, Base) {
         using boost::logic::indeterminate;
         using boost::logic::tribool;
@@ -108,5 +144,14 @@ namespace boost_test
         tribool tb3{ false };
         EXPECT_FALSE(bool{ tb3 });
         EXPECT_FALSE(indeterminate(tb3));
+    }
+
+    TEST(DateTime, IO) {
+        const auto time = boost::date_time::microsec_clock<boost::posix_time::ptime>::local_time();
+        const auto time_str = fmt::format("{}", time);
+        XLOG(INFO) << time;
+        XLOG(INFO) << time_str;
+        const auto time2 = boost::posix_time::time_from_string(time_str);
+        EXPECT_EQ(time, time2);
     }
 }

@@ -3,7 +3,6 @@
 #include <boost/circular_buffer.hpp>
 #include <boost/logic/tribool.hpp>
 #include <folly/futures/FutureSplitter.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
 
 using boost::logic::tribool;
 using boost::logic::indeterminate;
@@ -63,8 +62,9 @@ namespace net::component
         folly::ThreadPoolExecutor& executor = dynamic_cast<folly::ThreadPoolExecutor&>(*folly::getCPUExecutor());
         frame_indexed_builder consumer_builder;
         int drain_count = 0;
+        detail::trace_callback trace_callback;
 
-        struct deleter : std::default_delete<impl>
+        struct deleter final : std::default_delete<impl>
         {
             void operator()(impl* impl) noexcept {
                 logger->info("destructor deleting io_context");
@@ -143,7 +143,13 @@ namespace net::component
 
         folly::SemiFuture<http_session_ptr> make_http_client() {
             return connector->establish_session<http>(mpd_uri->host(),
-                                                      folly::to<std::string>(mpd_uri->port()));
+                                                      folly::to<std::string>(mpd_uri->port()))
+                            .deferValue([this](http_session_ptr session) {
+                                if (trace_callback) {
+                                    session->trace_by(trace_callback);
+                                }
+                                return session;
+                            });
         }
     };
 
@@ -156,17 +162,19 @@ namespace net::component
     }
 
     folly::Future<dash_manager> dash_manager::create_parsed(std::string mpd_url,
-                                                            unsigned concurrency) {
+                                                            unsigned concurrency,
+                                                            detail::trace_callback callback) {
         static_assert(std::is_move_assignable<dash_manager>::value);
         auto executor = folly::getCPUExecutor();
         logger->info("create_parsed @{} chain start", folly::getCurrentThreadID());
         dash_manager dash_manager{ std::move(mpd_url), concurrency };
+        dash_manager.impl_->trace_callback = std::move(callback);
         logger->info("create_parsed @{} establish session", std::this_thread::get_id());
         return dash_manager.impl_
                            ->make_http_client()
                            .via(executor.get()).thenValue(
-                               [dash_manager](http_session_ptr session) {
-                                   logger->info("create_parsed @{} send request", std::this_thread::get_id());
+                               [dash_manager](http_session_ptr session) mutable {
+                                   logger->info("create_parsed @{} send request", std::this_thread::get_id());;
                                    return (dash_manager.impl_->manager_client = std::move(session))
                                        ->send_request_for<multi_buffer>(
                                            net::make_http_request<empty_body>(dash_manager.impl_->mpd_uri->host(),

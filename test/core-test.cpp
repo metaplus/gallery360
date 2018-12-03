@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <date/date.h>
 
 namespace core_test
 {
@@ -46,5 +47,11 @@ namespace core_test
             auto logger_access = core::console_logger_access(name);
             EXPECT_ANY_THROW(logger_access());
         }
+    }
+
+    TEST(Time, TimeFormat2) {
+        XLOG(INFO) << core::time_format();
+        XLOG(INFO) << core::time_format(true);
+        XLOG(INFO) << core::time_format(false);
     }
 }

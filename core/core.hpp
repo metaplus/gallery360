@@ -45,6 +45,8 @@ namespace core
     std::string time_format(std::string format = "%c"s,
                             std::tm*(*timing)(std::time_t const*) = &std::localtime);
 
+    std::string time_format(bool second_precision);
+
     template<auto Begin, auto End, auto Span = 1>
     constexpr auto range_sequence() {
         static_assert(std::is_same<decltype(Begin), decltype(End)>::value);

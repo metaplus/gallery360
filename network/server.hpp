@@ -13,13 +13,13 @@ namespace net::server
     using http_session_ptr = std::unique_ptr<session<protocal::http>>;
 
     template<>
-    class session<protocal::http> : detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
-                                    protocal::base<protocal::http>
+    class session<protocal::http>final : detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
+                                         protocal::base<protocal::http>
     {
         const int64_t index_ = 0;
         const std::shared_ptr<spdlog::logger> logger_;
         const std::filesystem::path root_path_;
-        const folly::Function<void() const> error_callback_;
+        mutable folly::Function<void() const> error_callback_;
         mutable boost::asio::io_context::strand strand_;
 
     public:

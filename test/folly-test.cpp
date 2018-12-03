@@ -2,7 +2,6 @@
 #include <folly/dynamic.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
-#include <folly/logging/xlog.h>
 #include <folly/json.h>
 #include <folly/stop_watch.h>
 #include <boost/beast/core/ostream.hpp>
