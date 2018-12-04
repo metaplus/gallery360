@@ -17,7 +17,7 @@ using net::component::frame_indexed_builder;
 
 namespace net::protocal
 {
-    struct dash::video_adaptation_set::context
+    struct dash::video_adaptation_set::context final
     {
         std::vector<size_t> trace;
         folly::SemiFuture<http_session_ptr> tile_client = folly::SemiFuture<http_session_ptr>::makeEmpty();
@@ -59,7 +59,7 @@ namespace net::component
             return folly::Random::randDouble01();
         };
         folly::Function<size_t(int, int)> indexer;
-        folly::ThreadPoolExecutor& executor = dynamic_cast<folly::ThreadPoolExecutor&>(*folly::getCPUExecutor());
+        std::shared_ptr<folly::ThreadPoolExecutor> executor;
         frame_indexed_builder consumer_builder;
         int drain_count = 0;
         detail::trace_callback trace_callback;
@@ -132,7 +132,7 @@ namespace net::component
             if (!represent.initial_buffer) {
                 represent.initial_buffer
                          .emplace(request_send(video_set, represent, true)
-                                  .via(&executor).thenValue(
+                                  .via(executor.get()).thenValue(
                                       [](multi_buffer&& initial_buffer) {
                                           return std::make_shared<multi_buffer>(std::move(initial_buffer));
                                       }));
@@ -153,21 +153,24 @@ namespace net::component
         }
     };
 
-    dash_manager::dash_manager(std::string&& mpd_url,
-                               unsigned concurrency)
+    dash_manager::dash_manager(std::string&& mpd_url, unsigned concurrency,
+                               std::shared_ptr<folly::ThreadPoolExecutor> executor)
         : impl_(new impl{}, impl::deleter{}) {
         impl_->io_context = net::make_asio_pool(concurrency);
         impl_->mpd_uri.emplace(mpd_url);
         impl_->connector.emplace(*impl_->io_context);
+        impl_->executor = std::move(executor);
     }
 
-    folly::Future<dash_manager> dash_manager::create_parsed(std::string mpd_url,
-                                                            unsigned concurrency,
+    folly::Future<dash_manager> dash_manager::create_parsed(std::string mpd_url, unsigned concurrency,
+                                                            std::shared_ptr<folly::ThreadPoolExecutor> executor,
                                                             detail::trace_callback callback) {
         static_assert(std::is_move_assignable<dash_manager>::value);
-        auto executor = folly::getCPUExecutor();
+        if (!executor) {
+            executor = std::dynamic_pointer_cast<folly::ThreadPoolExecutor>(folly::getCPUExecutor());
+        }
         logger->info("create_parsed @{} chain start", folly::getCurrentThreadID());
-        dash_manager dash_manager{ std::move(mpd_url), concurrency };
+        dash_manager dash_manager{ std::move(mpd_url), concurrency, executor };
         dash_manager.impl_->trace_callback = std::move(callback);
         logger->info("create_parsed @{} establish session", std::this_thread::get_id());
         return dash_manager.impl_
@@ -184,9 +187,9 @@ namespace net::component
                                [dash_manager](multi_buffer&& buffer) {
                                    logger->info("create_parsed @{} parse mpd", std::this_thread::get_id());
                                    auto mpd_content = buffers_to_string(buffer.data());
-                                   dash_manager.impl_
-                                               ->mpd_parser
-                                               .emplace(std::move(mpd_content));
+                                   dash_manager.impl_->mpd_parser
+                                               .emplace(std::move(mpd_content),
+                                                        dash_manager.impl_->executor);
                                    return dash_manager;
                                });
     }

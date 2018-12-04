@@ -45,8 +45,8 @@ inline namespace plugin
                            IUnityInterfaces* interfaces);
         void store_textures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v);
         void store_temp_textures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v);
-        resource make_shader_resource(int width, int height, void* data) const;
-        resource make_shader_resource(int width, int height, char value) const;
+        resource make_shader_resource(int width, int height, void* data, bool dynamic) const;
+        resource make_shader_resource(int width, int height, char value, bool dynamic) const;
         void update_frame_texture(ID3D11DeviceContext& context,
                                   texture_array& texture_array,
                                   media::frame& frame) const;
@@ -67,10 +67,10 @@ inline namespace plugin
 
     private:
         void clear();
-        ID3D11Texture2D* make_dynamic_texture(int width, int height) const;
+        ID3D11Texture2D* make_dynamic_texture(int width, int height, void* data) const;
         ID3D11Texture2D* make_default_texture(int width, int height, void* data) const;
         ID3D11ShaderResourceView* make_shader_resource(ID3D11Texture2D* texture) const;
-        static void map_texture_data(ID3D11DeviceContext* context,
+        static void map_texture_data(ID3D11DeviceContext& context,
                                      ID3D11Texture2D* texture,
                                      void* data, size_t size);
     };

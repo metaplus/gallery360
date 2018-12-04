@@ -58,8 +58,4 @@ struct update_batch final
         int64_t frame_index = 0;
         int64_t batch_index = 0;
     };
-
-    int64_t frame_index = 0;
-    int tile_update_accumulate = 0;
-    std::vector<tile_render_context> ready_render_context;
 };

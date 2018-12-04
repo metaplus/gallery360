@@ -13,7 +13,7 @@ namespace net::server
     using http_session_ptr = std::unique_ptr<session<protocal::http>>;
 
     template<>
-    class session<protocal::http>final : detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
+    class session<protocal::http> final : detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
                                          protocal::base<protocal::http>
     {
         const int64_t index_ = 0;

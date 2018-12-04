@@ -23,14 +23,14 @@ inline namespace config
     const std::filesystem::path database_directory{ "F:/Debug/TraceDb" };
 }
 
-std::shared_ptr<folly::ThreadPoolExecutor> cpu_executor;
+std::shared_ptr<folly::ThreadPoolExecutor> compute_executor;
 std::shared_ptr<folly::ThreadedExecutor> session_executor;
 std::shared_ptr<folly::ThreadedExecutor> database_executor;
 std::shared_ptr<database> dll_database;
 std::optional<graphic> dll_graphic;
-std::optional<folly::futures::Barrier> session_barrier;
 std::unordered_map<std::pair<int, int>, stream_context> tile_textures;
 folly::Future<dash_manager> manager = folly::Future<dash_manager>::makeEmpty();
+int64_t initial_count = 0;
 
 UnityGfxRenderer unity_device = kUnityGfxRendererNull;
 IUnityInterfaces* unity_interface = nullptr;
@@ -105,9 +105,8 @@ auto tile_coordinate = [](int index) constexpr {
 namespace unity
 {
     void DLLAPI unity::_nativeDashCreate(LPCSTR mpd_url) {
-        manager = dash_manager::create_parsed(std::string{ mpd_url },
-                                              asio_concurrency.value(),
-                                              dll_database->produce_callback());
+        manager = dash_manager::create_parsed(std::string{ mpd_url }, asio_concurrency.value(),
+                                              compute_executor, dll_database->produce_callback());
     }
 
     BOOL DLLAPI _nativeDashGraphicInfo(INT& col, INT& row,
@@ -188,7 +187,7 @@ namespace unity
                 //auto diagnostic = boost::current_exception_diagnostic_information();
                 //assert(!"session_executor catch unexpected exception");
             }
-            session_barrier->wait().wait();
+            assert("session worker trap");
         };
     };
 
@@ -196,7 +195,6 @@ namespace unity
         assert(std::size(tile_textures) == frame_grid.first*frame_grid.second);
         assert(manager.hasValue());
         assert(state::stream::available());
-        session_barrier.emplace(std::size(tile_textures) + 1);
         for (auto& [coordinate, texture_context] : tile_textures) {
             assert(coordinate == std::make_pair(texture_context.col, texture_context.row));
             session_executor->add(stream_mpeg_dash(coordinate, texture_context));
@@ -244,7 +242,7 @@ namespace unity
     }
 
     HANDLE DLLAPI _nativeGraphicCreateTextures(INT width, INT height, CHAR value) {
-        return dll_graphic->make_shader_resource(width, height, value)
+        return dll_graphic->make_shader_resource(width, height, value, true)
                           .shader;
     }
 
@@ -299,25 +297,36 @@ namespace unity
     }
 
     auto reset_resource = [] {
-        {
-            manager = folly::Future<dash_manager>::makeEmpty();
-            tile_textures.clear();
-        }
+        tile_textures.clear();
         state::stream::available(nullptr);
         state::render_tile_queue = std::make_unique<decltype(state::render_tile_queue)::element_type>();
     };
 
     void DLLAPI _nativeLibraryInitialize() {
         reset_resource();
-        dll_database = database::make_ptr(database_directory.string());
         state::stream::running = true;
+        manager = folly::Future<dash_manager>::makeEmpty();
+        dll_database = database::make_ptr(database_directory.string());
+        compute_executor = core::make_pool_executor(executor_concurrency.value(), "PluginPool");
+        session_executor = core::make_threaded_executor("SessionWorker");
+        database_executor = core::make_threaded_executor("DatabaseWorker");
+        initial_count++;
     }
 
     void DLLAPI _nativeLibraryRelease() {
         state::stream::running = false;
-        dll_database = nullptr;
-        session_barrier->wait().wait();
-        session_barrier = std::nullopt;
+        session_executor = nullptr; // join 1-1
+        {
+            dll_database->stop_consume();
+            dll_database = nullptr;
+        }
+        database_executor = nullptr;                        // join 1-2
+        manager = folly::Future<dash_manager>::makeEmpty(); // join 2
+        {
+            compute_executor->join(); // join 3
+            assert(compute_executor.use_count() == 1);
+        }
+        compute_executor = nullptr;
         reset_resource();
     }
 }
@@ -343,14 +352,10 @@ EXTERN_C void DLLAPI __stdcall UnityPluginLoad(IUnityInterfaces* unityInterfaces
     unity_graphics = unity_interface->Get<IUnityGraphics>();
     unity_graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
     OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
-    cpu_executor = core::set_cpu_executor(executor_concurrency.value(), "PluginPool");
-    session_executor = core::make_threaded_executor("SessionWorker");
-    database_executor = core::make_threaded_executor("DatabaseWorker");
 }
 
 EXTERN_C void DLLAPI __stdcall UnityPluginUnload() {
     unity_graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
-    cpu_executor->stop();
 }
 
 auto dequeue_render_context = [](int count) {

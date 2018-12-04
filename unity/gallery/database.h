@@ -13,9 +13,9 @@ inline namespace plugin
 
     public:
         auto consume_task() {
-            auto [promise, future] = folly::makePromiseContract<folly::Unit>();
-            consume_latch_.push_back(std::move(future));
-            return [this, self = shared_from_this(), promise = std::move(promise)] {
+            auto [promise_finish, future_finish] = folly::makePromiseContract<folly::Unit>();
+            consume_latch_.push_back(std::move(future_finish));
+            return [this, self = shared_from_this(), promise_finish = std::move(promise_finish)]() mutable {
                 while (active_) {
                     auto batch_begin_time = std::chrono::steady_clock::now();
                     auto batch_end_time = batch_begin_time + batch_sink_interval / 2;
@@ -33,6 +33,7 @@ inline namespace plugin
                     }
                     std::this_thread::sleep_until(batch_begin_time + batch_sink_interval);
                 }
+                promise_finish.setValue();
             };
         }
 
@@ -45,7 +46,8 @@ inline namespace plugin
             };
         }
 
-        void clear();
+        void stop_consume();
+
         static std::shared_ptr<database> make_ptr(std::string_view path);
 
     private:

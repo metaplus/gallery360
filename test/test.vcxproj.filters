@@ -56,5 +56,8 @@
     <ClCompile Include="date-test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="range-v3-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

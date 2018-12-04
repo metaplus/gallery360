@@ -40,6 +40,7 @@ namespace leveldb_test
     TEST(Database, Iterate) {
         auto database = guarded_database();
         auto* iterator = database()->NewIterator(leveldb::ReadOptions{});
+
         for (iterator->SeekToFirst(); iterator->Valid(); iterator->Next()) {
             XLOG(INFO) << fmt::format("key {} value {}", iterator->key().ToString(), iterator->value().ToString());
         }

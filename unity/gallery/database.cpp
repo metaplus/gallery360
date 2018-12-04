@@ -3,7 +3,7 @@
 
 inline namespace plugin
 {
-    void database::clear() {
+    void database::stop_consume() {
         active_ = false;
         for (auto& consume_finish : consume_latch_) {
             consume_finish.wait();

@@ -45,9 +45,8 @@ inline namespace plugin
                        std::begin(frame->data) + std::size(resource_array),
                        std::begin(resource_array),
                        [this, stretch = planar_automatic_stretch(), &frame](uint8_t* frame_data) mutable {
-                           return make_shader_resource(stretch(frame->width),
-                                                       stretch(frame->height),
-                                                       frame_data);
+                           return make_shader_resource(stretch(frame->width), stretch(frame->height),
+                                                       frame_data, false);
                        });
         return resource_array;
     }
@@ -106,10 +105,8 @@ inline namespace plugin
         return description;
     };
 
-    ID3D11Texture2D* graphic::make_dynamic_texture(int width,
-                                                   int height) const {
-        assert(false);
-        HRESULT result;
+    ID3D11Texture2D* graphic::make_dynamic_texture(int width, int height,
+                                                   void* data) const {
         ID3D11Texture2D* texture = nullptr;
         {
             auto description = alpha_texture_description(
@@ -119,14 +116,16 @@ inline namespace plugin
                     desc.Usage = D3D11_USAGE_DYNAMIC;
                     desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
                 });
-            result = device_->CreateTexture2D(&description, nullptr, &texture);
+            D3D11_SUBRESOURCE_DATA texture_data{};
+            texture_data.pSysMem = data;
+            texture_data.SysMemPitch = folly::to<UINT>(width);
+            const auto result = device_->CreateTexture2D(&description, &texture_data, &texture);
+            assert(SUCCEEDED(result));
         }
-        assert(SUCCEEDED(result));
         return texture;
     }
 
-    ID3D11Texture2D* graphic::make_default_texture(int width,
-                                                   int height,
+    ID3D11Texture2D* graphic::make_default_texture(int width, int height,
                                                    void* data) const {
         ID3D11Texture2D* texture = nullptr;
         {
@@ -137,7 +136,7 @@ inline namespace plugin
                     desc.Usage = D3D11_USAGE_DEFAULT;
                     desc.CPUAccessFlags = 0;
                 });
-            D3D11_SUBRESOURCE_DATA texture_data;
+            D3D11_SUBRESOURCE_DATA texture_data{};
             texture_data.pSysMem = data;
             texture_data.SysMemPitch = folly::to<UINT>(width);
             const auto result = device_->CreateTexture2D(&description, &texture_data, &texture);
@@ -150,7 +149,6 @@ inline namespace plugin
         ID3D11ShaderResourceView* shader = nullptr;
         D3D11_SHADER_RESOURCE_VIEW_DESC description{};
         description.Format = DXGI_FORMAT_A8_UNORM;
-        //desc.ViewDimension = multiSampling ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
         description.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
         description.Texture2D.MipLevels = 1;
         const auto result = device_->CreateShaderResourceView(texture, &description, &shader);
@@ -158,15 +156,14 @@ inline namespace plugin
         return shader;
     }
 
-    void graphic::map_texture_data(ID3D11DeviceContext* context,
+    void graphic::map_texture_data(ID3D11DeviceContext& context,
                                    ID3D11Texture2D* texture,
-                                   void* data,
-                                   size_t size) {
+                                   void* data, size_t size) {
         D3D11_MAPPED_SUBRESOURCE mapped_resource{};
-        context->Map(texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);     //D3D11_MAP_WRITE_NO_OVERWRITE 
-        std::copy_n(static_cast<const char*>(data), size,
-                    static_cast<char*>(mapped_resource.pData));
-        context->Unmap(texture, 0);
+        context.Map(texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+        std::copy_n(static_cast<uint8_t*>(data), size,
+                    static_cast<uint8_t*>(mapped_resource.pData));
+        context.Unmap(texture, 0);
     }
 
     graphic::resource_array& graphic::emplace_ring_back_if_vacant(int width, int height) {
@@ -175,9 +172,8 @@ inline namespace plugin
             std::generate(
                 resource_array.begin(), resource_array.end(),
                 [=, stretch = planar_automatic_stretch()]() mutable {
-                    return make_shader_resource(stretch(width),
-                                                stretch(height),
-                                                char{ -128 });
+                    return make_shader_resource(stretch(width), stretch(height),
+                                                char{ -128 }, false);
                 });
             textures_ring_.push_back(resource_array);
         }
@@ -188,16 +184,20 @@ inline namespace plugin
         return render_texture_iterator_.has_value();
     }
 
-    graphic::resource graphic::make_shader_resource(int width, int height, void* data) const {
-        auto* texture = make_default_texture(width, height, data);
+    graphic::resource graphic::make_shader_resource(int width, int height,
+                                                    void* data, bool dynamic) const {
+        auto* texture = dynamic
+                            ? make_dynamic_texture(width, height, data)
+                            : make_default_texture(width, height, data);
         auto* shader = make_shader_resource(texture);
         return resource{ shader, texture };
     }
 
-    graphic::resource graphic::make_shader_resource(int width, int height, char value) const {
+    graphic::resource graphic::make_shader_resource(int width, int height,
+                                                    char value, bool dynamic) const {
         static thread_local std::vector<char> texture_data;
         texture_data.assign(width * height, value);
-        return make_shader_resource(width, height, texture_data.data());
+        return make_shader_resource(width, height, texture_data.data(), dynamic);
     }
 
     void graphic::update_frame_texture(ID3D11DeviceContext& context,
@@ -208,9 +208,25 @@ inline namespace plugin
             [this, &context, &frame](ID3D11Texture2D* texture, int index) {
                 assert(texture);
                 D3D11_TEXTURE2D_DESC desc{};
-                auto* frame_planar_data = frame->data[index];
                 texture->GetDesc(&desc);
-                context.UpdateSubresource(texture, 0, nullptr, frame_planar_data, desc.Width, 0);
+                const auto stretch = planar_stretch(index);
+                auto* frame_planar_data = frame->data[index];
+                assert(stretch(frame->width) == desc.Width);
+                assert(stretch(frame->height) == desc.Height);
+                assert(stretch(frame->width) == frame->linesize[index]);
+                switch (desc.Usage) {
+                    case D3D11_USAGE_DEFAULT:
+                        context.UpdateSubresource(texture, 0, nullptr,
+                                                  frame_planar_data, desc.Width, 0);
+                        break;
+                    case D3D11_USAGE_DYNAMIC: {
+                        const auto planar_size = desc.Width * desc.Height;
+                        map_texture_data(context, texture, frame_planar_data, planar_size);
+                        break;
+                    }
+                    default:
+                        assert(!"unexpected texture usage");
+                }
             });
     }
 

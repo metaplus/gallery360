@@ -36,7 +36,8 @@ namespace net::component
         struct impl;
         std::shared_ptr<impl> impl_;
 
-        dash_manager(std::string&& mpd_url, unsigned concurrency);
+        dash_manager(std::string&& mpd_url, unsigned concurrency,
+                     std::shared_ptr<folly::ThreadPoolExecutor> executor);
 
     public:
         dash_manager() = delete;
@@ -48,6 +49,7 @@ namespace net::component
 
         static folly::Future<dash_manager> create_parsed(std::string mpd_url,
                                                          unsigned concurrency = std::thread::hardware_concurrency(),
+                                                         std::shared_ptr<folly::ThreadPoolExecutor> executor = nullptr,
                                                          detail::trace_callback callback = nullptr);
 
         std::pair<int, int> scale_size() const;
