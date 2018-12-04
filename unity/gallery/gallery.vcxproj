@@ -106,6 +106,7 @@
       <PreprocessorDefinitions>_DEBUG;GALLERY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(Include);../../;../;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -143,6 +144,7 @@
       <PreprocessorDefinitions>NDEBUG;GALLERY_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(Include);../../;../;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -159,6 +161,7 @@
     <ClInclude Include="..\detail\IUnityInterface.h" />
     <ClInclude Include="..\detail\PlatformBase.h" />
     <ClInclude Include="context.h" />
+    <ClInclude Include="database.h" />
     <ClInclude Include="export.h" />
     <ClInclude Include="graphic.h" />
     <ClInclude Include="openvr.h" />
@@ -167,6 +170,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="database.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="graphic.cpp" />
     <ClCompile Include="plugin.cpp" />

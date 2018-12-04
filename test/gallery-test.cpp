@@ -51,226 +51,6 @@ frame_indexed_builder create_frame_builder(pixel_consume& consume,
     };
 }
 
-folly::Future<int> loop_tile_consume(unsigned concurrency,
-                                     folly::Executor& executor,
-                                     std::string path = "http://localhost:8900/dash/full/tos_srd_4K.mpd"s) {
-    return dash_manager::create_parsed(path)
-        .then(std::addressof(executor),
-              [concurrency](dash_manager manager) {
-                  EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
-                  EXPECT_EQ(manager.grid_size(), std::make_pair(3, 3));
-                  auto count = 0i64;
-                  pixel_consume consume = [&count](pixel_array) {
-                      count++;
-                  };
-                  //manager.register_represent_builder(create_frame_builder(consume, concurrency));
-                  while (manager.available()) {
-                      if (!manager.poll_tile_consumed(0, 0)) {
-                          if (!manager.wait_tile_consumed(0, 0)) {
-                              EXPECT_FALSE(manager.available());
-                          }
-                      }
-                  }
-                  return count;
-              });
-}
-
-namespace gallery_test
-{
-    TEST(DashManager, StreamTile) {
-        core::set_cpu_executor(3);
-        auto manager = dash_manager::create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
-        EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
-        EXPECT_EQ(manager.grid_size(), std::make_pair(3, 3));
-        auto count = 0;
-        pixel_consume consume = [&count](pixel_array) {
-            count++;
-        };
-        //manager.register_represent_builder(create_frame_builder(consume));
-        while (manager.available()) {
-            if (!manager.poll_tile_consumed(0, 0)) {
-                if (!manager.wait_tile_consumed(0, 0)) {
-                    EXPECT_FALSE(manager.available());
-                }
-            }
-        }
-        EXPECT_EQ(count, 250);
-    }
-
-    TEST(DashManager, StreamTileProfile) {
-        core::set_cpu_executor(4);
-        auto executor = folly::getCPUExecutor();
-        seconds t0, t1, t2, t3, t4, t5;
-        auto profile_by_concurrency = [executor](unsigned concurrency) {
-            folly::stop_watch<seconds> watch;
-            auto async_count = loop_tile_consume(concurrency, *executor);
-            EXPECT_EQ(std::move(async_count).get(), 17616);
-            return watch.elapsed();
-        };
-        std::cout << (t0 = profile_by_concurrency(1));
-        std::cout << (t1 = profile_by_concurrency(1)); // 59s
-        std::cout << (t2 = profile_by_concurrency(2)); // 42s
-        std::cout << (t3 = profile_by_concurrency(3)); // 38s   
-        std::cout << (t4 = profile_by_concurrency(4)); // 37s
-        std::cout << (t5 = profile_by_concurrency(8)); // 38s
-    }
-}
-
-folly::Future<int> loop_frame_consume(unsigned concurrency,
-                                      folly::Executor& executor,
-                                      std::string path = "http://localhost:8900/dash/full/tos_srd_4K.mpd"s) {
-    return dash_manager::create_parsed(path)
-        .then(std::addressof(executor),
-              [concurrency](dash_manager manager) {
-                  EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
-                  EXPECT_EQ(manager.grid_size(), std::make_pair(3, 3));
-                  auto count = 0i64;
-                  pixel_consume consume = [&count](pixel_array) {
-                      count++;
-                  };
-                  //manager.register_represent_builder(create_frame_builder(consume, 8));
-                  auto wait_tile_consume = [&manager](int col, int row) {
-                      return [&manager, col, row]() {
-                          if (!manager.wait_tile_consumed(col, row)) {
-                              EXPECT_FALSE(manager.available());
-                          }
-                      };
-                  };
-                  auto [col, row] = manager.grid_size();
-                  auto iteration = 0;
-                  while (manager.available()) {
-                      std::vector<std::invoke_result_t<decltype(wait_tile_consume), int, int>> pending;
-                      auto poll_count = 0;
-                      for (auto c = 0; c < col; ++c) {
-                          for (auto r = 0; r < row; ++r) {
-                              auto index = r * col + c + 1;
-                              if (!manager.poll_tile_consumed(c, r)) {
-                                  pending.push_back(wait_tile_consume(c, r));
-                              } else {
-                                  poll_count++;
-                              }
-                          }
-                      }
-                      //EXPECT_EQ(pending.size() + poll_count, 9);
-                      for (auto& task : pending) {
-                          task();
-                      }
-                      iteration++;
-                  }
-                  return iteration;
-              });
-}
-
-namespace gallery_test
-{
-    TEST(DashManager, StreamFrame) {
-        core::set_cpu_executor(8);
-        auto manager = dash_manager::create_parsed("http://localhost:8900/dash/full/tos_srd_4K.mpd").get();
-        EXPECT_EQ(manager.scale_size(), std::make_pair(3840, 1728));
-        EXPECT_EQ(manager.grid_size(), std::make_pair(3, 3));
-        auto count = 0;
-        pixel_consume consume = [&count](pixel_array) {
-            count++;
-        };
-        //manager.register_represent_builder(create_frame_builder(consume, 8));
-        auto wait_tile_consume = [&manager](int col, int row) {
-            return [&manager, col, row]() {
-                if (!manager.wait_tile_consumed(col, row)) {
-                    EXPECT_FALSE(manager.available());
-                }
-            };
-        };
-        auto [col, row] = manager.grid_size();
-        auto iteration = 0;
-        while (manager.available()) {
-            std::vector<std::invoke_result_t<decltype(wait_tile_consume), int, int>> pending;
-            auto poll_count = 0;
-            for (auto r = 0; r < row; ++r) {
-                for (auto c = 0; c < col; ++c) {
-                    auto index = r * col + c + 1;
-                    if (!manager.poll_tile_consumed(c, r)) {
-                        pending.push_back(wait_tile_consume(c, r));
-                    } else {
-                        poll_count++;
-                    }
-                }
-            }
-            EXPECT_EQ(pending.size() + poll_count, 9);
-            for (auto& task : pending) {
-                task();
-            }
-            iteration++;
-        }
-        EXPECT_EQ(iteration, 17616);
-    }
-
-    TEST(DashManager, StreamFrameProfile) {
-        core::set_cpu_executor(8);
-        auto executor = folly::getCPUExecutor();
-        seconds t1, t2, t3, t4, t5;
-        auto profile_by_concurrency = [executor](unsigned concurrency) {
-            folly::stop_watch<seconds> watch;
-            auto async_count = loop_frame_consume(concurrency, *executor);
-            EXPECT_EQ(std::move(async_count).get(), 17616);
-            return watch.elapsed();
-        };
-        std::cout << (t1 = profile_by_concurrency(1)); // 6.15min
-        std::cout << (t2 = profile_by_concurrency(2)); // 6.26min
-        std::cout << (t3 = profile_by_concurrency(3)); // 6.27min  
-        std::cout << (t4 = profile_by_concurrency(4)); // 6.15min
-        std::cout << (t5 = profile_by_concurrency(8)); // 6.15min
-    }
-
-    TEST(Gallery, Plugin) {
-        auto* render_event_func = _nativeGraphicGetRenderEventFunc();
-        EXPECT_TRUE(render_event_func != nullptr);
-        folly::stop_watch<seconds> watch;
-        _nativeLibraryInitialize();
-        _nativeDashCreate("http://localhost:8900/dash/NewYork/5k/NewYork_5k.mpd");
-        int col = 0, row = 0, width = 0, height = 0;
-        EXPECT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
-        EXPECT_EQ(col, 3);
-        EXPECT_EQ(row, 3);
-        EXPECT_EQ(width, 3840);
-        EXPECT_EQ(height, 1920);
-        _nativeGraphicSetTextures(nullptr, nullptr, nullptr, false);
-        _nativeDashPrefetch();
-        auto iteration = 0;
-        while (_nativeDashAvailable()) {
-            std::vector<folly::Function<void()>> pending;
-            auto poll_count = 0;
-            for (auto r = 0; r < row; ++r) {
-                for (auto c = 0; c < col; ++c) {
-                    auto index = r * col + c + 1;
-                    if (_nativeDashTilePollUpdate(c, r, iteration)) {
-                        poll_count++;
-                        render_event_func(-1);
-                    } else {
-                        pending.push_back(
-                            [c, r, render_event_func, index] {
-                                if (_nativeDashTileWaitUpdate(c, r)) {
-                                    render_event_func(-1);
-                                } else {
-                                    EXPECT_FALSE(_nativeDashAvailable());
-                                }
-                            });
-                    }
-                }
-            }
-            if constexpr (tuning::verbose) {
-                EXPECT_EQ(pending.size() + poll_count, 9);
-            }
-            for (auto& task : pending) {
-                task();
-            }
-            iteration++;
-        }
-        render_event_func(-1);
-        std::cout << (watch.elapsed());
-        EXPECT_EQ(iteration, 3715);
-    }
-}
-
 auto plugin_routine = [](std::string url) {
     return [url](unsigned codec_concurrency = 8) {
         std::this_thread::sleep_for(100ms);
@@ -306,7 +86,7 @@ auto plugin_routine = [](std::string url) {
                 begin_iter, remove_iter,
                 [&](int index) {
                     const auto [c, r] = coordinate_map.at(index);
-                    const auto poll_success = _nativeDashTilePollUpdate(c, r, iteration);
+                    const auto poll_success = _nativeDashTilePollUpdate(c, r, 0, iteration);
                     if (poll_success) {
                         if constexpr (tuning::verbose) {
                             auto cc = 0, rr = 0;
@@ -379,5 +159,9 @@ namespace gallery_test
             EXPECT_GT(std::strlen(str), 0);
             CoTaskMemFree(str);
         }
+    }
+
+    TEST(DataBase, Base) {
+        
     }
 }

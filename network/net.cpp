@@ -28,8 +28,9 @@ namespace net
             int grid_height = 0;
             int scale_width = 0;
             int scale_height = 0;
+            std::shared_ptr<folly::ThreadPoolExecutor> executor;
 
-            struct duration_parse_mismatch : std::runtime_error
+            struct duration_parse_mismatch final : std::runtime_error
             {
                 using runtime_error::runtime_error;
                 using runtime_error::operator=;
@@ -148,7 +149,8 @@ namespace net
             }
         };
 
-        dash::parser::parser(std::string_view xml_text)
+        dash::parser::parser(std::string_view xml_text,
+                             std::shared_ptr<folly::ThreadPoolExecutor> executor)
             : impl_(std::make_shared<impl>()) {
             tinyxml2::XMLDocument document;
             auto success = document.Parse(xml_text.data());
@@ -160,6 +162,7 @@ namespace net
             impl_->title = xml_root->FirstChildElement("ProgramInformation")
                                    ->FirstChildElement("Title")
                                    ->GetText();
+            impl_->executor = std::move(executor);
             auto adaptation_sets = impl::list_next_sibling("AdaptationSet",
                                                            xml_root->FirstChildElement("Period")
                                                                    ->FirstChildElement("AdaptationSet"));
@@ -171,19 +174,18 @@ namespace net
                                                    ->Attribute("mimeType");
                     return mime.find("audio") != std::string_view::npos;
                 });
-            auto executor = folly::getCPUExecutor();
             folly::collectAll(
                     folly::collectAll(
-                        folly::via(executor.get(), [&] {
+                        folly::via(impl_->executor.get(), [&] {
                             impl_->parse_video_adaptation_set(adaptation_sets.begin(), audio_set_iter);
                         }),
-                        folly::via(executor.get(), [&] {
+                        folly::via(impl_->executor.get(), [&] {
                             impl_->parse_grid_size(adaptation_sets.front());
                         }))
                     .thenValue([&](auto&&) {
                         impl_->parse_scale_size();
                     }),
-                    folly::via(executor.get(), [&] {
+                    folly::via(impl_->executor.get(), [&] {
                         if (audio_set_iter != adaptation_sets.end()) {
                             impl_->parse_audio_adaptation_set(*audio_set_iter);
                         }
@@ -231,7 +233,7 @@ namespace net
     std::vector<std::filesystem::path> config_paths{ std::filesystem::current_path(),_NET_CONFIG_DIR };
 
     void add_config_path(std::filesystem::path&& path) {
-        if(std::filesystem::is_directory(path)) {
+        if (std::filesystem::is_directory(path)) {
             config_paths.push_back(std::move(path));
         }
     }

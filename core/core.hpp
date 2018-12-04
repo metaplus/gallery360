@@ -42,8 +42,10 @@ namespace core
         return ptr;
     }
 
-    std::string time_format(std::string format = "%c"s,
+    std::string time_format(std::string_view format = "%c",
                             std::tm*(*timing)(std::time_t const*) = &std::localtime);
+
+    std::string date_format(std::string_view format = "%Y-%m-%d %H:%M:%S");
 
     template<auto Begin, auto End, auto Span = 1>
     constexpr auto range_sequence() {
@@ -138,15 +140,13 @@ namespace core
 
     inline namespace tag //  tag dispatching usage, clarify semantics
     {
-        inline constexpr struct use_future_tag {} use_future;
+        inline constexpr struct use_future_tag final {} use_future;
 
-        inline constexpr struct as_stacktrace_tag {} as_stacktrace;
+        inline constexpr struct as_stacktrace_tag final {} as_stacktrace;
 
-        inline constexpr struct as_view_tag {} as_view;
+        inline constexpr struct as_view_tag final {} as_view;
 
-        inline constexpr struct defer_execute_tag {} defer_execute;
-
-        inline constexpr struct folly_tag {} folly;
+        inline constexpr struct defer_execute_tag final {} defer_execute;
     }
 
     namespace v3
@@ -263,7 +263,7 @@ namespace core
     }
 
     template<typename ...Types>
-    struct overload : Types...
+    struct overload final : Types...
     {
         using Types::operator()...;
     };

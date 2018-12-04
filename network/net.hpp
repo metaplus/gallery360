@@ -47,7 +47,9 @@ namespace net
         };
 
         struct tcp { };
+
         struct udp { };
+
         struct icmp { };
 
         template<>
@@ -66,11 +68,11 @@ namespace net
             using context_type = boost::asio::io_context;
         };
 
-        struct dash : http
+        struct dash final : http
         {
             int64_t last_tile_index = 1;
 
-            struct represent
+            struct represent final
             {
                 int id = 0;
                 int bandwidth = 0;
@@ -88,7 +90,7 @@ namespace net
                 std::vector<represent> represents;
             };
 
-            struct video_adaptation_set : adaptation_set
+            struct video_adaptation_set final : adaptation_set
             {
                 int col = 0;
                 int row = 0;
@@ -98,18 +100,19 @@ namespace net
                 std::shared_ptr<context> context;
             };
 
-            struct audio_adaptation_set : adaptation_set
+            struct audio_adaptation_set final : adaptation_set
             {
                 int sample_rate = 0;
             };
 
-            class parser
+            class parser final
             {
                 struct impl;
                 std::shared_ptr<impl> impl_;
 
             public:
-                explicit parser(std::string_view xml_text);
+                explicit parser(std::string_view xml_text,
+                                std::shared_ptr<folly::ThreadPoolExecutor> executor);
                 parser(const parser&) = default;
                 parser(parser&&) = default;
                 parser& operator=(const parser&) = default;

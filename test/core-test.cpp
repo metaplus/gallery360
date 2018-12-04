@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <folly/executors/CPUThreadPoolExecutor.h>
 
 namespace core_test
 {
@@ -45,6 +46,67 @@ namespace core_test
         {
             auto logger_access = core::console_logger_access(name);
             EXPECT_ANY_THROW(logger_access());
+        }
+    }
+
+    TEST(Time, TimeFormat) {
+        XLOG(INFO) << core::time_format();
+        XLOG(INFO) << core::date_format();
+    }
+
+    TEST(Executor, JoinThreadPoolExecutor) {
+        auto executor = core::make_pool_executor(2, "TestPool1");
+        auto repeat_dispatch = [&executor](int n) {
+            while (n--) {
+                executor->add([] {
+                    std::this_thread::sleep_for(200ms);
+                });
+            }
+        };
+        folly::stop_watch<milliseconds> watch;
+        {
+            repeat_dispatch(2);
+            executor->join();
+        }
+        EXPECT_GE(watch.lap(), 200ms);
+        executor = core::make_pool_executor(2, "TestPool");
+        watch.reset();
+        {
+            repeat_dispatch(3);
+            executor->join();
+        }
+        EXPECT_GE(watch.lap(), 400ms);
+    }
+
+    TEST(Executor, DuplicateSetCpuExecutor) {
+        {
+            auto executor = core::make_pool_executor(2, "TestPool");
+            EXPECT_EQ(executor->numThreads(), 2);
+            EXPECT_EQ(executor.use_count(), 1);
+        }
+        {
+            auto executor = core::make_pool_executor(2, "TestPool");
+            EXPECT_EQ(executor->numThreads(), 2);
+            EXPECT_EQ(executor.use_count(), 1);
+        }
+        {
+            auto executor = core::set_cpu_executor(2, "TestPool");
+            EXPECT_EQ(executor->numThreads(), 2);
+            EXPECT_EQ(executor.use_count(), 2);
+        }
+        {
+            auto cpu_executor = folly::getCPUExecutor();
+            EXPECT_EQ(cpu_executor.use_count(), 2);
+            EXPECT_EQ(dynamic_cast<folly::CPUThreadPoolExecutor&>(*cpu_executor).numThreads(), 2);
+            dynamic_cast<folly::CPUThreadPoolExecutor&>(*cpu_executor).join();
+            EXPECT_EQ(dynamic_cast<folly::CPUThreadPoolExecutor&>(*cpu_executor).numThreads(), 0);
+        }
+        {
+            auto executor = core::make_pool_executor(5, "TestPool");
+            EXPECT_EQ(executor->numThreads(), 5);
+            EXPECT_EQ(executor.use_count(), 1);
+            folly::setCPUExecutor(executor);
+            EXPECT_EQ(dynamic_cast<folly::CPUThreadPoolExecutor&>(*folly::getCPUExecutor()).numThreads(), 5);
         }
     }
 }

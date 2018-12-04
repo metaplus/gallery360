@@ -27,9 +27,6 @@
     <ClInclude Include="targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pch.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="verify.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -51,23 +48,26 @@
     <ClInclude Include="concurrency\synchronize.hpp">
       <Filter>Header Files\concurrency</Filter>
     </ClInclude>
-    <ClInclude Include="meta\detail.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="meta\function_trait.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="meta\member_function_trait.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="meta\meta.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
-    <ClInclude Include="meta\type_trait.hpp">
-      <Filter>Header Files\meta</Filter>
-    </ClInclude>
     <ClInclude Include="guard.hpp">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="pch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="detail.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="function_trait.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="member_function_trait.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="meta.hpp">
+      <Filter>Header Files\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="type_trait.hpp">
+      <Filter>Header Files\meta</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

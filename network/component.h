@@ -6,6 +6,7 @@ namespace net
     {
         using boost::asio::const_buffer;
         using boost::beast::multi_buffer;
+        using trace_callback = std::function<void(std::string_view, std::string)>;
     }
 
     struct buffer_context final
@@ -35,7 +36,8 @@ namespace net::component
         struct impl;
         std::shared_ptr<impl> impl_;
 
-        dash_manager(std::string&& mpd_url, unsigned concurrency);
+        dash_manager(std::string&& mpd_url, unsigned concurrency,
+                     std::shared_ptr<folly::ThreadPoolExecutor> executor);
 
     public:
         dash_manager() = delete;
@@ -46,7 +48,9 @@ namespace net::component
         ~dash_manager() = default;
 
         static folly::Future<dash_manager> create_parsed(std::string mpd_url,
-                                                         unsigned concurrency = std::thread::hardware_concurrency());
+                                                         unsigned concurrency = std::thread::hardware_concurrency(),
+                                                         std::shared_ptr<folly::ThreadPoolExecutor> executor = nullptr,
+                                                         detail::trace_callback callback = nullptr);
 
         std::pair<int, int> scale_size() const;
         std::pair<int, int> grid_size() const;

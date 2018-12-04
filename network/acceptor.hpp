@@ -6,7 +6,7 @@ namespace net::server
     class acceptor;
 
     template<>
-    class acceptor<boost::asio::ip::tcp> : protocal::base<protocal::tcp>
+    class acceptor<boost::asio::ip::tcp> final : protocal::base<protocal::tcp>
     {
         using entry = folly::Promise<boost::asio::ip::tcp::socket>;
 

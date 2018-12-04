@@ -50,5 +50,14 @@
     <ClCompile Include="json-test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="leveldb-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="date-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="range-v3-test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

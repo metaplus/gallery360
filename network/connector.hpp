@@ -6,9 +6,9 @@ namespace net::client
     class connector;
 
     template<>
-    class connector<protocal::tcp> : protocal::base<protocal::tcp>
+    class connector<protocal::tcp> final : protocal::base<protocal::tcp>
     {
-        struct entry
+        struct entry final
         {
             std::string host;
             std::string service;
