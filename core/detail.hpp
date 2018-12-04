@@ -1,6 +1,6 @@
 #pragma once
 
-namespace meta::detail
+namespace core::meta::detail
 {
     #ifdef META_USE_LEGACY
     namespace v1

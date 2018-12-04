@@ -170,6 +170,7 @@
   <ItemGroup>
     <ClCompile Include="boost-test.cpp" />
     <ClCompile Include="core-test.cpp" />
+    <ClCompile Include="date-test.cpp" />
     <ClCompile Include="folly-test.cpp" />
     <ClCompile Include="gallery-test.cpp" />
     <ClCompile Include="json-test.cpp" />

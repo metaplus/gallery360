@@ -106,7 +106,8 @@ namespace unity
 {
     void DLLAPI unity::_nativeDashCreate(LPCSTR mpd_url) {
         manager = dash_manager::create_parsed(std::string{ mpd_url },
-                                              asio_concurrency.value());
+                                              asio_concurrency.value(),
+                                              dll_database->produce_callback());
     }
 
     BOOL DLLAPI _nativeDashGraphicInfo(INT& col, INT& row,

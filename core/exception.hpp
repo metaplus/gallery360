@@ -42,7 +42,7 @@ namespace core
     namespace detail
     {
         template<typename Exception>
-        char const* message_otherwise_typename(char const* cstr, Exception const*) {
+        const char* message_otherwise_typename(char const* cstr, Exception const*) {
             static_assert(meta::is_exception<Exception>::value);
             static thread_local std::unordered_set<std::string> local_type_name;
             if (!std::string_view{ cstr }.empty())
@@ -58,7 +58,7 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -68,7 +68,7 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -78,7 +78,7 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -88,7 +88,7 @@ namespace core
         using logic_error::logic_error;
         using logic_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -98,7 +98,7 @@ namespace core
         using logic_error::logic_error;
         using logic_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -108,7 +108,7 @@ namespace core
         using logic_error::logic_error;
         using logic_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -118,7 +118,7 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -128,7 +128,7 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -138,7 +138,7 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };
@@ -148,7 +148,7 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        char const* what() const override {
+        const char* what() const override {
             return detail::message_otherwise_typename(what(), this);
         }
     };

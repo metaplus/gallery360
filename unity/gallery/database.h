@@ -39,7 +39,7 @@ inline namespace plugin
         auto produce_callback() {
             return [this, self = shared_from_this()](std::string_view instance, std::string event) {
                 if (active_) {
-                    auto timed_instance = fmt::format("[time]{}[instance]{}", core::time_format(false), instance);
+                    auto timed_instance = fmt::format("[time]{}[instance]{}", core::date_format(), instance);
                     entry_queue_.enqueue(std::make_pair(std::move(timed_instance), std::move(event)));
                 }
             };

@@ -3,25 +3,19 @@
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include <boost/date_time/time_clock.hpp>
-#include <boost/date_time/microsec_time_clock.hpp>
-#include <boost/date_time/posix_time/posix_time_io.hpp>
-#include <boost/date_time/posix_time/ptime.hpp>
-#include <boost/date_time/posix_time/time_parsers.hpp>
+#include <date/date.h>
 
 namespace core
 {
-    std::string time_format(std::string format,
+    std::string time_format(std::string_view format,
                             std::tm*(*timing)(std::time_t const*)) {
         // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         const auto current_time = std::time(nullptr);
         return fmt::format("{}", std::put_time(timing(&current_time), format.data()));
     }
 
-    std::string time_format(bool second_precision) {
-        return fmt::format("{}", second_precision
-                                     ? boost::date_time::second_clock<boost::posix_time::ptime>::local_time()
-                                     : boost::date_time::microsec_clock<boost::posix_time::ptime>::local_time());
+    std::string date_format(std::string_view format) {
+        return date::format(format.data(), std::chrono::system_clock::now());
     }
 
     size_t count_file_entry(const std::filesystem::path& directory) {

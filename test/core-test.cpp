@@ -1,5 +1,4 @@
 #include "pch.h"
-#include <date/date.h>
 
 namespace core_test
 {
@@ -49,9 +48,38 @@ namespace core_test
         }
     }
 
-    TEST(Time, TimeFormat2) {
+    TEST(Time, TimeFormat) {
         XLOG(INFO) << core::time_format();
-        XLOG(INFO) << core::time_format(true);
-        XLOG(INFO) << core::time_format(false);
+        XLOG(INFO) << core::date_format();
+    }
+
+    TEST(Executor, JoinThreadPoolExecutor) {
+        auto executor = core::make_pool_executor(2, "TestPool1");
+        folly::stop_watch<milliseconds> watch;
+        {
+            executor->add([] {
+                std::this_thread::sleep_for(200ms);
+            });
+            executor->add([] {
+                std::this_thread::sleep_for(200ms);
+            });
+            executor->join();
+        }
+        EXPECT_GE(watch.lap(), 200ms);
+        executor = core::make_pool_executor(2, "TestPool");
+        watch.lap();
+        {
+            executor->add([] {
+                std::this_thread::sleep_for(200ms);
+            });
+            executor->add([] {
+                std::this_thread::sleep_for(200ms);
+            });
+            executor->add([] {
+                std::this_thread::sleep_for(200ms);
+            });
+            executor->join();
+        }
+        EXPECT_GE(watch.lap(), 400ms);
     }
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace meta
+namespace core::meta
 {
     template<typename T, typename ...Types>
     struct is_within : detail::is_within_impl<T, Types...>

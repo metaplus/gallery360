@@ -1,9 +1,9 @@
 #pragma once
 
-namespace meta
+namespace core::meta
 {
     template<typename Return, typename... Args>
-    struct function_trait
+    struct function_trait final
     {
         explicit constexpr function_trait(Return(*)(Args...)) {}
 
@@ -22,12 +22,12 @@ namespace meta
     function_trait(Return(&)(Args...))->function_trait<Return, Args...>;
 
     template<auto FreeFuncPtr>
-    struct function
+    struct function final
     {
         using type = decltype(FreeFuncPtr);
         using trait = decltype(function_trait{ FreeFuncPtr });
-        using return_type = trait::template return_type;
-        using args_tuple = trait::template args_tuple;
+        using return_type = typename trait::template return_type;
+        using args_tuple = typename trait::template args_tuple;
         template<size_t Index>
         using nth_arg = std::tuple_element_t<Index, args_tuple>;
 

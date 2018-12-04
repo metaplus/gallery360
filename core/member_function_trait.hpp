@@ -1,9 +1,9 @@
 #pragma once
 
-namespace meta
+namespace core::meta
 {
     template<typename Return, typename Object, bool HasConst, typename... Args>
-    struct member_function_trait
+    struct member_function_trait final
     {
         explicit constexpr member_function_trait(Return(Object::*)(Args...)const) {}
 
@@ -24,7 +24,7 @@ namespace meta
     member_function_trait(Return(Object::*)(Args...))->member_function_trait<Return, Object, false, Args...>;
 
     template<auto MemFuncPtr>
-    struct member_function
+    struct member_function final
     {
         using type = decltype(MemFuncPtr);
         using trait = decltype(member_function_trait{ MemFuncPtr });

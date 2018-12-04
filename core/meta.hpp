@@ -1,9 +1,9 @@
 #pragma once
 
-namespace meta
+namespace core::meta
 {
     template<typename Callable>
-    struct invoke
+    struct invoke final
     {
         template<typename ...Types>
         constexpr static std::decay_t<std::invoke_result_t<Callable, Types...>> by(Types ...args)
@@ -14,7 +14,7 @@ namespace meta
         }
 
         template<auto ...Args>
-        struct apply
+        struct apply final
         {
             static constexpr auto value = Callable{}(Args...);
         };
@@ -59,7 +59,7 @@ namespace meta
     }
 
     template<typename T, typename ...Types>
-    struct reverse_tuple
+    struct reverse_tuple final
     {
         using type = decltype(std::tuple_cat(std::declval<typename reverse_tuple<Types...>::type&>(),
                                              std::declval<std::tuple<T>&>()));
@@ -67,7 +67,7 @@ namespace meta
     };
 
     template<typename T>
-    struct reverse_tuple<T>
+    struct reverse_tuple<T> final
     {
         using type = std::tuple<T>;
         constexpr static size_t size = 1;
@@ -77,7 +77,7 @@ namespace meta
     struct indexed_tuple;
 
     template<size_t ...Indexes, typename ...Types>
-    struct indexed_tuple<std::index_sequence<Indexes...>, Types...>
+    struct indexed_tuple<std::index_sequence<Indexes...>, Types...> final
     {
         using type = std::tuple<std::tuple_element_t<Indexes, std::tuple<Types...>>...>;
         constexpr static size_t size = sizeof...(Types);
@@ -106,7 +106,7 @@ namespace meta
     }
 
     template<typename T>
-    struct type_base
+    struct type_base final
     {
         using type = T;
     };
