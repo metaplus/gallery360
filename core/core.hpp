@@ -45,7 +45,8 @@ namespace core
     std::string time_format(std::string_view format = "%c",
                             std::tm*(*timing)(std::time_t const*) = &std::localtime);
 
-    std::string date_format(std::string_view format = "%Y-%m-%d %H:%M:%S");
+    std::string date_format(std::string_view format = "%Y-%m-%d %H:%M:%S",
+                            const std::chrono::system_clock::duration& offset = 0h);
 
     template<auto Begin, auto End, auto Span = 1>
     constexpr auto range_sequence() {

@@ -39,9 +39,6 @@
     <ClInclude Include="..\detail\IUnityInterface.h">
       <Filter>Header Files\unity</Filter>
     </ClInclude>
-    <ClInclude Include="..\detail\PlatformBase.h">
-      <Filter>Header Files\unity</Filter>
-    </ClInclude>
     <ClInclude Include="export.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -53,6 +50,9 @@
     </ClInclude>
     <ClInclude Include="database.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\detail\IUnityRenderingExtensions.h">
+      <Filter>Header Files\unity</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

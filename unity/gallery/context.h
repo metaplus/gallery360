@@ -24,7 +24,23 @@ public:
 struct stream_context final
 {
     graphic::texture_array texture_array{};
-    folly::MPMCQueue<media::frame> frame_queue{ 180 };
+    folly::MPMCQueue<media::frame> decode_queue{ 180 };
+    folly::ProducerConsumerQueue<media::frame> render_queue{ 180 };
+    media::frame* avail_frame = nullptr;
+
+    struct update final
+    {
+        int64_t decode_try = 0;
+        int64_t decode_success = 0;
+        int64_t render_finish = 0;
+        std::bitset<3> texture_state{ 0 };
+
+        struct event final
+        {
+            int64_t begin = 0;
+            int64_t end = 0;
+        } event;
+    } update;
 
     int col = 0;
     int row = 0;

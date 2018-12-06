@@ -55,9 +55,9 @@ inline namespace plugin
                                 IUnityInterfaces* interfaces) {
         switch (event_type) {
             case kUnityGfxDeviceEventInitialize: {
-                IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
+                auto* graphic_dx11 = interfaces->Get<IUnityGraphicsD3D11>();
                 clear();
-                device_ = d3d->GetDevice();
+                device_ = graphic_dx11->GetDevice();
                 //assert(device_->GetCreationFlags() != D3D11_CREATE_DEVICE_SINGLETHREADED);
                 break;
             }
@@ -66,7 +66,6 @@ inline namespace plugin
                 break;
             }
             default: ;
-                //assert(!false) 
         }
     }
 

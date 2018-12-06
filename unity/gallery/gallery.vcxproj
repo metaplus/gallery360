@@ -159,7 +159,7 @@
     <ClInclude Include="..\detail\IUnityGraphics.h" />
     <ClInclude Include="..\detail\IUnityGraphicsD3D11.h" />
     <ClInclude Include="..\detail\IUnityInterface.h" />
-    <ClInclude Include="..\detail\PlatformBase.h" />
+    <ClInclude Include="..\detail\IUnityRenderingExtensions.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="database.h" />
     <ClInclude Include="export.h" />

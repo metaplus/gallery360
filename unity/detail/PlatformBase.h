@@ -4,7 +4,6 @@
 
 #include <stddef.h>
 
-
 // Which platform we are on?
 // UNITY_WIN - Windows (regular win32)
 // UNITY_OSX - Mac OS X
@@ -14,15 +13,15 @@
 // UNITY_METRO - WSA or UWP
 // UNITY_WEBGL - WebGL
 #if _MSC_VER
-	#define UNITY_WIN 1
+#define UNITY_WIN 1
 #elif defined(__APPLE__)
-	#if defined(__arm__) || defined(__arm64__)
+#if defined(__arm__) || defined(__arm64__)
 		#define UNITY_IPHONE 1
-	#else
+#else
 		#define UNITY_OSX 1
-	#endif
+#endif
 #elif defined(UNITY_METRO) || defined(UNITY_ANDROID) || defined(UNITY_LINUX) || defined(UNITY_WEBGL)
-	// these are defined externally
+// these are defined externally
 #elif defined(__EMSCRIPTEN__)
 	// this is already defined in Unity 5.6
 	#define UNITY_WEBGL 1
@@ -30,21 +29,19 @@
 	#error "Unknown platform!"
 #endif
 
-
-
 // Which graphics device APIs we possibly support?
 #if UNITY_METRO
 	#define SUPPORT_D3D11 1
-	#if WINDOWS_UWP
+#if WINDOWS_UWP
 		#define SUPPORT_D3D12 1
-	#endif
+#endif
 #elif UNITY_WIN
-	#define SUPPORT_D3D9 0              //1
-	#define SUPPORT_D3D11 1 // comment this out if you don't have D3D11 header/library files
-	#define SUPPORT_D3D12 0 //@TODO: enable by default? comment this out if you don't have D3D12 header/library files
-	#define SUPPORT_OPENGL_LEGACY 0     //1
-	#define SUPPORT_OPENGL_UNIFIED 0    //1
-	#define SUPPORT_OPENGL_CORE 0       //1
+#define SUPPORT_D3D9 0              //1
+#define SUPPORT_D3D11 1 // comment this out if you don't have D3D11 header/library files
+#define SUPPORT_D3D12 0 //@TODO: enable by default? comment this out if you don't have D3D12 header/library files
+#define SUPPORT_OPENGL_LEGACY 0     //1
+#define SUPPORT_OPENGL_UNIFIED 0    //1
+#define SUPPORT_OPENGL_CORE 0       //1
 #elif UNITY_IPHONE || UNITY_ANDROID || UNITY_WEBGL
 	#define SUPPORT_OPENGL_UNIFIED 1
 	#define SUPPORT_OPENGL_ES 1
@@ -58,10 +55,7 @@
 	#define SUPPORT_METAL 1
 #endif
 
-
-
 // COM-like Release macro
 #ifndef SAFE_RELEASE
-	#define SAFE_RELEASE(a) if (a) { a->Release(); a = NULL; }
+#define SAFE_RELEASE(a) if (a) { a->Release(); a = NULL; }
 #endif
-

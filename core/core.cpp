@@ -14,8 +14,10 @@ namespace core
         return fmt::format("{}", std::put_time(timing(&current_time), format.data()));
     }
 
-    std::string date_format(std::string_view format) {
-        return date::format(format.data(), std::chrono::system_clock::now());
+    std::string date_format(std::string_view format,
+                            const std::chrono::system_clock::duration& offset) {
+
+        return date::format(format.data(), std::chrono::system_clock::now() + offset);
     }
 
     size_t count_file_entry(const std::filesystem::path& directory) {

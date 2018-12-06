@@ -5,7 +5,6 @@
 #include "multimedia/component.h"
 #include "graphic.h"
 #include "database.h"
-#include <fstream>
 
 using net::component::dash_manager;
 using net::component::frame_indexed_builder;
@@ -28,13 +27,14 @@ std::shared_ptr<folly::ThreadedExecutor> session_executor;
 std::shared_ptr<folly::ThreadedExecutor> database_executor;
 std::shared_ptr<database> dll_database;
 std::optional<graphic> dll_graphic;
-std::unordered_map<std::pair<int, int>, stream_context> tile_textures;
+std::unordered_map<std::pair<int, int>, stream_context> tile_stream_map;
 folly::Future<dash_manager> manager = folly::Future<dash_manager>::makeEmpty();
 int64_t initial_count = 0;
 
 UnityGfxRenderer unity_device = kUnityGfxRendererNull;
 IUnityInterfaces* unity_interface = nullptr;
 IUnityGraphics* unity_graphics = nullptr;
+IUnityGraphicsD3D11* unity_graphics_dx11 = nullptr;
 
 std::pair<int, int> frame_grid;
 std::pair<int, int> frame_scale;
@@ -54,7 +54,7 @@ namespace state
     auto tile_col = 0;
     auto tile_row = 0;
     auto tile_index = 0;
-    decltype(tile_textures)::iterator texture_iterator;
+    decltype(tile_stream_map)::iterator texture_iterator;
     auto unity_time = 0.f;
 
     struct stream final
@@ -79,11 +79,11 @@ namespace state
 
 auto stream_at = [](int col, int row, bool construct = false) {
     const auto tile_key = std::make_pair(col, row);
-    auto tile_iterator = tile_textures.find(tile_key);
-    if (tile_iterator == tile_textures.end()) {
+    auto tile_iterator = tile_stream_map.find(tile_key);
+    if (tile_iterator == tile_stream_map.end()) {
         if (construct) {
             auto emplace_success = false;
-            std::tie(tile_iterator, emplace_success) = tile_textures.try_emplace(tile_key);
+            std::tie(tile_iterator, emplace_success) = tile_stream_map.try_emplace(tile_key);
             assert(emplace_success);
         } else {
             assert(!"non-exist texture context");
@@ -104,13 +104,13 @@ auto tile_coordinate = [](int index) constexpr {
 
 namespace unity
 {
-    void DLLAPI unity::_nativeDashCreate(LPCSTR mpd_url) {
+    void _nativeDashCreate(LPCSTR mpd_url) {
         manager = dash_manager::create_parsed(std::string{ mpd_url }, asio_concurrency.value(),
                                               compute_executor, dll_database->produce_callback());
     }
 
-    BOOL DLLAPI _nativeDashGraphicInfo(INT& col, INT& row,
-                                       INT& width, INT& height) {
+    BOOL _nativeDashGraphicInfo(INT& col, INT& row,
+                                INT& width, INT& height) {
         if (manager.wait().hasValue()) {
             frame_grid = manager.value().grid_size();
             frame_scale = manager.value().scale_size();
@@ -129,19 +129,21 @@ namespace unity
         return false;
     }
 
-    void DLLAPI _nativeDashSetTexture(INT col, INT row, INT index,
-                                      HANDLE tex_y, HANDLE tex_u, HANDLE tex_v) {
+    void _nativeDashCreateTileStream(INT col, INT row, INT index,
+                                     HANDLE tex_y, HANDLE tex_u, HANDLE tex_v) {
         assert(manager.isReady());
         assert(manager.hasValue());
-        auto& tile_texture = stream_at(col, row, true)->second;
-        tile_texture.col = col;
-        tile_texture.row = row;
-        tile_texture.texture_array[0] = static_cast<ID3D11Texture2D*>(tex_y);
-        tile_texture.texture_array[1] = static_cast<ID3D11Texture2D*>(tex_u);
-        tile_texture.texture_array[2] = static_cast<ID3D11Texture2D*>(tex_v);
-        tile_texture.width_offset = col * tile_width;
-        tile_texture.height_offset = row * tile_height;
-        tile_texture.index = index;
+        auto& tile_stream = stream_at(col, row, true)->second;
+        tile_stream.col = col;
+        tile_stream.row = row;
+        if (tex_y && tex_u && tex_v) {
+            tile_stream.texture_array[0] = static_cast<ID3D11Texture2D*>(tex_y);
+            tile_stream.texture_array[1] = static_cast<ID3D11Texture2D*>(tex_u);
+            tile_stream.texture_array[2] = static_cast<ID3D11Texture2D*>(tex_v);
+        }
+        tile_stream.width_offset = col * tile_width;
+        tile_stream.height_offset = row * tile_height;
+        tile_stream.index = index;
     }
 
     auto stream_mpeg_dash = [](std::pair<int, int> coordinate,
@@ -163,11 +165,11 @@ namespace unity
                     while (frame_segmentor.codec_valid()) {
                         auto running = false;
                         for (auto& frame : frame_segmentor.try_consume()) {
-                            assert(frame->width > 600 && frame->height > 300);
+                            assert(frame->width > 400 && frame->height > 200);
                             do {
                                 running = std::atomic_load(&state::stream::running);
                             }
-                            while (running && !texture_context.frame_queue
+                            while (running && !texture_context.decode_queue
                                                               .tryWriteUntil(std::chrono::steady_clock::now() + 80ms,
                                                                              std::move(frame)));
                             if (!running) {
@@ -178,57 +180,59 @@ namespace unity
                     }
                 }
             } catch (core::bad_response_error) {
-                texture_context.frame_queue.blockingWrite(media::frame{ nullptr });
+                texture_context.decode_queue.blockingWrite(media::frame{ nullptr });
             } catch (core::session_closed_error) {
                 assert(!"session_executor catch unexpected session_closed_error");
             } catch (std::runtime_error) {
                 assert(std::atomic_load(&state::stream::running) == false);
             } catch (...) {
                 //auto diagnostic = boost::current_exception_diagnostic_information();
-                //assert(!"session_executor catch unexpected exception");
+                assert(!"session_executor catch unexpected exception");
             }
             assert("session worker trap");
         };
     };
 
-    void DLLAPI _nativeDashPrefetch() {
-        assert(std::size(tile_textures) == frame_grid.first*frame_grid.second);
+    void _nativeDashPrefetch() {
+        assert(std::size(tile_stream_map) == frame_grid.first*frame_grid.second);
         assert(manager.hasValue());
         assert(state::stream::available());
-        for (auto& [coordinate, texture_context] : tile_textures) {
+        for (auto& [coordinate, texture_context] : tile_stream_map) {
             assert(coordinate == std::make_pair(texture_context.col, texture_context.row));
             session_executor->add(stream_mpeg_dash(coordinate, texture_context));
         }
         database_executor->add(dll_database->consume_task());
     }
 
-    BOOL DLLAPI _nativeDashAvailable() {
+    BOOL _nativeDashAvailable() {
         return state::stream::available();
     }
 
     static_assert(std::is_move_constructible<update_batch::tile_render_context>::value);
 
-    BOOL DLLAPI _nativeDashTilePollUpdate(const INT col, const INT row,
-                                          const INT64 frame_index, const INT64 batch_index) {
+    BOOL _nativeDashTilePollUpdate(const INT col, const INT row,
+                                   const INT64 frame_index, const INT64 batch_index) {
         auto& stream_context = stream_at(col, row)->second;
         assert(stream_context.col == col && stream_context.row == row);
-        media::frame tile_frame{ nullptr };
-        const auto read_frame_success = stream_context.frame_queue.read(tile_frame);
-        if (read_frame_success) {
-            state::render_tile_queue->enqueue(
-                update_batch::tile_render_context{
-                    stream_context.width_offset,
-                    stream_context.height_offset,
-                    std::move(tile_frame),
-                    &stream_context.texture_array,
-                    frame_index,
-                    batch_index
-                });
+        stream_context.update.decode_try++;
+        if (stream_context.render_queue.isFull()) {
+            return false;
         }
-        return read_frame_success;
+        media::frame frame{ nullptr };
+        const auto decode_success = stream_context.decode_queue.read(frame);
+        if (decode_success) {
+            stream_context.update.decode_success++;
+            auto loop_count = 0;
+            while (!stream_context.render_queue.write(std::move(frame))) {
+                if (loop_count++ > 30) {
+                    assert(!"pool_update > 30 times");
+                }
+            }
+        }
+        return decode_success;
     }
 
-    void DLLAPI _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp) {
+    void _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp) {
         if constexpr (!debug::enable_null_texture) {
             assert(tex_y != nullptr);
             assert(tex_u != nullptr);
@@ -241,7 +245,7 @@ namespace unity
         }
     }
 
-    HANDLE DLLAPI _nativeGraphicCreateTextures(INT width, INT height, CHAR value) {
+    HANDLE _nativeGraphicCreateTextures(INT width, INT height, CHAR value) {
         return dll_graphic->make_shader_resource(width, height, value, true)
                           .shader;
     }
@@ -281,81 +285,44 @@ namespace unity
                                          folly::to<UINT>(string.length()));
         };
 
-        LPSTR DLLAPI _nativeTestString() {
+        LPSTR _nativeTestString() {
             return unmanaged_ansi_string("Hello World Test"s);
-        }
-
-        LPSTR DLLAPI _nativeTestFile() {
-            std::ifstream istream{ "C:\\bdlog.txt" };
-            assert(istream.is_open());
-            std::string string{
-                std::istreambuf_iterator<char>{ istream },
-                std::istreambuf_iterator<char>{}
-            };
-            return unmanaged_ansi_string(string);
         }
     }
 
     auto reset_resource = [] {
-        tile_textures.clear();
+        tile_stream_map.clear();
         state::stream::available(nullptr);
         state::render_tile_queue = std::make_unique<decltype(state::render_tile_queue)::element_type>();
     };
 
-    void DLLAPI _nativeLibraryInitialize() {
+    void _nativeLibraryInitialize() {
         reset_resource();
         state::stream::running = true;
         manager = folly::Future<dash_manager>::makeEmpty();
         dll_database = database::make_ptr(database_directory.string());
-        compute_executor = core::make_pool_executor(executor_concurrency.value(), "PluginPool");
-        session_executor = core::make_threaded_executor("SessionWorker");
-        database_executor = core::make_threaded_executor("DatabaseWorker");
+        compute_executor = core::make_pool_executor(executor_concurrency.value(), "PluginCompute");
+        session_executor = core::make_threaded_executor("PluginSession");
+        database_executor = core::make_threaded_executor("PluginDatabase");
         initial_count++;
     }
 
-    void DLLAPI _nativeLibraryRelease() {
+    void _nativeLibraryRelease() {
         state::stream::running = false;
         session_executor = nullptr; // join 1-1
-        {
+        if (dll_database) {
             dll_database->stop_consume();
             dll_database = nullptr;
         }
         database_executor = nullptr;                        // join 1-2
         manager = folly::Future<dash_manager>::makeEmpty(); // join 2
-        {
+        if (compute_executor) {
             compute_executor->join(); // join 3
             assert(compute_executor.use_count() == 1);
         }
         compute_executor = nullptr;
         reset_resource();
     }
-}
-
-static void __stdcall OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType) {
-    if (eventType == kUnityGfxDeviceEventInitialize) {
-        assert(unity_graphics->GetRenderer() == kUnityGfxRendererD3D11);
-        state::unity_time = 0;
-        dll_graphic.emplace();
-        unity_device = kUnityGfxRendererD3D11;
-    }
-    if (dll_graphic) {
-        dll_graphic->process_event(eventType, unity_interface);
-    }
-    if (eventType == kUnityGfxDeviceEventShutdown) {
-        unity_device = kUnityGfxRendererNull;
-        dll_graphic.reset();
-    }
-}
-
-EXTERN_C void DLLAPI __stdcall UnityPluginLoad(IUnityInterfaces* unityInterfaces) {
-    unity_interface = unityInterfaces;
-    unity_graphics = unity_interface->Get<IUnityGraphics>();
-    unity_graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
-    OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
-}
-
-EXTERN_C void DLLAPI __stdcall UnityPluginUnload() {
-    unity_graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
 }
 
 auto dequeue_render_context = [](int count) {
@@ -371,30 +338,123 @@ auto dequeue_render_context = [](int count) {
     return tile_render_contexts;
 };
 
-static void __stdcall on_render_event(const int event_id) {
-    auto graphic_context = folly::lazy([] {
-        return dll_graphic->update_context();
-    });
-    if (const auto update_tile_count = std::abs(event_id); update_tile_count > 0) {
-        for (auto& tile_render_context : dequeue_render_context(update_tile_count)) {
-            if (!tile_render_context.frame.empty()) {
-                dll_graphic->update_frame_texture(
-                    *graphic_context(),
-                    *tile_render_context.texture_array,
-                    tile_render_context.frame);
-                dll_graphic->copy_temp_texture_region(
-                    *graphic_context(),
-                    *tile_render_context.texture_array,
-                    tile_render_context.width_offset,
-                    tile_render_context.height_offset);
+namespace
+{
+    void __stdcall on_graphics_device_event(UnityGfxDeviceEventType eventType) {
+        if (eventType == kUnityGfxDeviceEventInitialize) {
+            assert(unity_graphics->GetRenderer() == kUnityGfxRendererD3D11);
+            state::unity_time = 0;
+            dll_graphic.emplace();
+            unity_device = kUnityGfxRendererD3D11;
+        }
+        if (dll_graphic) {
+            dll_graphic->process_event(eventType, unity_interface);
+        }
+        if (eventType == kUnityGfxDeviceEventShutdown) {
+            unity_device = kUnityGfxRendererNull;
+            dll_graphic.reset();
+        }
+    }
+
+    void __stdcall on_render_event(const int event_id) {
+        auto graphic_context = folly::lazy([] {
+            return dll_graphic->update_context();
+        });
+        if (const auto update_tile_count = std::abs(event_id); update_tile_count > 0) {
+            for (auto& tile_render_context : dequeue_render_context(update_tile_count)) {
+                if (!tile_render_context.frame.empty()) {
+                    dll_graphic->update_frame_texture(
+                        *graphic_context(),
+                        *tile_render_context.texture_array,
+                        tile_render_context.frame);
+                    dll_graphic->copy_temp_texture_region(
+                        *graphic_context(),
+                        *tile_render_context.texture_array,
+                        tile_render_context.width_offset,
+                        tile_render_context.height_offset);
+                }
+            }
+        }
+        if (const auto update_main_texture = event_id <= 0; update_main_texture) {
+            dll_graphic->overwrite_main_texture();
+        }
+    }
+
+    //char \x10 € €
+    void __stdcall on_texture_update_event(int event_id, void* data) {
+        const auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParams*>(data);
+        const auto stream_index = params->userData / 3 + 1;
+        const auto planar_index = params->userData % 3;
+        if (state::stream::available()) {
+            const auto stream_iterator = std::find_if(
+                tile_stream_map.begin(), tile_stream_map.end(),
+                [stream_index](decltype(tile_stream_map)::reference stream) {
+                    return stream.second.index == stream_index;
+                });
+            assert(stream_iterator != tile_stream_map.end());
+            auto& stream = stream_iterator->second;
+            auto*& avail_frame = stream.avail_frame;
+            switch (static_cast<UnityRenderingExtEventType>(event_id)) {
+                case kUnityRenderingExtEventUpdateTextureBegin: {
+                    if (stream.update.texture_state.none()) {
+                        assert(planar_index == 0);
+                        assert(avail_frame == nullptr);
+                        avail_frame = stream.render_queue.frontPtr();
+                        if (!state::stream::available(avail_frame)) {
+                            return;
+                        }
+                    }
+                    assert(avail_frame != nullptr);
+                    stream.update.event.begin++;
+                    assert(!stream.update.texture_state.test(planar_index));
+                    assert(params->format == UnityRenderingExtTextureFormat::kUnityRenderingExtFormatA8_UNorm);
+                    stream.update.texture_state.set(planar_index);
+                    params->texData = (*avail_frame)->data[planar_index];
+
+                    break;
+                }
+                case kUnityRenderingExtEventUpdateTextureEnd: {
+                    assert(avail_frame != nullptr);
+                    stream.update.event.end++;
+                    assert(stream.update.event.end <= stream.update.event.begin);
+                    assert(stream.update.texture_state.test(planar_index));
+                    if (stream.update.texture_state.all()) {
+                        stream.update.render_finish++;
+                        stream.render_queue.popFront();
+                        stream.update.texture_state.reset();
+                        stream.avail_frame = nullptr;
+                        assert(planar_index == 2);
+                    }
+                    break;
+                }
+                default:
+                    assert(!"on_texture_update_event unexpected UnityRenderingExtEventType");
             }
         }
     }
-    if (const auto update_main_texture = event_id <= 0; update_main_texture) {
-        dll_graphic->overwrite_main_texture();
-    }
 }
 
-UnityRenderingEvent unity::_nativeGraphicGetRenderEventFunc() {
-    return on_render_event;
+EXTERN_C void DLLAPI __stdcall UnityPluginLoad(IUnityInterfaces* unityInterfaces) {
+    unity_interface = unityInterfaces;
+    unity_graphics = unity_interface->Get<IUnityGraphics>();
+    unity_graphics_dx11 = unity_interface->Get<IUnityGraphicsD3D11>();
+    assert(unity_graphics);
+    assert(unity_graphics_dx11);
+    unity_graphics->RegisterDeviceEventCallback(on_graphics_device_event);
+    on_graphics_device_event(kUnityGfxDeviceEventInitialize);
+}
+
+EXTERN_C void DLLAPI __stdcall UnityPluginUnload() {
+    unity_graphics->UnregisterDeviceEventCallback(on_graphics_device_event);
+}
+
+namespace unity
+{
+    UnityRenderingEvent _nativeGraphicGetRenderEventFunc() {
+        return on_render_event;
+    }
+
+    UnityRenderingEventAndData _nativeGraphicGetUpdateCallback() {
+        return on_texture_update_event;
+    }
 }

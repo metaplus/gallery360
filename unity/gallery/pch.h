@@ -19,6 +19,12 @@
 #define UNITYAPI 
 #endif  // STATIC_LIBRARY
 
+#pragma warning(push)
+#pragma warning(disable: 4819)
+#include "unity/detail/PlatformBase.h"
 #include "unity/detail/IUnityGraphics.h"
+#include "unity/detail/IUnityRenderingExtensions.h"
+#pragma warning(pop)
 #include "unity/gallery/export.h"
 #include <boost/circular_buffer.hpp>
+

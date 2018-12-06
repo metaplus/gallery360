@@ -1,5 +1,7 @@
 #pragma once
 
+using namespace core::literals;
+
 namespace net
 {
     template<typename... Options>

@@ -72,7 +72,7 @@ auto plugin_routine = [](std::string url) {
                 const auto index = r * col + c + 1;
                 ref_index_range.push_back(index);
                 coordinate_map[index] = std::make_pair(c, r);
-                _nativeDashSetTexture(c, r, index, nullptr, nullptr, nullptr);
+                //_nativeDashSetTexture(c, r, index, nullptr, nullptr, nullptr);
             }
         }
         folly::stop_watch<seconds> watch;
@@ -110,6 +110,7 @@ auto plugin_routine = [](std::string url) {
             }
         }
         const auto t1 = watch.elapsed();
+        using core::literals::operator<<;
         std::cerr << "-- profile parting line\n"
             << "concurrency " << codec_concurrency << "\n"
             << "iteration " << iteration << "\n"
@@ -149,19 +150,10 @@ namespace gallery_test
     }
 
     TEST(Test, ManagedString) {
-        {
-            auto str = test::_nativeTestString();
-            EXPECT_GT(std::strlen(str), 0);
-            CoTaskMemFree(str);
-        }
-        {
-            auto str = test::_nativeTestFile();
-            EXPECT_GT(std::strlen(str), 0);
-            CoTaskMemFree(str);
-        }
+        auto str = test::_nativeTestString();
+        EXPECT_GT(std::strlen(str), 0);
+        CoTaskMemFree(str);
     }
 
-    TEST(DataBase, Base) {
-        
-    }
+    TEST(DataBase, Base) { }
 }

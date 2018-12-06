@@ -3,28 +3,32 @@
 namespace unity
 {
     // Exported c-linkage interface invoked as c# function for Unity extension. Familiar C# CamelCase naming style.
-    EXTERN_C void DLLAPI _nativeLibraryInitialize();
-    EXTERN_C void DLLAPI _nativeLibraryRelease();
+    extern "C" {
+
+    void DLLAPI __stdcall _nativeLibraryInitialize();
+    void DLLAPI __stdcall _nativeLibraryRelease();
 
     namespace test
     {
-        EXTERN_C void DLLAPI _nativeMockGraphic();
-        EXTERN_C void DLLAPI _nativeConfigConcurrency(UINT codec, UINT net = 8);
-        EXTERN_C void DLLAPI _nativeConcurrencyValue(UINT& codec, UINT& net, UINT& executor);
-        EXTERN_C void DLLAPI _nativeCoordinateState(INT& col, INT& row);
-        EXTERN_C LPSTR DLLAPI _nativeTestString();
-        EXTERN_C LPSTR DLLAPI _nativeTestFile();
+        void DLLAPI __stdcall _nativeMockGraphic();
+        void DLLAPI __stdcall _nativeConfigConcurrency(UINT codec, UINT net = 8);
+        void DLLAPI __stdcall _nativeConcurrencyValue(UINT& codec, UINT& net, UINT& executor);
+        void DLLAPI __stdcall _nativeCoordinateState(INT& col, INT& row);
+        LPSTR DLLAPI __stdcall _nativeTestString();
     }
 
-    EXTERN_C void DLLAPI _nativeDashCreate(LPCSTR mpd_url);
-    EXTERN_C BOOL DLLAPI _nativeDashGraphicInfo(INT& col, INT& row, INT& width, INT& height);
-    EXTERN_C void DLLAPI _nativeDashSetTexture(INT col, INT row, INT index,
-                                               HANDLE tex_y, HANDLE tex_u, HANDLE tex_v);
-    EXTERN_C void DLLAPI _nativeDashPrefetch();
-    EXTERN_C BOOL DLLAPI _nativeDashAvailable();
-    EXTERN_C BOOL DLLAPI _nativeDashTilePollUpdate(INT col, INT row, INT64 frame_index, INT64 batch_index);
+    void DLLAPI __stdcall _nativeDashCreate(LPCSTR mpd_url);
+    BOOL DLLAPI __stdcall _nativeDashGraphicInfo(INT& col, INT& row, INT& width, INT& height);
+    void DLLAPI __stdcall _nativeDashCreateTileStream(INT col, INT row, INT index,
+                                                      HANDLE tex_y, HANDLE tex_u, HANDLE tex_v);
+    void DLLAPI __stdcall _nativeDashPrefetch();
+    BOOL DLLAPI __stdcall _nativeDashAvailable();
+    BOOL DLLAPI __stdcall _nativeDashTilePollUpdate(INT col, INT row, INT64 frame_index, INT64 batch_index);
 
-    EXTERN_C void DLLAPI _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp);
-    EXTERN_C HANDLE DLLAPI _nativeGraphicCreateTextures(INT width, INT height, CHAR value);
-    EXTERN_C UnityRenderingEvent DLLAPI __stdcall _nativeGraphicGetRenderEventFunc();
+    void DLLAPI __stdcall _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp);
+    HANDLE DLLAPI __stdcall _nativeGraphicCreateTextures(INT width, INT height, CHAR value);
+    UnityRenderingEvent DLLAPI __stdcall _nativeGraphicGetRenderEventFunc();
+    UnityRenderingEventAndData DLLAPI __stdcall _nativeGraphicGetUpdateCallback();
+
+    }
 }
