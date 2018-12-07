@@ -42,25 +42,11 @@ namespace core
         return ptr;
     }
 
+    // Format template "%Y-%m-%d %H:%M:%S"
     std::string time_format(std::string_view format = "%c",
                             std::tm*(*timing)(std::time_t const*) = &std::localtime);
 
-    std::string date_format(std::string_view format = "%Y-%m-%d %H:%M:%S",
-                            const std::chrono::system_clock::duration& offset = 0h);
-
-    template<auto Begin, auto End, auto Span = 1>
-    constexpr auto range_sequence() {
-        static_assert(std::is_same<decltype(Begin), decltype(End)>::value);
-        static_assert(Begin != End && Span != 0 && ((Begin < End) ^ (Span < 0)));
-        constexpr auto count = std::divides<void>{}(End - Begin + Span, Span);
-        return meta::sequence_plus<Begin>(meta::sequence_multiply<Span>(
-            std::make_integer_sequence<std::common_type_t<decltype(Begin), decltype(End)>, count>{}));
-    }
-
-    template<auto Begin, auto End, auto Span = 1>
-    constexpr auto range() {
-        return meta::make_array(range_sequence<Begin, End, Span>());
-    }
+    std::string local_date_time();
 
     namespace literals
     {
@@ -117,6 +103,8 @@ namespace core
 
     std::filesystem::path file_path_of_directory(const std::filesystem::path& directory,
                                                  const std::filesystem::path& extension);
+
+    std::filesystem::path last_write_path_of_directory(const std::filesystem::path& directory);
 
     template<typename T>
     std::reference_wrapper<T> make_null_reference_wrapper() noexcept {

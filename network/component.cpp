@@ -48,7 +48,7 @@ namespace net::component
     const auto logger = spdlog::stdout_color_mt("net.dash.manager");
 
     //-- dash_manager
-    struct dash_manager::impl
+    struct dash_manager::impl final
     {
         io_context_ptr io_context;
         http_session_ptr manager_client;

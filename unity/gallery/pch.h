@@ -1,23 +1,18 @@
 #pragma once
 
-#if defined UNITYAPI || defined DLLAPI
-#error "macro naming collision"
-#pragma push_marcro("UNITYAPI")
-#pragma push_marcro("DLLAPI")
+#if defined DLL_EXPORT
+#error "macro DLL_EXPORT naming collision"
 #endif
 
-#ifndef STATIC_LIBRARY
+#ifndef DLL_STATIC_LINK
 #ifdef GALLERY_EXPORTS
-#define DLLAPI __declspec(dllexport)
-#define UNITYAPI  __declspec(dllexport) __stdcall
+#define DLL_EXPORT __declspec(dllexport)
 #else   // GALLERY_EXPORTS
-#define DLLAPI __declspec(dllimport)
-#define UNITYAPI  __declspec(dllimport) __stdcall
+#define DLL_EXPORT __declspec(dllimport)
 #endif  // GALLERY_EXPORTS
-#else   // STATIC_LIBRARY
+#else
 #define DLLAPI 
-#define UNITYAPI 
-#endif  // STATIC_LIBRARY
+#endif
 
 #pragma warning(push)
 #pragma warning(disable: 4819)
@@ -26,5 +21,3 @@
 #include "unity/detail/IUnityRenderingExtensions.h"
 #pragma warning(pop)
 #include "unity/gallery/export.h"
-#include <boost/circular_buffer.hpp>
-

@@ -16,7 +16,7 @@ inline namespace plugin
             auto [promise_finish, future_finish] = folly::makePromiseContract<folly::Unit>();
             consume_latch_.push_back(std::move(future_finish));
             return [this, self = shared_from_this(), promise_finish = std::move(promise_finish)]() mutable {
-                while (active_ || !sink_entry_queue_.empty()) {
+                while (active_) {
                     auto batch_begin_time = std::chrono::steady_clock::now();
                     auto batch_end_time = batch_begin_time + batch_sink_interval / 2;
                     {
@@ -33,6 +33,17 @@ inline namespace plugin
                     }
                     std::this_thread::sleep_until(batch_begin_time + batch_sink_interval);
                 }
+                {
+                    auto database = folly::lazy([this] {
+                        return open_database(directory_.string());
+                        });
+                    while (!sink_entry_queue_.empty()) {
+                        std::pair<std::string, std::string> entry;
+                        sink_entry_queue_.dequeue(entry);
+                        database()->Put(leveldb::WriteOptions{},
+                            entry.first.data(), entry.second);
+                    }
+                }
                 promise_finish.setValue();
             };
         }
@@ -40,7 +51,7 @@ inline namespace plugin
         auto produce_callback() {
             return [this, self = shared_from_this()](std::string_view instance, std::string event) {
                 if (active_) {
-                    auto timed_instance = fmt::format("[time]{}[instance]{}", core::date_format(), instance);
+                    auto timed_instance = fmt::format("[time]{}[instance]{}", core::local_date_time(), instance);
                     sink_entry_queue_.enqueue(std::make_pair(std::move(timed_instance), std::move(event)));
                 }
             };

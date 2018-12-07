@@ -3,7 +3,9 @@
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include <date/date.h>
+#include <boost/date_time/microsec_time_clock.hpp>
+#include <boost/date_time/posix_time/ptime.hpp>
+#include <boost/date_time/posix_time/posix_time_io.hpp>
 
 namespace core
 {
@@ -14,10 +16,8 @@ namespace core
         return fmt::format("{}", std::put_time(timing(&current_time), format.data()));
     }
 
-    std::string date_format(std::string_view format,
-                            const std::chrono::system_clock::duration& offset) {
-
-        return date::format(format.data(), std::chrono::system_clock::now() + offset);
+    std::string local_date_time() {
+        return fmt::format("{}", boost::date_time::microsec_clock<boost::posix_time::ptime>::local_time());
     }
 
     size_t count_file_entry(const std::filesystem::path& directory) {
@@ -45,6 +45,18 @@ namespace core
         assert(is_directory(directory));
         const auto file_name = tidy_directory_path(directory).filename();
         return (directory / file_name).replace_extension(extension);
+    }
+
+    std::filesystem::path last_write_path_of_directory(const std::filesystem::path& directory) {
+        return std::max_element(
+            std::execution::par,
+            std::filesystem::directory_iterator{ directory },
+            std::filesystem::directory_iterator{},
+            [](const std::filesystem::directory_entry& left,
+               const std::filesystem::directory_entry& right) {
+                return left.last_write_time() < right.last_write_time();
+            }
+        )->path();
     }
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,

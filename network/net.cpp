@@ -302,7 +302,7 @@ namespace net
     using boost::asio::io_context;
     using boost::asio::executor_work_guard;
 
-    struct asio_deleter : std::default_delete<boost::asio::io_context>
+    struct asio_deleter final : std::default_delete<io_context>
     {
         std::unique_ptr<
             executor_work_guard<

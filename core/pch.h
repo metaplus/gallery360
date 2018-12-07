@@ -100,17 +100,22 @@ using namespace std::literals;
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
 #include <boost/exception/all.hpp>
-//#include <boost/hana.hpp>
 #include <boost/logic/tribool_fwd.hpp>
+#include <boost/multi_index/hashed_index_fwd.hpp>
+#include <boost/multi_index/identity_fwd.hpp>
+#include <boost/multi_index/ordered_index_fwd.hpp>
+#include <boost/multi_index/random_access_index_fwd.hpp>
+#include <boost/multi_index/ranked_index_fwd.hpp>
+#include <boost/multi_index/sequenced_index_fwd.hpp>
+#include <boost/multi_index_container_fwd.hpp>
 #include <boost/stacktrace.hpp>
 #include <boost/type_index.hpp>
+//#include <boost/hana.hpp>
 
 #include <nlohmann/json.hpp>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
-//#include <fmt/time.h>
-//#include <fmt/ranges.h>
 
 #include <spdlog/logger.h>
 

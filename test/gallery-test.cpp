@@ -90,11 +90,10 @@ auto plugin_routine = [](std::string url) {
                     if (poll_success) {
                         if constexpr (tuning::verbose) {
                             auto cc = 0, rr = 0;
-                            test::_nativeCoordinateState(cc, rr);
                             EXPECT_EQ(cc, c);
                             EXPECT_EQ(rr, r);
                         }
-                        _nativeGraphicGetRenderEventFunc()(index);
+                        _nativeGraphicGetRenderCallback()(index);
                         count++;
                     }
                     return poll_success;
@@ -155,5 +154,7 @@ namespace gallery_test
         CoTaskMemFree(str);
     }
 
-    TEST(DataBase, Base) { }
+    TEST(Unity, LoadEnvConfig) {
+        EXPECT_TRUE(unity::_nativeLoadEnvConfig());
+    }
 }
