@@ -12,8 +12,6 @@ using net::client::http_session_ptr;
 using ordinal = std::pair<int16_t, int16_t>;
 using io_context_ptr = std::invoke_result_t<decltype(&net::make_asio_pool), unsigned>;
 using net::component::dash_manager;
-using net::component::frame_consumer;
-using net::component::frame_indexed_builder;
 
 namespace net::protocal
 {
@@ -55,14 +53,13 @@ namespace net::component
         std::optional<folly::Uri> mpd_uri;
         std::optional<dash::parser> mpd_parser;
         std::optional<client::connector<protocal::tcp>> connector;
-        folly::Function<double(int, int)> predictor = [](auto, auto) {
-            return folly::Random::randDouble01();
-        };
-        folly::Function<size_t(int, int)> indexer;
+
         std::shared_ptr<folly::ThreadPoolExecutor> executor;
-        frame_indexed_builder consumer_builder;
         int drain_count = 0;
         detail::trace_callback trace_callback;
+        detail::predict_callback predict_callback = [](auto, auto) {
+            return folly::Random::randDouble01();
+        };
 
         struct deleter final : std::default_delete<impl>
         {
@@ -82,7 +79,7 @@ namespace net::component
         dash::represent& predict_represent(dash::video_adaptation_set& video_set) {
             const auto predict_index = [this, &video_set]() {
                 const auto represent_size = std::size(video_set.represents);
-                const auto probability = std::invoke(predictor, video_set.col, video_set.row);;
+                const auto probability = std::invoke(predict_callback, video_set.col, video_set.row);;
                 const auto predict_index = represent_size * probability;
                 return std::min(static_cast<size_t>(predict_index),
                                 represent_size - 1);
@@ -163,15 +160,13 @@ namespace net::component
     }
 
     folly::Future<dash_manager> dash_manager::create_parsed(std::string mpd_url, unsigned concurrency,
-                                                            std::shared_ptr<folly::ThreadPoolExecutor> executor,
-                                                            detail::trace_callback callback) {
+                                                            std::shared_ptr<folly::ThreadPoolExecutor> executor) {
         static_assert(std::is_move_assignable<dash_manager>::value);
         if (!executor) {
             executor = std::dynamic_pointer_cast<folly::ThreadPoolExecutor>(folly::getCPUExecutor());
         }
         logger->info("create_parsed @{} chain start", folly::getCurrentThreadID());
         dash_manager dash_manager{ std::move(mpd_url), concurrency, executor };
-        dash_manager.impl_->trace_callback = std::move(callback);
         logger->info("create_parsed @{} establish session", std::this_thread::get_id());
         return dash_manager.impl_
                            ->make_http_client()
@@ -206,6 +201,13 @@ namespace net::component
 
     bool dash_manager::available() const {
         return impl_->drain_count == 0;
+    }
+
+    void dash_manager::trace_by(detail::trace_callback callback) const {
+        impl_->trace_callback = std::move(callback);
+    }
+    void dash_manager::predict_by(detail::predict_callback callback) const {
+        impl_->predict_callback = std::move(callback);
     }
 
     folly::SemiFuture<buffer_context>

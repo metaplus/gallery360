@@ -5,6 +5,7 @@
 #include <folly/stop_watch.h>
 
 #include "unity/gallery/pch.h"
+#include <boost/beast.hpp>
 
 using std::chrono::microseconds;
 using std::chrono::milliseconds;
@@ -13,12 +14,16 @@ using std::chrono::steady_clock;
 using boost::asio::const_buffer;
 using boost::beast::multi_buffer;
 using net::component::dash_manager;
-using net::component::frame_consumer;
-using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
 using media::component::pixel_array;
 using media::component::pixel_consume;
+
+using frame_consumer = folly::Function<bool()>;
+using frame_indexed_builder = folly::Function<
+    frame_consumer(std::pair<int, int>,
+                   boost::beast::multi_buffer&,
+                   boost::beast::multi_buffer&&)>;
 
 using namespace unity;
 
@@ -57,7 +62,7 @@ auto plugin_routine = [](std::string url) {
         test::_nativeConfigConcurrency(codec_concurrency);
         test::_nativeMockGraphic();
         _nativeLibraryInitialize();
-        _nativeDashCreate(url.data());
+        _nativeDashCreate();
         int col = 0, row = 0, width = 0, height = 0;
         ASSERT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
         EXPECT_EQ(col, 5);
@@ -156,5 +161,9 @@ namespace gallery_test
 
     TEST(Unity, LoadEnvConfig) {
         EXPECT_TRUE(unity::_nativeLoadEnvConfig());
+        _nativeLibraryInitialize();
+        const auto str = unity::_nativeDashCreate();
+        XLOG(INFO) << str;
+        EXPECT_FALSE(std::string_view{str}.empty());
     }
 }

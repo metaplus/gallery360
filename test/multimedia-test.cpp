@@ -523,10 +523,10 @@ namespace media_test
 
     TEST(CommandBatch, NewYorkBatch) {
         const auto command = command_batch("F:/Gpac/NewYork.mp4", "F:/Output/", true);
-        command({ 8, 4 }, { 1000, 800, 6000, 400, 200 });
-    /*    command({ 5, 3 }, { 2000, 1500, 1000, 500, 200 });
-        command({ 5, 4 }, { 1500, 1200, 1000, 500, 200});*/
-        //command({ 3, 3 }, { 3000, 2000, 1000, 500, 200 });
-        //command({ 4, 3 }, { 2000, 1500, 1000, 500, 200 });
+        command({ 8, 4 }, { 1000, 800, 600, 400, 200 });
+        command({ 5, 3 }, { 2000, 1500, 1000, 500, 200 });
+        command({ 5, 4 }, { 1500, 1200, 1000, 500, 200 });
+        command({ 3, 3 }, { 3000, 2000, 1000, 500, 200 });
+        command({ 4, 3 }, { 2000, 1500, 1000, 500, 200 });
     }
 }

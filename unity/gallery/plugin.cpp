@@ -15,7 +15,6 @@
 #include <boost/process/environment.hpp>
 
 using net::component::dash_manager;
-using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
 using boost::beast::multi_buffer;
@@ -34,6 +33,7 @@ namespace config
     std::filesystem::path database_directory;
     nlohmann::json detail;
     std::optional<folly::Uri> mpd_uri;
+    double predict_degrade_factor = 1;
 }
 
 inline namespace resource
@@ -45,9 +45,9 @@ inline namespace resource
     std::shared_ptr<database> dll_database;
     std::optional<graphic> dll_graphic;
 
-    struct index_key {};
-    struct coordinate_key {};
-    struct sequence {};
+    struct index_key final {};
+    struct coordinate_key final {};
+    struct sequence final {};
 
     boost::multi_index_container<
         stream_context,
@@ -119,6 +119,16 @@ namespace state
     auto unity_time = 0.f;
     std::optional<struct frame_batch> frame_batch;
 
+    struct coordinate final
+    {
+        int col = 0;
+        int row = 0;
+    };
+
+    static_assert(std::is_trivially_copyable<coordinate>::value);
+
+    std::atomic<coordinate> field_of_view;
+
     struct stream final
     {
         static inline std::atomic<bool> running{ false };
@@ -160,7 +170,7 @@ auto unmanaged_ansi_string = [](std::string_view string) {
 
 auto unmanaged_unicode_string = [](std::string_view string) {
     return SysAllocStringByteLen(string.data(),
-        folly::to<UINT>(string.length()));
+                                 folly::to<UINT>(string.length()));
 };
 
 namespace unity
@@ -168,8 +178,21 @@ namespace unity
     LPSTR _nativeDashCreate() {
         auto url = config::mpd_uri->str();
         assert(!url.empty());
-        manager = dash_manager::create_parsed(url, config::asio_concurrency.value(),
-                                              compute_executor, dll_database->produce_callback());
+        manager = dash_manager::create_parsed(url, config::asio_concurrency.value(), compute_executor)
+            .thenValue([](dash_manager manager) {
+                auto frame_col = 0, frame_row = 0;
+                std::tie(frame_col, frame_row) = manager.grid_size();
+                manager.trace_by(dll_database->produce_callback());
+                manager.predict_by([=](const int tile_col,
+                                       const int tile_row) {
+                    const auto field_of_view = std::atomic_load(&state::field_of_view);
+                    const std::divides<double> divide;
+                    const auto col_degrade = config::predict_degrade_factor * divide(std::abs(tile_col - field_of_view.col), frame_col);
+                    const auto row_degrade = config::predict_degrade_factor * divide(std::abs(tile_row - field_of_view.row), frame_row);
+                    return std::max<double>(0, -col_degrade - row_degrade + 1);
+                });
+                return manager;
+            });
         return unmanaged_ansi_string(url);
     }
 
@@ -247,15 +270,11 @@ namespace unity
                 }
             } catch (core::bad_response_error) {
                 tile_stream.decode_queue->blockingWrite(media::frame{ nullptr });
-            }
-            catch (core::session_closed_error) {
+            } catch (core::session_closed_error) {
                 assert(!"session_executor catch unexpected session_closed_error");
-            }
-            catch (std::runtime_error) {
+            } catch (std::runtime_error) {
                 assert(std::atomic_load(&state::stream::running) == false);
-            }
-            catch (...) {
-                //auto diagnostic = boost::current_exception_diagnostic_information();
+            } catch (...) {
                 assert(!"session_executor catch unexpected exception");
             }
             assert("session worker trap");
@@ -333,9 +352,6 @@ namespace unity
                             *tile_iterator, std::move(frame)
                         };
                         auto enqueue_try = 0;
-                        //while (!state::batch_render_queue->write(std::move(render_context))) {
-                        //    assert(enqueue_try++ < 30 && !"poll_update_frame enqueue_try > 30 times");
-                        //}
                         return true;
                     }
                 }
@@ -351,6 +367,10 @@ namespace unity
         state::frame_batch->frame_index = frame_index;
         state::frame_batch->batch_index = batch_index;
         return folly::to<int>(tile_decode_ready);
+    }
+
+    void _nativeDashTileFieldOfView(INT col, INT row) {
+        std::atomic_store(&state::field_of_view, { col, row });
     }
 
     void _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp) {
@@ -420,6 +440,7 @@ namespace unity
                         config::mpd_uri = folly::Uri{ mpd_uri };
                         return true;
                     }
+                    config::predict_degrade_factor = config::detail["Dash"]["PredictFactor"].get<double>();
                 }
             };
         }
@@ -430,7 +451,7 @@ namespace unity
         tile_stream_table.clear();
         state::stream::available(nullptr);
         state::frame_batch = std::nullopt;
-        //state::batch_render_queue = std::nullopt;
+        std::atomic_store(&state::field_of_view, { 0, 0 });
     };
 
     void _nativeLibraryInitialize() {
@@ -438,7 +459,6 @@ namespace unity
         reset_resource();
         state::stream::running = true;
         state::render_tile_queue = std::make_unique<decltype(state::render_tile_queue)::element_type>();
-        //state::batch_render_queue.emplace(180);
         manager = folly::Future<dash_manager>::makeEmpty();
         dll_database = database::make_ptr(config::database_directory.string());
         compute_executor = core::make_pool_executor(config::executor_concurrency.value(), "PluginCompute");

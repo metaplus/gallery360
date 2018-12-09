@@ -187,7 +187,7 @@ namespace media
             auto read_size = 0i64;
             while (buffer_iter_ != buffer_list_.end() && read_size < expect_size) {
                 auto* pointer = static_cast<const char*>(buffer_iter_->data());
-                auto increment = std::min<int64_t>(expect_size - read_size, buffer_iter_->size() - offset_);
+                const auto increment = std::min<int64_t>(expect_size - read_size, buffer_iter_->size() - offset_);
                 assert(increment > 0);
                 std::copy_n(pointer + offset_, increment, buffer + read_size);
                 offset_ += increment;
@@ -199,8 +199,6 @@ namespace media
                 }
                 read_size += increment;
             }
-            //fmt::print("read_size {}, expect_size {}, sequence{}/{}\n",
-            //           read_size, expect_size, full_offset_, full_size_);
             full_offset_ += read_size;
             full_read_size_ += read_size;
             return folly::to<int>(read_size);
@@ -214,15 +212,15 @@ namespace media
 
     int64_t buffer_list_cursor::seek(int64_t seek_offset, int whence) {
         switch (whence) {
-            case SEEK_SET: //fmt::print("SEEK_SET OFFSET {}\n", seek_offset);
+            case SEEK_SET: 
                 break;
-            case SEEK_END: //fmt::print("SEEK_END OFFSET {}\n", seek_offset);
+            case SEEK_END:
                 seek_offset += full_size_;
                 break;
-            case SEEK_CUR: //fmt::print("SEEK_CUR OFFSET {}\n", seek_offset);
+            case SEEK_CUR: 
                 seek_offset += full_offset_;
                 break;
-            case AVSEEK_SIZE: //fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
+            case AVSEEK_SIZE: 
                 return -1;    //TODO: return -1 for streaming
             default: throw core::unreachable_execution_error{ __FUNCSIG__ };
         }
