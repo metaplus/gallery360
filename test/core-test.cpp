@@ -51,7 +51,7 @@ namespace core_test
 
     TEST(Time, TimeFormat) {
         XLOG(INFO) << core::time_format();
-        XLOG(INFO) << core::date_format();
+        XLOG(INFO) << core::local_date_time();
     }
 
     TEST(Executor, JoinThreadPoolExecutor) {

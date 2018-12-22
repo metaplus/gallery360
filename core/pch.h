@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <any>
 #include <atomic>
+#include <bitset>
 #include <cassert>
 #include <chrono>
 #include <csignal>
@@ -34,6 +35,7 @@
 #include <new>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -89,7 +91,6 @@ using namespace std::literals;
 
 #include <range/v3/all.hpp>
 
-
 #include <boost/asio/buffer.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
@@ -99,17 +100,22 @@ using namespace std::literals;
 #include <boost/core/null_deleter.hpp>
 #include <boost/cstdlib.hpp>
 #include <boost/exception/all.hpp>
-//#include <boost/hana.hpp>
 #include <boost/logic/tribool_fwd.hpp>
+#include <boost/multi_index/hashed_index_fwd.hpp>
+#include <boost/multi_index/identity_fwd.hpp>
+#include <boost/multi_index/ordered_index_fwd.hpp>
+#include <boost/multi_index/random_access_index_fwd.hpp>
+#include <boost/multi_index/ranked_index_fwd.hpp>
+#include <boost/multi_index/sequenced_index_fwd.hpp>
+#include <boost/multi_index_container_fwd.hpp>
 #include <boost/stacktrace.hpp>
 #include <boost/type_index.hpp>
+//#include <boost/hana.hpp>
 
 #include <nlohmann/json.hpp>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
-//#include <fmt/time.h>
-//#include <fmt/ranges.h>
 
 #include <spdlog/logger.h>
 
@@ -128,4 +134,4 @@ using namespace fmt::literals;
 //#include "concurrency/barrier.hpp"
 //#include "concurrency/latch.hpp"
 //#include "concurrency/synchronize.hpp"
-using namespace core::literals;
+//using namespace core::literals;

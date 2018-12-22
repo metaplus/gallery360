@@ -5,10 +5,12 @@
 #include <boost/date_time/posix_time/ptime.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
 #include <boost/date_time/posix_time/time_parsers.hpp>
+#include <boost/interprocess/sync/file_lock.hpp>
+#include <boost/process/environment.hpp>
 
 namespace boost_test
 {
-    TEST(MultiBuffer, Base) {
+    TEST(Beast, MultiBuffer) {
         std::array<char, 64> ar;
         std::fill_n(ar.begin(), ar.size(), 0xcc);
         boost::beast::multi_buffer b;
@@ -153,5 +155,43 @@ namespace boost_test
         XLOG(INFO) << time_str;
         const auto time2 = boost::posix_time::time_from_string(time_str);
         EXPECT_EQ(time, time2);
+    }
+
+    TEST(InterProcess, FileLock) {
+        std::filesystem::path lock_path = "F:/Debug/Interprocess/IPC.LOCK";
+        if (create_directories(lock_path.parent_path()); is_regular_file(lock_path)) {
+            ASSERT_TRUE(remove(lock_path));
+        }
+        EXPECT_NO_THROW(boost::interprocess::file_lock{});
+        EXPECT_THROW(boost::interprocess::file_lock{ lock_path.string().c_str()},
+                     boost::interprocess::interprocess_exception);
+        {
+            std::ofstream file{ lock_path, std::ios::trunc };
+            EXPECT_TRUE(file.good());
+        }
+        EXPECT_EQ(file_size(lock_path), 0);
+        boost::interprocess::file_lock file_lock{ lock_path.string().c_str() };
+        auto worker = std::thread{
+            [&file_lock] {
+                file_lock.lock_sharable();
+                file_lock.unlock();
+                file_lock.lock();
+                file_lock.unlock();
+            }
+        };
+        file_lock.lock();
+        file_lock.unlock();
+        file_lock.lock_sharable();
+        file_lock.unlock();
+        worker.join();
+    }
+
+    TEST(Process, Environment) {
+        auto t = boost::this_process::environment()["TraceDb"];
+        EXPECT_FALSE(t.empty());
+        EXPECT_EQ(t.get_name(), "TraceDb");
+        EXPECT_EQ(t.to_string(), "F:\\TraceDb");
+        EXPECT_EQ(t.to_vector().size(), 1);
+        EXPECT_EQ(t.to_vector().front(), "F:\\TraceDb");
     }
 }

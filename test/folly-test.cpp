@@ -602,7 +602,6 @@ namespace folly_test
             EXPECT_TRUE(fs.getFuture().hasValue());
         }
         {
-            using std::chrono::microseconds;
             multi_buffer buffer;
             boost::beast::ostream(buffer) << std::ifstream{ "F:/Gpac/debug/NewYork/5k/segment_2_2_5k_init.mp4", std::ios::binary }.rdbuf();
             EXPECT_EQ(buffer.size(), 925); // ~ 1kB

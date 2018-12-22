@@ -7,29 +7,26 @@ namespace net
         using boost::asio::const_buffer;
         using boost::beast::multi_buffer;
         using trace_callback = std::function<void(std::string_view, std::string)>;
+        using predict_callback = std::function<double(int, int)>;
     }
 
-    struct buffer_context final
+    struct buffer_sequence final
     {
         detail::multi_buffer& initial;
         detail::multi_buffer data;
 
-        buffer_context(detail::multi_buffer& initial, detail::multi_buffer&& data);
-        buffer_context(buffer_context&) = delete;
-        buffer_context(buffer_context&& that) noexcept;
-        buffer_context& operator=(buffer_context&) = delete;
-        buffer_context& operator=(buffer_context&&) = delete;
-        ~buffer_context() = default;
+        buffer_sequence(detail::multi_buffer& initial, detail::multi_buffer&& data);
+        buffer_sequence(buffer_sequence&) = delete;
+        buffer_sequence(buffer_sequence&& that) noexcept;
+        buffer_sequence& operator=(buffer_sequence&) = delete;
+        buffer_sequence& operator=(buffer_sequence&&) = delete;
+        ~buffer_sequence() = default;
     };
 }
 
 namespace net::component
 {
     using ordinal = std::pair<int, int>;
-    using frame_consumer = folly::Function<bool()>;
-    using frame_indexed_builder = folly::Function<frame_consumer(std::pair<int, int>,
-                                                                 detail::multi_buffer&,
-                                                                 detail::multi_buffer&&)>;
 
     class dash_manager final
     {
@@ -49,19 +46,16 @@ namespace net::component
 
         static folly::Future<dash_manager> create_parsed(std::string mpd_url,
                                                          unsigned concurrency = std::thread::hardware_concurrency(),
-                                                         std::shared_ptr<folly::ThreadPoolExecutor> executor = nullptr,
-                                                         detail::trace_callback callback = nullptr);
+                                                         std::shared_ptr<folly::ThreadPoolExecutor> executor = nullptr);
 
         std::pair<int, int> scale_size() const;
         std::pair<int, int> grid_size() const;
 
-        void predict_by(folly::Function<double(int, int)> predictor);
+        void trace_by(detail::trace_callback callback) const;
+        void predict_by(detail::predict_callback callback) const;
 
         bool available() const;
 
-        folly::SemiFuture<buffer_context> request_tile_context(int col, int row) const;
-
-    private:
-        folly::Function<size_t(int, int)> represent_indexer(folly::Function<double(int, int)> probability);
+        folly::SemiFuture<buffer_sequence> request_tile_context(int col, int row) const;
     };
 }

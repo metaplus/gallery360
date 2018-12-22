@@ -23,7 +23,7 @@
     <ProjectGuid>{900DE24F-834C-4095-B20E-0B1785F1913B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>network</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
     <VcpkgTriplet Condition="'$(Platform)'=='x64'">x64-windows-static-dynamic</VcpkgTriplet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -104,7 +104,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions);_NET_PROJECT;_NET_DIR=R"($(ProjectDir))";</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(Include);../;../../; </AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../;../../; </AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
@@ -113,7 +113,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalLibraryDirectories>$(Lib)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>
+      </AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -143,7 +144,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions);_NET_PROJECT;_NET_CONFIG_DIR=R"($(ProjectDir))";</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(Include);../;../../;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../;../../;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
@@ -154,7 +155,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
-      <AdditionalLibraryDirectories>$(Lib)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>
+      </AdditionalLibraryDirectories>
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -186,12 +188,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\core\core.vcxproj">
-      <Project>{9057a59a-b55f-42e0-9121-072432c0826d}</Project>
-    </ProjectReference>
+    <None Include="config.json" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="config.json" />
+    <ProjectReference Include="..\multimedia\multimedia.vcxproj">
+      <Project>{ed7175d4-b639-4ff1-b130-48b879dbdd3c}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -63,9 +63,13 @@ namespace media
         return output_path(input).generic_string();
     };
 
-    auto mesh_description = [](const filter_param filter, const rate_control rate) {
+    std::string mesh_description(const filter_param filter, const rate_control rate) {
         return fmt::format("{}x{}_{}", filter.wcrop, filter.hcrop, rate.bit_rate);
-    };
+    }
+
+    std::string mesh_description(const filter_param filter, const int qp) {
+        return fmt::format("{}x{}_qp{}", filter.wcrop, filter.hcrop, qp);
+    }
 
     static_assert(!std::is_copy_constructible<RE2>::value);
     static_assert(!std::is_move_constructible<RE2>::value);
@@ -76,7 +80,7 @@ namespace media
         if (const auto regex_iter = cache_mesh_regex.find(cache_key); regex_iter != cache_mesh_regex.end()) {
             return (regex_iter->second);
         }
-        const auto regex_content = fmt::format(R"({}x{}_(\d+))", filter.wcrop, filter.hcrop);
+        const auto regex_content = fmt::format(R"({}x{}_qp(\d+))", filter.wcrop, filter.hcrop);
         return (cache_mesh_regex.try_emplace(cache_key, regex_content)
                                 .first->second);
     };
@@ -90,9 +94,8 @@ namespace media
             });
     };
 
-    // Todo: test
     auto tile_mpd_coordinate = [](std::string_view filename) {
-        static const RE2 mpd_regex{ R"(\w+_c(\d+)r(\d+)_\d+kbps.mpd)" };
+        static const RE2 mpd_regex{ R"(\w+_c(\d+)r(\d+)_qp\d+.mpd)" };
         auto col = 0, row = 0;
         if (RE2::FullMatch(filename.data(), mpd_regex, &col, &row)) {
             return std::make_pair(col, row);
@@ -209,7 +212,35 @@ namespace media
         }
     }
 
-    auto mesh_directory = [](const filter_param filter) {
+    void command::crop_scale_package(std::filesystem::path input, int qp) {
+        for (auto row : ranges::view::ints(0, hcrop)) {
+            for (auto col : ranges::view::ints(0, wcrop)) {
+                std::vector<std::string> cmd_params{
+                    ffmpeg_path().string(), fmt::format("-i {}", input.string())
+                };
+                auto iw = fmt::format("iw/{}", wcrop);
+                auto ih = fmt::format("ih/{}", hcrop);
+                cmd_params.emplace_back(fmt::format("-vf crop={}:{}:{}*{}:{}*{}",
+                                                    iw, ih, col, iw, row, ih));
+                cmd_params.emplace_back("-c:v libx264");
+                cmd_params.emplace_back(fmt::format("-qp {}", qp));
+                cmd_params.emplace_back("-x264-params keyint=30:min-keyint=30:scenecut=0:no-scenecut=1");
+                cmd_params.emplace_back("-an");
+                cmd_params.emplace_back("-f mp4");
+                const auto [file_stem, file_output_dir] = output_mp4_directory(
+                    input.string(), mesh_description({ wcrop, hcrop }, qp));
+                create_directories(file_output_dir);
+                const auto filename = fmt::format("{}_c{}r{}_qp{}.mp4", input.stem().string(), col, row, qp);
+                cmd_params.emplace_back((file_output_dir / filename).string());
+                cmd_params.emplace_back("-y");
+                const auto cmd = folly::join(' ', cmd_params);
+                system(cmd);
+            }
+        }
+
+    }
+
+    auto mesh_rate_directory = [](const filter_param filter) {
         return core::filter_directory_entry(
             media::output_directory(),
             [filter](const std::filesystem::directory_entry& entry) {
@@ -219,8 +250,18 @@ namespace media
             });
     };
 
+    auto mesh_qp_directory = [](const filter_param filter) {
+        return core::filter_directory_entry(
+            media::output_directory(),
+            [filter](const std::filesystem::directory_entry& entry) {
+                const auto dirname = entry.path().filename().string();
+                const auto regex = fmt::format("{}x{}_qp\\d+", filter.wcrop, filter.hcrop);
+                return RE2::FullMatch(dirname, regex);
+            });
+    };
+
     void command::package_container(const rate_control rate) {
-        for (auto& mesh_entry : mesh_directory({ wcrop, hcrop })) {
+        for (auto& mesh_entry : mesh_rate_directory({ wcrop, hcrop })) {
             assert(is_directory(mesh_entry));
             const auto h264_directory = mesh_entry / "h264";
             const auto mp4_directory = mesh_entry / "mp4";
@@ -245,7 +286,7 @@ namespace media
 
     void command::dash_segment(const std::chrono::milliseconds duration) {
 
-        for (auto& mesh_path : mesh_directory({ wcrop, hcrop })) {
+        for (auto& mesh_path : mesh_qp_directory({ wcrop, hcrop })) {
             assert(is_directory(mesh_path));
             const auto mp4_directory = mesh_path / "mp4";
             const auto dash_directory = mesh_path / "dash";
@@ -267,6 +308,22 @@ namespace media
                 system(folly::join(' ', cmd_params));
             }
         }
+    }
+
+    void command::dash_segment(std::filesystem::path input,
+                               std::chrono::milliseconds duration) {
+        assert(std::filesystem::is_regular_file(input));
+        assert(input.extension() == ".mp4");
+        auto dash_path = std::filesystem::path{ input }.replace_extension(".mpd");
+        std::vector<std::string> cmd_params{ "mp4box" };
+        cmd_params.emplace_back(fmt::format("-dash {}", duration.count()));
+        cmd_params.emplace_back(fmt::format("-frag {}", duration.count()));
+        cmd_params.emplace_back("-profile live");
+        cmd_params.emplace_back("-rap");
+        cmd_params.emplace_back(fmt::format("-out {}", dash_path.generic_string()));
+        cmd_params.emplace_back(input.generic_string());
+        system(folly::join(' ', cmd_params));
+
     }
 
     using tinyxml2::XMLNode;
@@ -328,7 +385,7 @@ namespace media
         return srd;
     };
 
-    void command::merge_dash_mpd() {
+    std::filesystem::path command::merge_dash_mpd() {
         XMLDocument dest_document;
         XMLDeclaration* declaration = nullptr;
         XMLElement* program_information = nullptr;
@@ -359,19 +416,48 @@ namespace media
                                        ->SetText(dest_mpd_path.filename().string().data());
                 }
                 if (exchanged_element(adaptation_set, { "MPD", "Period", "AdaptationSet" })) {
-                    adaptation_set->InsertEndChild(node_range(src_document, { "MPD", "Period", "AdaptationSet", "Representation" })
-                                                   .back()
-                                                   ->DeepClone(&dest_document));
+                    auto* representation = adaptation_set->InsertEndChild(
+                        node_range(src_document, { "MPD", "Period", "AdaptationSet", "Representation" })
+                        .back()->DeepClone(&dest_document));
+                    if (auto* segment_template = representation->FirstChildElement("SegmentTemplate"); !segment_template) {
+                        representation->InsertEndChild(
+                            node_range(src_document, { "MPD", "Period", "AdaptationSet", "SegmentTemplate" })
+                            .back()->DeepClone(&dest_document));
+                    }
                 } else {
                     auto* supplemental = dest_document.NewElement("SupplementalProperty");
                     supplemental->SetAttribute("schemeIdUri", "urn:mpeg:dash:srd:2014");
                     supplemental->SetAttribute("value", spatial_relationship({ wcrop, hcrop }, coordinate).data());
                     adaptation_set->InsertFirstChild(supplemental);
+                    if (auto* segment_template = adaptation_set->FirstChildElement("SegmentTemplate"); segment_template) {
+                        adaptation_set->FirstChildElement("Representation")
+                                      ->InsertFirstChild(segment_template->DeepClone(&dest_document));
+                        adaptation_set->DeleteChild(segment_template);
+                    }
                 }
                 adaptation_set->LastChildElement("Representation")
                               ->SetAttribute("id", ++represent_index);
             }
         }
         xml_check() << dest_document.SaveFile(dest_mpd_path.string().data());
+        return dest_mpd_path;
+    }
+
+    std::vector<std::filesystem::path> command::tile_path_list() {
+        auto mesh_path_list = mesh_directories({ wcrop, hcrop });
+        return std::reduce(
+            mesh_path_list.begin(), mesh_path_list.end(),
+            std::vector<std::filesystem::path>{},
+            [](std::vector<std::filesystem::path> tile_path_list,
+               std::filesystem::path& mesh_path) {
+                const auto tile_paths = core::filter_directory_entry(
+                    mesh_path / "dash",
+                    [](const std::filesystem::directory_entry& mpd_entry) {
+                        return mpd_entry.path().extension() == ".m4s"
+                            || mpd_entry.path().extension() == ".mp4";
+                    });
+                std::move(tile_paths.begin(), tile_paths.end(), std::back_inserter(tile_path_list));
+                return tile_path_list;
+            });
     }
 }

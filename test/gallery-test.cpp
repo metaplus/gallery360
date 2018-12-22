@@ -2,9 +2,8 @@
 #include "core/pch.h"
 #include "network/component.h"
 #include "multimedia/component.h"
-#include <folly/stop_watch.h>
-
-#include "unity/gallery/pch.h"
+#include "gallery/pch.h"
+#include <boost/beast.hpp>
 
 using std::chrono::microseconds;
 using std::chrono::milliseconds;
@@ -13,12 +12,16 @@ using std::chrono::steady_clock;
 using boost::asio::const_buffer;
 using boost::beast::multi_buffer;
 using net::component::dash_manager;
-using net::component::frame_consumer;
-using net::component::frame_indexed_builder;
 using net::component::ordinal;
 using media::component::frame_segmentor;
 using media::component::pixel_array;
 using media::component::pixel_consume;
+
+using frame_consumer = folly::Function<bool()>;
+using frame_indexed_builder = folly::Function<
+    frame_consumer(std::pair<int, int>,
+                   boost::beast::multi_buffer&,
+                   boost::beast::multi_buffer&&)>;
 
 using namespace unity;
 
@@ -57,7 +60,7 @@ auto plugin_routine = [](std::string url) {
         test::_nativeConfigConcurrency(codec_concurrency);
         test::_nativeMockGraphic();
         _nativeLibraryInitialize();
-        _nativeDashCreate(url.data());
+        _nativeDashCreate();
         int col = 0, row = 0, width = 0, height = 0;
         ASSERT_TRUE(_nativeDashGraphicInfo(col, row, width, height));
         EXPECT_EQ(col, 5);
@@ -72,7 +75,7 @@ auto plugin_routine = [](std::string url) {
                 const auto index = r * col + c + 1;
                 ref_index_range.push_back(index);
                 coordinate_map[index] = std::make_pair(c, r);
-                _nativeDashSetTexture(c, r, index, nullptr, nullptr, nullptr);
+                //_nativeDashSetTexture(c, r, index, nullptr, nullptr, nullptr);
             }
         }
         folly::stop_watch<seconds> watch;
@@ -90,11 +93,10 @@ auto plugin_routine = [](std::string url) {
                     if (poll_success) {
                         if constexpr (tuning::verbose) {
                             auto cc = 0, rr = 0;
-                            test::_nativeCoordinateState(cc, rr);
                             EXPECT_EQ(cc, c);
                             EXPECT_EQ(rr, r);
                         }
-                        _nativeGraphicGetRenderEventFunc()(index);
+                        _nativeGraphicGetRenderCallback()(index);
                         count++;
                     }
                     return poll_success;
@@ -110,7 +112,8 @@ auto plugin_routine = [](std::string url) {
             }
         }
         const auto t1 = watch.elapsed();
-        std::cerr << "-- profile parting line\n"
+        using core::literals::operator<<;
+        XLOG(INFO) << "-- profile parting line\n"
             << "concurrency " << codec_concurrency << "\n"
             << "iteration " << iteration << "\n"
             << "time " << t1 << "\n"
@@ -149,19 +152,16 @@ namespace gallery_test
     }
 
     TEST(Test, ManagedString) {
-        {
-            auto str = test::_nativeTestString();
-            EXPECT_GT(std::strlen(str), 0);
-            CoTaskMemFree(str);
-        }
-        {
-            auto str = test::_nativeTestFile();
-            EXPECT_GT(std::strlen(str), 0);
-            CoTaskMemFree(str);
-        }
+        auto str = test::_nativeTestString();
+        EXPECT_GT(std::strlen(str), 0);
+        CoTaskMemFree(str);
     }
 
-    TEST(DataBase, Base) {
-        
+    TEST(Unity, LoadEnvConfig) {
+        EXPECT_TRUE(unity::_nativeLoadEnvConfig());
+        _nativeLibraryInitialize();
+        const auto str = unity::_nativeDashCreate();
+        XLOG(INFO) << str;
+        EXPECT_FALSE(std::string_view{str}.empty());
     }
 }

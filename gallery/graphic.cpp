@@ -55,9 +55,9 @@ inline namespace plugin
                                 IUnityInterfaces* interfaces) {
         switch (event_type) {
             case kUnityGfxDeviceEventInitialize: {
-                IUnityGraphicsD3D11* d3d = interfaces->Get<IUnityGraphicsD3D11>();
+                auto* graphic_dx11 = interfaces->Get<IUnityGraphicsD3D11>();
                 clear();
-                device_ = d3d->GetDevice();
+                device_ = graphic_dx11->GetDevice();
                 //assert(device_->GetCreationFlags() != D3D11_CREATE_DEVICE_SINGLETHREADED);
                 break;
             }
@@ -66,7 +66,6 @@ inline namespace plugin
                 break;
             }
             default: ;
-                //assert(!false) 
         }
     }
 
@@ -271,9 +270,9 @@ inline namespace plugin
 
     void graphic::overwrite_main_texture() {
         if (auto context = this->update_context(); context != nullptr) {
-            context->CopyResource(alphas_[0], alphas_temp_[0]);
-            context->CopyResource(alphas_[1], alphas_temp_[1]);
-            context->CopyResource(alphas_[2], alphas_temp_[2]);
+            for (auto index : ranges::view::ints(0, 3)) {
+                context->CopyResource(alphas_[index], alphas_temp_[index]);
+            }
         }
     }
 

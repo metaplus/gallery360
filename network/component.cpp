@@ -12,14 +12,13 @@ using net::client::http_session_ptr;
 using ordinal = std::pair<int16_t, int16_t>;
 using io_context_ptr = std::invoke_result_t<decltype(&net::make_asio_pool), unsigned>;
 using net::component::dash_manager;
-using net::component::frame_consumer;
-using net::component::frame_indexed_builder;
 
 namespace net::protocal
 {
     struct dash::video_adaptation_set::context final
     {
-        std::vector<size_t> trace;
+        boost::circular_buffer<size_t> trace{ 300 };
+        size_t trace_index = 0;
         folly::SemiFuture<http_session_ptr> tile_client = folly::SemiFuture<http_session_ptr>::makeEmpty();
         bool drain = false;
     };
@@ -32,13 +31,13 @@ namespace debug
 
 namespace net
 {
-    //-- buffer_context
-    buffer_context::buffer_context(detail::multi_buffer& initial,
+    //-- buffer_sequence
+    buffer_sequence::buffer_sequence(detail::multi_buffer& initial,
                                    detail::multi_buffer&& data)
         : initial(initial)
         , data(std::move(data)) {}
 
-    buffer_context::buffer_context(buffer_context&& that) noexcept
+    buffer_sequence::buffer_sequence(buffer_sequence&& that) noexcept
         : initial(that.initial)
         , data(std::move(that.data)) {}
 }
@@ -48,21 +47,20 @@ namespace net::component
     const auto logger = spdlog::stdout_color_mt("net.dash.manager");
 
     //-- dash_manager
-    struct dash_manager::impl
+    struct dash_manager::impl final
     {
         io_context_ptr io_context;
         http_session_ptr manager_client;
         std::optional<folly::Uri> mpd_uri;
         std::optional<dash::parser> mpd_parser;
         std::optional<client::connector<protocal::tcp>> connector;
-        folly::Function<double(int, int)> predictor = [](auto, auto) {
-            return folly::Random::randDouble01();
-        };
-        folly::Function<size_t(int, int)> indexer;
+
         std::shared_ptr<folly::ThreadPoolExecutor> executor;
-        frame_indexed_builder consumer_builder;
         int drain_count = 0;
         detail::trace_callback trace_callback;
+        detail::predict_callback predict_callback = [](auto, auto) {
+            return folly::Random::randDouble01();
+        };
 
         struct deleter final : std::default_delete<impl>
         {
@@ -82,7 +80,7 @@ namespace net::component
         dash::represent& predict_represent(dash::video_adaptation_set& video_set) {
             const auto predict_index = [this, &video_set]() {
                 const auto represent_size = std::size(video_set.represents);
-                const auto probability = std::invoke(predictor, video_set.col, video_set.row);;
+                const auto probability = std::invoke(predict_callback, video_set.col, video_set.row);;
                 const auto predict_index = represent_size * probability;
                 return std::min(static_cast<size_t>(predict_index),
                                 represent_size - 1);
@@ -90,13 +88,13 @@ namespace net::component
             const auto represent_index = predict_index();
             auto& represent = video_set.represents.at(represent_index);
             video_set.context->trace.push_back(represent_index);
+            video_set.context->trace_index++;
             return represent;
         }
 
-        std::string concat_url_suffix(dash::video_adaptation_set& video_set,
-                                      dash::represent& represent) const {
-            return fmt::format(represent.media,
-                               std::size(video_set.context->trace));
+        static std::string concat_url_suffix(dash::video_adaptation_set& video_set,
+                                             dash::represent& represent) {
+            return fmt::format(represent.media, video_set.context->trace_index);
         }
 
         folly::SemiFuture<multi_buffer>
@@ -116,7 +114,7 @@ namespace net::component
             const auto suffix = [&video_set, &represent](bool initial) {
                 return initial
                            ? represent.initial
-                           : fmt::format(represent.media, std::size(video_set.context->trace));
+                           : fmt::format(represent.media, video_set.context->trace_index);
             };
             const auto url_path = replace_suffix(mpd_uri->path(), suffix(initial));
             return video_set.context
@@ -163,15 +161,13 @@ namespace net::component
     }
 
     folly::Future<dash_manager> dash_manager::create_parsed(std::string mpd_url, unsigned concurrency,
-                                                            std::shared_ptr<folly::ThreadPoolExecutor> executor,
-                                                            detail::trace_callback callback) {
+                                                            std::shared_ptr<folly::ThreadPoolExecutor> executor) {
         static_assert(std::is_move_assignable<dash_manager>::value);
         if (!executor) {
             executor = std::dynamic_pointer_cast<folly::ThreadPoolExecutor>(folly::getCPUExecutor());
         }
         logger->info("create_parsed @{} chain start", folly::getCurrentThreadID());
         dash_manager dash_manager{ std::move(mpd_url), concurrency, executor };
-        dash_manager.impl_->trace_callback = std::move(callback);
         logger->info("create_parsed @{} establish session", std::this_thread::get_id());
         return dash_manager.impl_
                            ->make_http_client()
@@ -208,16 +204,22 @@ namespace net::component
         return impl_->drain_count == 0;
     }
 
-    folly::SemiFuture<buffer_context>
+    void dash_manager::trace_by(detail::trace_callback callback) const {
+        impl_->trace_callback = std::move(callback);
+    }
+
+    void dash_manager::predict_by(detail::predict_callback callback) const {
+        impl_->predict_callback = std::move(callback);
+    }
+
+    folly::SemiFuture<buffer_sequence>
     dash_manager::request_tile_context(int col, int row) const {
         auto& video_set = impl_->mpd_parser->video_set(col, row);
         assert(video_set.col == col);
         assert(video_set.row == row);
-        if (!video_set.context) {
-            core::access(video_set.context)->trace.reserve(1024);
-        }
+        core::access(video_set.context);
         if (video_set.context->drain) {
-            return folly::makeSemiFuture<buffer_context>(
+            return folly::makeSemiFuture<buffer_sequence>(
                 core::stream_drained_error{ __FUNCTION__ });
         }
         if (!video_set.context->tile_client.valid()) {
@@ -234,18 +236,8 @@ namespace net::component
                 >&& buffer_tuple) {
                     auto& [initial_buffer, data_buffer] = buffer_tuple;
                     data_buffer.throwIfFailed();
-                    return buffer_context{ **initial_buffer, std::move(*data_buffer) };
+                    return buffer_sequence{ **initial_buffer, std::move(*data_buffer) };
                 }
             );
-    }
-
-    folly::Function<size_t(int, int)>
-    dash_manager::represent_indexer(folly::Function<double(int, int)> probability) {
-        return [this, probability = std::move(probability)](int x, int y) mutable {
-            auto& video_set = impl_->mpd_parser->video_set(x, y);
-            const auto represent_size = video_set.represents.size();
-            const auto predict_index = folly::to<size_t>(represent_size * probability(x, y));
-            return std::max(predict_index, represent_size - 1);
-        };
     }
 }
