@@ -385,7 +385,7 @@ namespace media
         return srd;
     };
 
-    void command::merge_dash_mpd() {
+    std::filesystem::path command::merge_dash_mpd() {
         XMLDocument dest_document;
         XMLDeclaration* declaration = nullptr;
         XMLElement* program_information = nullptr;
@@ -416,20 +416,31 @@ namespace media
                                        ->SetText(dest_mpd_path.filename().string().data());
                 }
                 if (exchanged_element(adaptation_set, { "MPD", "Period", "AdaptationSet" })) {
-                    adaptation_set->InsertEndChild(node_range(src_document,
-                                                              { "MPD", "Period", "AdaptationSet", "Representation" })
-                                                   .back()->DeepClone(&dest_document));
+                    auto* representation = adaptation_set->InsertEndChild(
+                        node_range(src_document, { "MPD", "Period", "AdaptationSet", "Representation" })
+                        .back()->DeepClone(&dest_document));
+                    if (auto* segment_template = representation->FirstChildElement("SegmentTemplate"); !segment_template) {
+                        representation->InsertEndChild(
+                            node_range(src_document, { "MPD", "Period", "AdaptationSet", "SegmentTemplate" })
+                            .back()->DeepClone(&dest_document));
+                    }
                 } else {
                     auto* supplemental = dest_document.NewElement("SupplementalProperty");
                     supplemental->SetAttribute("schemeIdUri", "urn:mpeg:dash:srd:2014");
                     supplemental->SetAttribute("value", spatial_relationship({ wcrop, hcrop }, coordinate).data());
                     adaptation_set->InsertFirstChild(supplemental);
+                    if (auto* segment_template = adaptation_set->FirstChildElement("SegmentTemplate"); segment_template) {
+                        adaptation_set->FirstChildElement("Representation")
+                                      ->InsertFirstChild(segment_template->DeepClone(&dest_document));
+                        adaptation_set->DeleteChild(segment_template);
+                    }
                 }
                 adaptation_set->LastChildElement("Representation")
                               ->SetAttribute("id", ++represent_index);
             }
         }
         xml_check() << dest_document.SaveFile(dest_mpd_path.string().data());
+        return dest_mpd_path;
     }
 
     std::vector<std::filesystem::path> command::tile_path_list() {

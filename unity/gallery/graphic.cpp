@@ -270,9 +270,9 @@ inline namespace plugin
 
     void graphic::overwrite_main_texture() {
         if (auto context = this->update_context(); context != nullptr) {
-            context->CopyResource(alphas_[0], alphas_temp_[0]);
-            context->CopyResource(alphas_[1], alphas_temp_[1]);
-            context->CopyResource(alphas_[2], alphas_temp_[2]);
+            for (auto index : ranges::view::ints(0, 3)) {
+                context->CopyResource(alphas_[index], alphas_temp_[index]);
+            }
         }
     }
 

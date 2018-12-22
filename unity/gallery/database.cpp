@@ -25,18 +25,6 @@ inline namespace plugin
         return database_iterator->path();
     };
 
-    std::shared_ptr<database> database::make_ptr(bool open_or_create) {
-        std::filesystem::path database_path;
-        if (auto workset = boost::this_process::environment()["GWorkSet"]; workset.empty()) {
-            database_path = "C:/WorkSet/TraceDb";
-        } else {
-            database_path = std::filesystem::path{ workset.to_string() } / "TraceDb";
-        }
-        create_directories(database_path);
-        assert(is_directory(database_path));
-        return {};
-    }
-
     std::shared_ptr<database> database::make_ptr(std::string_view path) {
         auto database = std::make_shared<class database>();
         assert(is_directory(std::filesystem::path{ path }.root_directory()));

@@ -1,7 +1,7 @@
 #pragma once
 #include "graphic.h"
 
-template<typename T>
+template <typename T>
 class alternate final
 {
     T value_ = 0;
@@ -24,12 +24,9 @@ public:
 struct stream_context final
 {
     graphic::texture_array texture_array = {};
-    std::shared_ptr<folly::MPMCQueue<media::frame>> decode_queue
-        = std::make_shared<folly::MPMCQueue<media::frame>>(180);
-    std::shared_ptr<folly::ProducerConsumerQueue<media::frame>> render_queue
-        = std::make_shared<folly::ProducerConsumerQueue<media::frame>>(180);
+    std::shared_ptr<folly::MPMCQueue<media::frame>> decode_queue;
+    std::shared_ptr<folly::ProducerConsumerQueue<media::frame>> render_queue;
     media::frame* avail_frame = nullptr;
-    media::frame render_frame{ nullptr };
 
     struct update final
     {
@@ -49,14 +46,19 @@ struct stream_context final
     int64_t update_pending_count = 0;
     int width_offset = 0;
     int height_offset = 0;
-    
+
     const int index = 0;
     const std::pair<int, int> coordinate = { 0, 0 };
 
-    stream_context() = default;
-    stream_context(const stream_context&) = default;
+    explicit stream_context(int decode_capacity,
+                            int render_capacity = 5)
+        : decode_queue{ std::make_shared<folly::MPMCQueue<media::frame>>(decode_capacity) }
+        , render_queue{ std::make_shared<folly::ProducerConsumerQueue<media::frame>>(render_capacity) } { }
+
+    stream_context() = delete;
+    stream_context(const stream_context&) = delete;
     stream_context(stream_context&&) = default;
-    stream_context& operator=(const stream_context&) = default;
+    stream_context& operator=(const stream_context&) = delete;
     stream_context& operator=(stream_context&&) = default;
     ~stream_context() = default;
 };

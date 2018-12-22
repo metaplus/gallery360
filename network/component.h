@@ -10,17 +10,17 @@ namespace net
         using predict_callback = std::function<double(int, int)>;
     }
 
-    struct buffer_context final
+    struct buffer_sequence final
     {
         detail::multi_buffer& initial;
         detail::multi_buffer data;
 
-        buffer_context(detail::multi_buffer& initial, detail::multi_buffer&& data);
-        buffer_context(buffer_context&) = delete;
-        buffer_context(buffer_context&& that) noexcept;
-        buffer_context& operator=(buffer_context&) = delete;
-        buffer_context& operator=(buffer_context&&) = delete;
-        ~buffer_context() = default;
+        buffer_sequence(detail::multi_buffer& initial, detail::multi_buffer&& data);
+        buffer_sequence(buffer_sequence&) = delete;
+        buffer_sequence(buffer_sequence&& that) noexcept;
+        buffer_sequence& operator=(buffer_sequence&) = delete;
+        buffer_sequence& operator=(buffer_sequence&&) = delete;
+        ~buffer_sequence() = default;
     };
 }
 
@@ -56,9 +56,6 @@ namespace net::component
 
         bool available() const;
 
-        folly::SemiFuture<buffer_context> request_tile_context(int col, int row) const;
-
-    private:
-        folly::Function<size_t(int, int)> represent_indexer(folly::Function<double(int, int)> probability);
+        folly::SemiFuture<buffer_sequence> request_tile_context(int col, int row) const;
     };
 }

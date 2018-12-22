@@ -55,7 +55,7 @@ namespace media
         static void dash_segment(std::filesystem::path input,
                                  std::chrono::milliseconds duration);
 
-        static void merge_dash_mpd();
+        static std::filesystem::path merge_dash_mpd();
 
         static std::vector<std::filesystem::path> tile_path_list();
     };

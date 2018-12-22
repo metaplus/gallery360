@@ -19,11 +19,12 @@ namespace unity
 
     LPSTR DLL_EXPORT __stdcall _nativeDashCreate();
     BOOL DLL_EXPORT __stdcall _nativeDashGraphicInfo(INT& col, INT& row, INT& width, INT& height);
-    void DLL_EXPORT __stdcall _nativeDashCreateTileStream(INT col, INT row, INT index,
-                                                          HANDLE tex_y, HANDLE tex_u, HANDLE tex_v);
+    HANDLE DLL_EXPORT __stdcall _nativeDashCreateTileStream(INT col, INT row, INT index,
+                                                            HANDLE tex_y, HANDLE tex_u, HANDLE tex_v);
     void DLL_EXPORT __stdcall _nativeDashPrefetch();
     BOOL DLL_EXPORT __stdcall _nativeDashAvailable();
     BOOL DLL_EXPORT __stdcall _nativeDashTilePollUpdate(INT col, INT row, INT64 frame_index, INT64 batch_index);
+    BOOL DLL_EXPORT __stdcall _nativeDashTilePtrPollUpdate(HANDLE instance, INT64 frame_index, INT64 batch_index);
     INT DLL_EXPORT __stdcall _nativeDashTilePollUpdateFrame(INT64 frame_index, INT64 batch_index);
     void DLL_EXPORT __stdcall _nativeDashTileFieldOfView(INT col, INT row);
 
@@ -32,5 +33,7 @@ namespace unity
     UnityRenderingEvent DLL_EXPORT __stdcall _nativeGraphicGetRenderCallback();
     UnityRenderingEventAndData DLL_EXPORT __stdcall _nativeGraphicGetUpdateCallback();
 
+    void DLL_EXPORT __stdcall UnityPluginLoad(IUnityInterfaces* unityInterfaces);
+    void DLL_EXPORT __stdcall UnityPluginUnload();
     }
 }

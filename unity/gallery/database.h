@@ -61,8 +61,6 @@ inline namespace plugin
 
         static std::shared_ptr<database> make_ptr(std::string_view path);
 
-        static std::shared_ptr<database> make_ptr(bool open_or_create);
-
     private:
         static std::unique_ptr<leveldb::DB> open_database(const std::string& path);
     };

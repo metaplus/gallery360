@@ -527,7 +527,7 @@ namespace media_test
         EXPECT_TRUE(std::filesystem::is_directory(output_directory));
         return [=](std::pair<int, int> crop,
                    std::initializer_list<int> qp_list,
-                   std::chrono::milliseconds duration = 1000ms) {
+                   std::chrono::milliseconds duration = 1000ms) mutable {
             auto [wcrop, hcrop] = crop;
             EXPECT_GT(wcrop, 0);
             EXPECT_GT(hcrop, 0);
@@ -537,13 +537,15 @@ namespace media_test
             }
             command_environment(output_directory / input.stem(), crop);
             media::command::dash_segment(duration);
-            media::command::merge_dash_mpd();
+            auto mpd_path = media::command::merge_dash_mpd();
+            copy_directory = copy_directory / input.stem() / fmt::format("{}x{}", wcrop, hcrop);
+            create_directories(copy_directory);
+            copy_file(mpd_path, copy_directory / mpd_path.filename(),
+                      std::filesystem::copy_options::overwrite_existing);
             auto tile_path_list = media::command::tile_path_list();
             for (auto& tile_path : tile_path_list) {
-                auto target_path = copy_directory / input.stem() / fmt::format("{}x{}", wcrop, hcrop) / tile_path.filename();
-                create_directories(target_path.parent_path());
-                std::filesystem::copy_file(tile_path, target_path,
-                                           std::filesystem::copy_options::overwrite_existing);
+                copy_file(tile_path, copy_directory / tile_path.filename(),
+                          std::filesystem::copy_options::overwrite_existing);
             }
         };
     };
@@ -558,16 +560,17 @@ namespace media_test
     }
 
     TEST(CommandBatch, NewYorkQpBatch) {
-        const auto command = command_qp_batch("F:/Gpac/NewYork.mp4",
-                                              "F:/Output/",
-                                              "D:/Media");
-        command({ 3, 3 }, { 22, 32, 42 });
+        auto command = command_qp_batch("F:/Gpac/NewYork.mp4",
+                                        "F:/Output/",
+                                        "D:/Media");
+        //command({ 3, 3 }, { 22, 32, 42 });
+        command({ 5, 3 }, { 22, 32, 42 });
     }
 
-    TEST(CommandBatch, DubaiQpBatch) {
-        const auto command = command_qp_batch("D:/Media/Dubai7680x3840.mp4",
-                                              "F:/Output/",
-                                              "D:/Media");
+    TEST(CommandBatch, AngelFallsVenezuelaQpBatch) {
+        auto command = command_qp_batch("E:/VR/AngelFallsVenezuela7680x3840.mkv",
+                                        "F:/Output/",
+                                        "D:/Media");
         command({ 3, 3 }, { 22, 32, 42 });
     }
 
