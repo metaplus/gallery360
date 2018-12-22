@@ -2,9 +2,7 @@
 #include "core/pch.h"
 #include "network/component.h"
 #include "multimedia/component.h"
-#include <folly/stop_watch.h>
-
-#include "unity/gallery/pch.h"
+#include "gallery/pch.h"
 #include <boost/beast.hpp>
 
 using std::chrono::microseconds;
@@ -115,7 +113,7 @@ auto plugin_routine = [](std::string url) {
         }
         const auto t1 = watch.elapsed();
         using core::literals::operator<<;
-        std::cerr << "-- profile parting line\n"
+        XLOG(INFO) << "-- profile parting line\n"
             << "concurrency " << codec_concurrency << "\n"
             << "iteration " << iteration << "\n"
             << "time " << t1 << "\n"
