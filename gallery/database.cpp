@@ -4,7 +4,7 @@
 
 inline namespace plugin
 {
-    void database::stop_consume() {
+    void database::wait_consume_stop() {
         active_ = false;
         for (auto& consume_finish : consume_latch_) {
             consume_finish.wait();

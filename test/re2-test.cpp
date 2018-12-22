@@ -15,6 +15,7 @@ namespace re2_test
         EXPECT_TRUE(RE2::FullMatch("ruby:1234", "(\\w+):(\\d+)", (void*)NULL, &i));
         EXPECT_EQ(i, 1234);
         EXPECT_FALSE(RE2::FullMatch("ruby:123456789123", "(\\w+):(\\d+)", &s, &i)); // integer overflow
+        EXPECT_TRUE(RE2::FullMatch("TraceDb 2018-12-22 22h29m44s", "TraceDb \\d{4}-\\d{2}-\\d{2} \\d{2}h\\d{2}m\\d{2}s"));
     }
 
     TEST(Re2, PreCompiled) {

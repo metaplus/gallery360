@@ -196,9 +196,18 @@ namespace unity
                                        const int tile_row) {
                     const auto field_of_view = std::atomic_load(&state::field_of_view);
                     const std::divides<double> divide;
-                    const auto col_degrade = config::predict_degrade_factor * divide(std::abs(tile_col - field_of_view.col), frame_col);
-                    const auto row_degrade = config::predict_degrade_factor * divide(std::abs(tile_row - field_of_view.row), frame_row);
-                    return std::max<double>(0, -col_degrade - row_degrade + 1);
+                    const auto trim_offset = [](const int tile, const int view, const int frame) {
+                        const auto offset = std::abs(tile - view);
+                        if (offset > frame / 2) {
+                            return frame - offset;
+                        }
+                        return offset;
+                    };
+                    const auto col_degrade = config::predict_degrade_factor
+                        * divide(trim_offset(tile_col, field_of_view.col, frame_col), frame_col);
+                    const auto row_degrade = config::predict_degrade_factor
+                        * divide(trim_offset(tile_row, field_of_view.row, frame_col), frame_row);
+                    return std::max<double>(0, 1. - col_degrade - row_degrade);
                 });
                 return manager;
             });
@@ -233,22 +242,21 @@ namespace unity
         assert(manager.isReady());
         assert(manager.hasValue());
         stream_context tile_stream{ config::decode_capacity };
-        core::as_mutable(tile_stream.coordinate) = std::make_pair(col, row);
-        core::as_mutable(tile_stream.index) = index;
+        tile_stream.index = index;
+        tile_stream.coordinate = std::make_pair(col, row);
+        tile_stream.width_offset = col * tile_width;
+        tile_stream.height_offset = row * tile_height;
         if (tex_y && tex_u && tex_v) {
             tile_stream.texture_array[0] = static_cast<ID3D11Texture2D*>(tex_y);
             tile_stream.texture_array[1] = static_cast<ID3D11Texture2D*>(tex_u);
             tile_stream.texture_array[2] = static_cast<ID3D11Texture2D*>(tex_v);
         }
-        tile_stream.width_offset = col * tile_width;
-        tile_stream.height_offset = row * tile_height;
         auto [iterator,success] = tile_stream_table.emplace_back(std::move(tile_stream));
         assert(success && "tile stream emplace failure");
         if (cached_tile_streams.empty()) {
             cached_tile_streams.assign(description::tile_count, nullptr);
         }
-        auto* ptr = &core::as_mutable(iterator.operator*());
-        return cached_tile_streams.at(index - 1) = ptr;
+        return cached_tile_streams.at(index - 1) = &core::as_mutable(iterator.operator*());
     }
 
     auto stream_mpeg_dash = [](stream_context& tile_stream) {
@@ -272,18 +280,18 @@ namespace unity
                             assert(frame->width > 200 && frame->height > 100);
                             do {
                                 running = std::atomic_load(&state::stream::running);
-                            } while (running && !tile_stream.decode_queue
+                            } while (running && !tile_stream.decode.queue
                                                             ->tryWriteUntil(std::chrono::steady_clock::now() + 80ms,
                                                                             std::move(frame)));
                             if (!running) {
                                 throw std::runtime_error{ "abort running" };
                             }
-                            tile_stream.decode_count++;
+                            tile_stream.decode.count++;
                         }
                     }
                 }
             } catch (core::bad_response_error) {
-                tile_stream.decode_queue->blockingWrite(media::frame{ nullptr });
+                tile_stream.decode.queue->blockingWrite(media::frame{ nullptr });
             } catch (core::session_closed_error) {
                 assert(!"session_executor catch unexpected session_closed_error");
             } catch (std::runtime_error) {
@@ -332,12 +340,12 @@ namespace unity
     BOOL _nativeDashTilePtrPollUpdate(HANDLE instance, INT64 frame_index, INT64 batch_index) {
         auto& tile_stream = *reinterpret_cast<stream_context*>(instance);
         tile_stream.update.decode_try++;
-        if (!tile_stream.render_queue->isFull()) {
+        if (!tile_stream.render.queue->isFull()) {
             media::frame frame{ nullptr };
-            if (tile_stream.decode_queue->read(frame)) {
+            if (tile_stream.decode.queue->read(frame)) {
                 tile_stream.update.decode_success++;
                 auto enqueue_try = 0;
-                while (!tile_stream.render_queue->write(std::move(frame))) {
+                while (!tile_stream.render.queue->write(std::move(frame))) {
                     assert(enqueue_try++ < 10 && !"poll_update_frame enqueue_try > 10 times");
                 }
                 return true;
@@ -366,8 +374,8 @@ namespace unity
             state::frame_batch->tile_end_iterator,
             [=](decltype(tile_stream_table)::iterator& tile_iterator) {
                 auto& tile_stream = core::as_mutable(*tile_iterator);
-                if (!tile_stream.render_queue->isFull()) {
-                    if (media::frame frame{ nullptr }; tile_stream.decode_queue->read(frame)) {
+                if (!tile_stream.render.queue->isFull()) {
+                    if (media::frame frame{ nullptr }; tile_stream.decode.queue->read(frame)) {
                         tile_stream.update.decode_success++;
                         frame_batch::render_context render_context{
                             frame_index, batch_index,
@@ -500,7 +508,7 @@ namespace unity
         state::stream::running = false;
         session_executor = nullptr; // join 1-1
         if (database_entity) {
-            database_entity->stop_consume();
+            database_entity->wait_consume_stop();
             database_entity = nullptr;
         }
         database_executor = nullptr;                        // join 1-2
@@ -577,35 +585,34 @@ namespace
         const auto planar_index = params->userData % 3;
         if (state::stream::available()) {
             auto& stream = *cached_tile_streams[stream_index];
-            auto*& avail_frame = stream.avail_frame;
             switch (static_cast<UnityRenderingExtEventType>(event_id)) {
                 case kUnityRenderingExtEventUpdateTextureBeginV2: {
                     if (stream.update.texture_state.none()) {
                         assert(planar_index == 0);
-                        assert(avail_frame == nullptr);
-                        avail_frame = stream.render_queue->frontPtr();
-                        if (!state::stream::available(avail_frame)) {
+                        assert(stream.render.frame == nullptr);
+                        stream.render.frame = stream.render.queue->frontPtr();
+                        if (!state::stream::available(stream.render.frame)) {
                             return;
                         }
                     }
-                    assert(avail_frame != nullptr);
-                    stream.update.event.begin++;
+                    assert(stream.render.frame != nullptr);
+                    stream.render.begin++;
                     assert(!stream.update.texture_state.test(planar_index));
                     assert(params->format == UnityRenderingExtTextureFormat::kUnityRenderingExtFormatA8_UNorm);
                     stream.update.texture_state.set(planar_index);
-                    params->texData = (*avail_frame)->data[planar_index];
+                    params->texData = (*stream.render.frame)->data[planar_index];
                     break;
                 }
                 case kUnityRenderingExtEventUpdateTextureEndV2: {
-                    assert(avail_frame != nullptr);
-                    stream.update.event.end++;
-                    assert(stream.update.event.end <= stream.update.event.begin);
+                    assert(stream.render.frame != nullptr);
+                    stream.render.end++;
+                    assert(stream.render.end <= stream.render.begin);
                     assert(stream.update.texture_state.test(planar_index));
                     if (stream.update.texture_state.all()) {
                         stream.update.render_finish++;
-                        stream.render_queue->popFront();
+                        stream.render.queue->popFront();
                         stream.update.texture_state.reset();
-                        stream.avail_frame = nullptr;
+                        stream.render.frame = nullptr;
                         assert(planar_index == 2);
                     }
                     break;

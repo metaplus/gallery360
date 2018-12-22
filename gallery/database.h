@@ -57,7 +57,7 @@ inline namespace plugin
             };
         }
 
-        void stop_consume();
+        void wait_consume_stop();
 
         static std::shared_ptr<database> make_ptr(std::string_view path);
 
