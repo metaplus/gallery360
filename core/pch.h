@@ -32,6 +32,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <memory_resource>
 #include <new>
 #include <numeric>
 #include <optional>

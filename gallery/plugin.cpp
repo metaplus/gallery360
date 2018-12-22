@@ -46,12 +46,13 @@ namespace config
 inline namespace resource
 {
     std::shared_ptr<folly::ThreadPoolExecutor> compute_executor;
-    std::shared_ptr<folly::ThreadedExecutor> session_executor;
+    std::shared_ptr<folly::ThreadedExecutor> stream_executor;
     std::shared_ptr<folly::ThreadedExecutor> database_executor;
     std::shared_ptr<folly::ThreadedExecutor> update_executor;
     std::shared_ptr<database> database_entity;
     std::optional<graphic> graphic_entity;
     std::vector<stream_context*> cached_tile_streams;
+    folly::Function<void(std::string_view instance, std::string event)> trace_event;
 
     struct index_key final {};
     struct coordinate_key final {};
@@ -196,9 +197,18 @@ namespace unity
                                        const int tile_row) {
                     const auto field_of_view = std::atomic_load(&state::field_of_view);
                     const std::divides<double> divide;
-                    const auto col_degrade = config::predict_degrade_factor * divide(std::abs(tile_col - field_of_view.col), frame_col);
-                    const auto row_degrade = config::predict_degrade_factor * divide(std::abs(tile_row - field_of_view.row), frame_row);
-                    return std::max<double>(0, -col_degrade - row_degrade + 1);
+                    const auto trim_offset = [](const int tile, const int view, const int frame) {
+                        const auto offset = std::abs(tile - view);
+                        if (offset > frame / 2) {
+                            return frame - offset;
+                        }
+                        return offset;
+                    };
+                    const auto col_degrade = config::predict_degrade_factor
+                        * divide(trim_offset(tile_col, field_of_view.col, frame_col), frame_col);
+                    const auto row_degrade = config::predict_degrade_factor
+                        * divide(trim_offset(tile_row, field_of_view.row, frame_col), frame_row);
+                    return std::max<double>(0, 1. - col_degrade - row_degrade);
                 });
                 return manager;
             });
@@ -233,22 +243,21 @@ namespace unity
         assert(manager.isReady());
         assert(manager.hasValue());
         stream_context tile_stream{ config::decode_capacity };
-        core::as_mutable(tile_stream.coordinate) = std::make_pair(col, row);
-        core::as_mutable(tile_stream.index) = index;
+        tile_stream.index = index;
+        tile_stream.coordinate = std::make_pair(col, row);
+        tile_stream.width_offset = col * tile_width;
+        tile_stream.height_offset = row * tile_height;
         if (tex_y && tex_u && tex_v) {
             tile_stream.texture_array[0] = static_cast<ID3D11Texture2D*>(tex_y);
             tile_stream.texture_array[1] = static_cast<ID3D11Texture2D*>(tex_u);
             tile_stream.texture_array[2] = static_cast<ID3D11Texture2D*>(tex_v);
         }
-        tile_stream.width_offset = col * tile_width;
-        tile_stream.height_offset = row * tile_height;
         auto [iterator,success] = tile_stream_table.emplace_back(std::move(tile_stream));
         assert(success && "tile stream emplace failure");
         if (cached_tile_streams.empty()) {
             cached_tile_streams.assign(description::tile_count, nullptr);
         }
-        auto* ptr = &core::as_mutable(iterator.operator*());
-        return cached_tile_streams.at(index - 1) = ptr;
+        return cached_tile_streams.at(index - 1) = &core::as_mutable(iterator.operator*());
     }
 
     auto stream_mpeg_dash = [](stream_context& tile_stream) {
@@ -272,24 +281,24 @@ namespace unity
                             assert(frame->width > 200 && frame->height > 100);
                             do {
                                 running = std::atomic_load(&state::stream::running);
-                            } while (running && !tile_stream.decode_queue
+                            } while (running && !tile_stream.decode.queue
                                                             ->tryWriteUntil(std::chrono::steady_clock::now() + 80ms,
                                                                             std::move(frame)));
                             if (!running) {
                                 throw std::runtime_error{ "abort running" };
                             }
-                            tile_stream.decode_count++;
+                            tile_stream.decode.count++;
                         }
                     }
                 }
             } catch (core::bad_response_error) {
-                tile_stream.decode_queue->blockingWrite(media::frame{ nullptr });
+                tile_stream.decode.queue->blockingWrite(media::frame{ nullptr });
             } catch (core::session_closed_error) {
-                assert(!"session_executor catch unexpected session_closed_error");
+                assert(!"stream_executor catch unexpected session_closed_error");
             } catch (std::runtime_error) {
                 assert(std::atomic_load(&state::stream::running) == false);
             } catch (...) {
-                assert(!"session_executor catch unexpected exception");
+                assert(!"stream_executor catch unexpected exception");
             }
             assert("session worker trap");
         };
@@ -301,10 +310,10 @@ namespace unity
         assert(manager.hasValue());
         assert(state::stream::available());
         for (auto& tile_stream : tile_stream_table.get<coordinate_key>()) {
-            session_executor->add(stream_mpeg_dash(core::as_mutable(tile_stream)));
+            stream_executor->add(stream_mpeg_dash(core::as_mutable(tile_stream)));
         }
         if (config::database::enable) {
-            database_executor->add(database_entity->consume_task());
+            database_executor->add(database_entity->consume_task(false));
         }
     }
 
@@ -332,12 +341,12 @@ namespace unity
     BOOL _nativeDashTilePtrPollUpdate(HANDLE instance, INT64 frame_index, INT64 batch_index) {
         auto& tile_stream = *reinterpret_cast<stream_context*>(instance);
         tile_stream.update.decode_try++;
-        if (!tile_stream.render_queue->isFull()) {
+        if (!tile_stream.render.queue->isFull()) {
             media::frame frame{ nullptr };
-            if (tile_stream.decode_queue->read(frame)) {
+            if (tile_stream.decode.queue->read(frame)) {
                 tile_stream.update.decode_success++;
                 auto enqueue_try = 0;
-                while (!tile_stream.render_queue->write(std::move(frame))) {
+                while (!tile_stream.render.queue->write(std::move(frame))) {
                     assert(enqueue_try++ < 10 && !"poll_update_frame enqueue_try > 10 times");
                 }
                 return true;
@@ -366,8 +375,8 @@ namespace unity
             state::frame_batch->tile_end_iterator,
             [=](decltype(tile_stream_table)::iterator& tile_iterator) {
                 auto& tile_stream = core::as_mutable(*tile_iterator);
-                if (!tile_stream.render_queue->isFull()) {
-                    if (media::frame frame{ nullptr }; tile_stream.decode_queue->read(frame)) {
+                if (!tile_stream.render.queue->isFull()) {
+                    if (media::frame frame{ nullptr }; tile_stream.decode.queue->read(frame)) {
                         tile_stream.update.decode_success++;
                         frame_batch::render_context render_context{
                             frame_index, batch_index,
@@ -450,22 +459,25 @@ namespace unity
             const auto detail_path = config::workset_directory / "config.json";
             if (is_directory(config::workset_directory) && is_regular_file(detail_path)) {
                 config::document.clear();
-                if (std::ifstream reader{ detail_path }; reader >> config::document) {
-                    const auto mpd_uri_index = config::document["Dash"]["UriIndex"].get<int>();
-                    const auto mpd_uri = config::document["Dash"]["Uri"][mpd_uri_index].get<std::string>();
-                    const auto database_name = config::document["Database"]["Name"].get<std::string>();
-                    if (!mpd_uri.empty() && !database_name.empty()) {
-                        config::database::enable = config::document["Database"]["Enable"].get<bool>();
-                        if (config::database::enable) {
+                try {
+                    if (std::ifstream reader{ detail_path }; reader >> config::document) {
+                        const int mpd_uri_index = config::document["Dash"]["UriIndex"];
+                        const std::string mpd_uri = config::document["Dash"]["Uri"][mpd_uri_index];
+                        const std::string database_name = config::document["Database"]["Name"];
+                        if (config::document["Database"]["Enable"].get_to(config::database::enable)) {
                             config::database::directory = config::workset_directory / fmt::format("{} {}", database_name, database_date_suffix());
                             const auto result = create_directories(config::database::directory);
                             assert(result && "database create directory");
                         }
                         config::mpd_uri = folly::Uri{ mpd_uri };
+                        config::predict_degrade_factor = config::document["System"]["PredictFactor"];
+                        config::decode_capacity = config::document["System"]["DecodeCapacity"];
                         return true;
                     }
-                    config::predict_degrade_factor = config::document["System"]["PredictFactor"].get<double>();
-                    config::decode_capacity = config::document["System"]["DecodeCapacity"].get<int>();
+                } catch (nlohmann::detail::type_error) {
+                    assert(!"_nativeLoadEnvConfig json parse fail");
+                } catch (...) {
+                    assert(!"_nativeLoadEnvConfig catch unexpected exception");
                 }
             }
         }
@@ -487,10 +499,11 @@ namespace unity
         state::render_tile_queue = std::make_unique<decltype(state::render_tile_queue)::element_type>();
         manager = folly::Future<dash_manager>::makeEmpty();
         compute_executor = core::make_pool_executor(config::executor_concurrency.value(), "PluginCompute");
-        session_executor = core::make_threaded_executor("PluginSession");
+        stream_executor = core::make_threaded_executor("PluginSession");
         if (config::database::enable) {
             database_entity = database::make_ptr(config::database::directory.string());
             database_executor = core::make_threaded_executor("PluginDatabase");
+            trace_event = database_entity->produce_callback();
         }
         trace::initial.back() = true;
     }
@@ -498,12 +511,13 @@ namespace unity
     void _nativeLibraryRelease() {
         trace::release.emplace_back(indeterminate);
         state::stream::running = false;
-        session_executor = nullptr; // join 1-1
-        if (database_entity) {
-            database_entity->stop_consume();
+        stream_executor = nullptr; // join 1-1
+        if (config::database::enable) {
+            trace_event = nullptr;
+            database_entity->cancel_consume(false);
             database_entity = nullptr;
+            database_executor = nullptr; // join 1-2
         }
-        database_executor = nullptr;                        // join 1-2
         manager = folly::Future<dash_manager>::makeEmpty(); // join 2
         if (compute_executor) {
             compute_executor->join(); // join 3
@@ -514,6 +528,15 @@ namespace unity
         trace::release.back() = true;
         config::database::enable = false;
     }
+
+    BOOL _nativeTraceEvent(LPSTR instance, LPSTR event) {
+        if(trace_event) {
+            trace_event(instance, event);
+            return true;
+        }
+        return false;
+    }
+
 }
 
 auto dequeue_render_context = [](int count) {
@@ -577,35 +600,34 @@ namespace
         const auto planar_index = params->userData % 3;
         if (state::stream::available()) {
             auto& stream = *cached_tile_streams[stream_index];
-            auto*& avail_frame = stream.avail_frame;
             switch (static_cast<UnityRenderingExtEventType>(event_id)) {
                 case kUnityRenderingExtEventUpdateTextureBeginV2: {
                     if (stream.update.texture_state.none()) {
                         assert(planar_index == 0);
-                        assert(avail_frame == nullptr);
-                        avail_frame = stream.render_queue->frontPtr();
-                        if (!state::stream::available(avail_frame)) {
+                        assert(stream.render.frame == nullptr);
+                        stream.render.frame = stream.render.queue->frontPtr();
+                        if (!state::stream::available(stream.render.frame)) {
                             return;
                         }
                     }
-                    assert(avail_frame != nullptr);
-                    stream.update.event.begin++;
+                    assert(stream.render.frame != nullptr);
+                    stream.render.begin++;
                     assert(!stream.update.texture_state.test(planar_index));
                     assert(params->format == UnityRenderingExtTextureFormat::kUnityRenderingExtFormatA8_UNorm);
                     stream.update.texture_state.set(planar_index);
-                    params->texData = (*avail_frame)->data[planar_index];
+                    params->texData = (*stream.render.frame)->data[planar_index];
                     break;
                 }
                 case kUnityRenderingExtEventUpdateTextureEndV2: {
-                    assert(avail_frame != nullptr);
-                    stream.update.event.end++;
-                    assert(stream.update.event.end <= stream.update.event.begin);
+                    assert(stream.render.frame != nullptr);
+                    stream.render.end++;
+                    assert(stream.render.end <= stream.render.begin);
                     assert(stream.update.texture_state.test(planar_index));
                     if (stream.update.texture_state.all()) {
                         stream.update.render_finish++;
-                        stream.render_queue->popFront();
+                        stream.render.queue->popFront();
                         stream.update.texture_state.reset();
-                        stream.avail_frame = nullptr;
+                        stream.render.frame = nullptr;
                         assert(planar_index == 2);
                     }
                     break;

@@ -2,7 +2,7 @@
 
 namespace core
 {
-    template<typename BufferSequence, typename ...TailSequence>
+    template <typename BufferSequence, typename ...TailSequence>
     std::list<boost::asio::const_buffer>
     split_buffer_sequence(BufferSequence&& sequence, TailSequence&& ...tails) {
         static_assert(boost::asio::is_const_buffer_sequence<decltype(sequence.data())>::value);
@@ -21,7 +21,7 @@ namespace core
         return buffer_list;
     }
 
-    template<typename T, typename ...Args>
+    template <typename T, typename ...Args>
     std::shared_ptr<T>& access(std::shared_ptr<T>& ptr, Args&&... args) {
         if (!ptr) {
             ptr = std::make_shared<T>(std::forward<Args>(args)...);
@@ -29,7 +29,7 @@ namespace core
         return ptr;
     }
 
-    template<typename Deleter, typename T, typename ...Args>
+    template <typename Deleter, typename T, typename ...Args>
     std::shared_ptr<T>& access(std::shared_ptr<T>& ptr,
                                std::default_delete<T>&& deleter,
                                Args&&... args) {
@@ -62,7 +62,7 @@ namespace core
             return n * 1024 * 1024 * 1024;
         }
 
-        template<typename Represent, typename Period>
+        template <typename Represent, typename Period>
         std::ostream& operator<<(std::ostream& os, const std::chrono::duration<Represent, Period>& dura) {
             using namespace std::chrono;
             return
@@ -84,7 +84,7 @@ namespace core
 
     std::pair<size_t, bool> make_empty_directory(const std::filesystem::path& directory);
 
-    template<typename EntryPredicate>
+    template <typename EntryPredicate>
     std::vector<std::filesystem::path> filter_directory_entry(const std::filesystem::path& directory,
                                                               const EntryPredicate& predicate) {
         return std::reduce(
@@ -106,7 +106,13 @@ namespace core
 
     std::filesystem::path last_write_path_of_directory(const std::filesystem::path& directory);
 
-    template<typename T>
+    struct last_write_time_comparator final
+    {
+        bool operator()(const std::filesystem::path& left, const std::filesystem::path& right) const;
+        bool operator()(const std::filesystem::directory_entry& left, const std::filesystem::directory_entry& right) const;
+    };
+
+    template <typename T>
     std::reference_wrapper<T> make_null_reference_wrapper() noexcept {
         static void* null_pointer = nullptr;
         return std::reference_wrapper<T>{
@@ -115,7 +121,7 @@ namespace core
     }
 
     // enable DefaultConstructable
-    template<typename T>
+    template <typename T>
     class reference : public std::reference_wrapper<T>
     {
     public:
@@ -142,25 +148,25 @@ namespace core
     {
         namespace detail
         {
-            template<typename T, typename ...Types>
+            template <typename T, typename ...Types>
             auto hash_value_tuple(const T& head, const Types& ...tails) noexcept;
 
-            template<typename T>
+            template <typename T>
             std::tuple<size_t> hash_value_tuple(const T& head) noexcept {
                 return std::make_tuple(std::hash<T>{}(head));
             }
 
-            template<typename T, typename U>
+            template <typename T, typename U>
             std::tuple<size_t, size_t> hash_value_tuple(const std::pair<T, U>& head) noexcept {
                 return hash_value_tuple(head.first, head.second);
             }
 
-            template<typename ...TupleTypes>
+            template <typename ...TupleTypes>
             auto hash_value_tuple(const std::tuple<TupleTypes...>& head) noexcept {
                 return hash_value_tuple(std::get<TupleTypes>(head)...);
             }
 
-            template<typename T, typename ...Types>
+            template <typename T, typename ...Types>
             auto hash_value_tuple(const T& head,
                                   const Types& ...tails) noexcept {
                 return std::tuple_cat(hash_value_tuple(head),
@@ -168,7 +174,7 @@ namespace core
             }
         }
 
-        template<typename ...Types>
+        template <typename ...Types>
         size_t hash_value_from(Types const& ...args) noexcept {
             static_assert(sizeof...(Types) > 0);
             const auto tuple = detail::hash_value_tuple(args...);
@@ -179,7 +185,7 @@ namespace core
                 });
         }
 
-        template<typename ...Types>
+        template <typename ...Types>
         struct byte_hash
         {
             size_t operator()(const Types& ...args) noexcept {
@@ -187,10 +193,10 @@ namespace core
             }
         };
 
-        template<>
+        template <>
         struct byte_hash<void>
         {
-            template<typename ...Types>
+            template <typename ...Types>
             size_t operator()(const Types& ...args) const noexcept {
                 return hash_value_from(args...);
             }
@@ -200,75 +206,74 @@ namespace core
     using v3::byte_hash;
     using v3::hash_value_from;
 
-    template<typename Hash>
+    template <typename Hash>
     struct deref_hash
     {
         // smart pointer or iterator
-        template<typename Handle>
+        template <typename Handle>
         size_t operator()(const Handle& handle) const {
             return Hash{}(*handle);
         }
     };
 
-    template<typename Handle>
+    template <typename Handle>
     decltype(auto) get_pointer(Handle&& handle,
                                std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr) {
         return std::forward<Handle>(handle).operator->();
     }
 
-    template<typename Pointee>
+    template <typename Pointee>
     Pointee* const& get_pointer(Pointee* const& handle) noexcept {
         return handle;
     }
 
-    template<typename T>
+    template <typename T>
     [[nodiscard]] constexpr std::remove_const_t<T>& as_mutable(T& object) noexcept {
         return const_cast<std::remove_const_t<T>&>(object);
     }
 
-    template<typename T>
+    template <typename T>
     [[nodiscard]] constexpr T& as_mutable(const T* ptr) noexcept {
         assert(ptr != nullptr);
         return const_cast<T&>(*ptr);
     }
 
-    template<typename T>
+    template <typename T>
     void as_mutable(const T&&) = delete;
 
-    template<typename T, typename U>
+    template <typename T, typename U>
     constexpr bool address_same(const T& x, const U& y) noexcept {
         return std::addressof(x) == std::addressof(y);
     }
 
-    template<typename Enum>
+    template <typename Enum>
     constexpr std::underlying_type_t<Enum> underlying(const Enum& enumeration) noexcept {
         static_assert(std::is_enum<Enum>::value);
         return static_cast<std::underlying_type_t<Enum>>(enumeration);
     }
 
-    template<typename EnumT, typename EnumU>
+    template <typename EnumT, typename EnumU>
     constexpr bool underlying_same(const EnumT& et, const EnumU& eu) noexcept {
         return std::equal_to<>{}(underlying(et), underlying(eu));
     }
 
-    template<typename ...Types>
+    template <typename ...Types>
     struct overload final : Types...
     {
         using Types::operator()...;
     };
 
-    template<typename ...Types>
+    template <typename ...Types>
     overload(Types ...) -> overload<Types...>;
 
-    template<typename Variant, typename ...Callable>
+    template <typename Variant, typename ...Callable>
     auto visit(Variant&& variant, Callable&& ...callable) {
         static_assert(meta::is_variant<std::decay_t<Variant>>::value);
         return std::visit(overload{ std::forward<Callable>(callable)... },
                           std::forward<Variant>(variant));
     }
 
-    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
-                                                                int queue_size,
+    std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency, int queue_size,
                                                                 std::string_view pool_name = "CorePool");
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
@@ -276,9 +281,7 @@ namespace core
 
     std::shared_ptr<folly::ThreadedExecutor> make_threaded_executor(std::string_view thread_name = "CoreThread");
 
-    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
-                                                                  int queue_size,
-                                                                  bool throw_if_full,
+    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency, int queue_size, bool throw_if_full,
                                                                   std::string_view pool_name = "CorePool");
 
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,

@@ -527,7 +527,7 @@ namespace media_test
         EXPECT_TRUE(std::filesystem::is_directory(output_directory));
         return [=](std::pair<int, int> crop,
                    std::initializer_list<int> qp_list,
-                   std::chrono::milliseconds duration = 1000ms) mutable {
+                   std::chrono::milliseconds duration = 1000ms) {
             auto [wcrop, hcrop] = crop;
             EXPECT_GT(wcrop, 0);
             EXPECT_GT(hcrop, 0);
@@ -538,13 +538,13 @@ namespace media_test
             command_environment(output_directory / input.stem(), crop);
             media::command::dash_segment(duration);
             auto mpd_path = media::command::merge_dash_mpd();
-            copy_directory = copy_directory / input.stem() / fmt::format("{}x{}", wcrop, hcrop);
-            create_directories(copy_directory);
-            copy_file(mpd_path, copy_directory / mpd_path.filename(),
+            const auto target_directory = copy_directory / input.stem() / fmt::format("{}x{}", wcrop, hcrop);
+            create_directories(target_directory);
+            copy_file(mpd_path, target_directory / mpd_path.filename(),
                       std::filesystem::copy_options::overwrite_existing);
             auto tile_path_list = media::command::tile_path_list();
             for (auto& tile_path : tile_path_list) {
-                copy_file(tile_path, copy_directory / tile_path.filename(),
+                copy_file(tile_path, target_directory / tile_path.filename(),
                           std::filesystem::copy_options::overwrite_existing);
             }
         };
@@ -563,8 +563,10 @@ namespace media_test
         auto command = command_qp_batch("F:/Gpac/NewYork.mp4",
                                         "F:/Output/",
                                         "D:/Media");
-        //command({ 3, 3 }, { 22, 32, 42 });
+        command({ 3, 3 }, { 22, 32, 42 });
         command({ 5, 3 }, { 22, 32, 42 });
+        command({ 4, 3 }, { 22, 32, 42 });
+        command({ 5, 4 }, { 22, 32, 42 });
     }
 
     TEST(CommandBatch, AngelFallsVenezuelaQpBatch) {

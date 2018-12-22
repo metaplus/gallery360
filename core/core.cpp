@@ -52,11 +52,19 @@ namespace core
             std::execution::par,
             std::filesystem::directory_iterator{ directory },
             std::filesystem::directory_iterator{},
-            [](const std::filesystem::directory_entry& left,
-               const std::filesystem::directory_entry& right) {
-                return left.last_write_time() < right.last_write_time();
-            }
+            last_write_time_comparator{}
         )->path();
+    }
+
+    //-- last_write_time_comparator
+    bool last_write_time_comparator::operator()(const std::filesystem::path& left,
+                                                const std::filesystem::path& right) const {
+        return last_write_time(left) < last_write_time(right);
+    }
+
+    bool last_write_time_comparator::operator()(const std::filesystem::directory_entry& left,
+                                                const std::filesystem::directory_entry& right) const {
+        return left.last_write_time() < right.last_write_time();
     }
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,

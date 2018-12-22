@@ -4,8 +4,11 @@
 
 inline namespace plugin
 {
-    void database::stop_consume() {
+    void database::cancel_consume(const bool timed) {
         active_ = false;
+        if (!timed) {
+            sink_entry_queue_.enqueue({ "", "" });
+        }
         for (auto& consume_finish : consume_latch_) {
             consume_finish.wait();
         }
@@ -41,5 +44,50 @@ inline namespace plugin
         assert(status.ok());
         assert(db != nullptr);
         return std::unique_ptr<leveldb::DB>{ db };
+    }
+
+    void database::timed_consume_entry() {
+        while (std::atomic_load(&active_)) {
+            const auto batch_begin_time = std::chrono::steady_clock::now();
+            const auto batch_end_time = batch_begin_time + batch_sink_interval / 2;
+            {
+                const auto database = open_database(directory_.string());
+                do {
+                    auto stride_step = batch_stride;
+                    std::pair<std::string, std::string> entry;
+                    while (--stride_step && sink_entry_queue_.try_dequeue_until(entry, batch_end_time)) {
+                        auto& [instance, event] = entry;
+                        if (instance.empty()) {
+                            core::throw_drained();
+                        }
+                        database->Put(leveldb::WriteOptions{}, instance.data(), event);
+                    }
+                } while (std::chrono::steady_clock::now() < batch_end_time);
+            }
+            std::this_thread::sleep_until(batch_begin_time + batch_sink_interval);
+        }
+        auto database = folly::lazy([this] {
+            return open_database(directory_.string());
+        });
+        while (!sink_entry_queue_.empty()) {
+            std::pair<std::string, std::string> entry;
+            sink_entry_queue_.dequeue(entry);
+            database()->Put(leveldb::WriteOptions{}, entry.first.data(), entry.second);
+        }
+    }
+
+    void database::block_consume_entry() {
+        auto database = folly::lazy([this] {
+            return open_database(directory_.string());
+        });
+        while (true) {
+            std::pair<std::string, std::string> entry;
+            sink_entry_queue_.dequeue(entry);
+            if (entry.first.empty()) {
+                break;
+            }
+            database()->Put(leveldb::WriteOptions{}, entry.first.data(), entry.second);
+        }
+        assert(!std::atomic_load(&active_));
     }
 }
