@@ -2,7 +2,7 @@
 
 namespace core
 {
-    class time_guard
+    class time_guard final
     {
     public:
         time_guard() :
@@ -46,7 +46,7 @@ namespace core
     };
 
     template<typename Callable>
-    class scope_guard_generic : protected std::decay_t<Callable>
+    class scope_guard_generic final : protected std::decay_t<Callable>
     {
     public:
         explicit scope_guard_generic(const std::decay_t<Callable>&) = delete;
@@ -81,7 +81,7 @@ namespace core
     namespace v1    // TODO: experimental
     {
         template<typename... Callable>
-        class scope_guard_tuple : protected std::decay_t<Callable>...
+        class scope_guard_tuple final : protected std::decay_t<Callable>...
         {
         public:
             explicit scope_guard_tuple(std::decay_t<Callable>&&... callable)
@@ -89,7 +89,6 @@ namespace core
             {}
             ~scope_guard_tuple() {
                 (..., std::decay_t<Callable>::operator()());
-                //(..., &scope_guard_generic<std::decay_t<Callable>>::operator()(this));
             }
         protected:
             using std::decay<Callable>::type::operator()...;

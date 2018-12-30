@@ -26,13 +26,11 @@
 #include <cstring>
 #include <deque>
 #include <exception>
-#include <execution>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <memory_resource>
 #include <new>
 #include <numeric>
 #include <optional>
@@ -45,20 +43,31 @@
 #include <variant>
 #include <vector>
 
-using namespace std::literals;
+#ifdef _WIN32
+#include <execution>
+#include <memory_resource>
+#endif
 
+using namespace std::literals;
 //using namespace boost::hana::literals;
+
 #define GLOG_NO_ABBREVIATED_SEVERITIES
+#ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable:4267 4250)
+#endif
 //#include <folly/AtomicHashMap.h>
 //#include <folly/AtomicBitSet.h>
 //#include <folly/AtomicLinkedList.h>
 //#include <folly/AtomicUnorderedMap.h>
 //#include <folly/ConcurrentSkipList.h>
+#ifdef _WIN32
 #pragma warning(disable:4200 4305 4244)
+#endif
 #include <folly/concurrency/ConcurrentHashMap.h>
+#ifdef _WIN32
 #pragma warning(pop)
+#endif
 #include <folly/concurrency/DynamicBoundedQueue.h>
 #include <folly/concurrency/UnboundedQueue.h>
 #include <folly/container/Array.h>
@@ -118,10 +127,12 @@ using namespace std::literals;
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
+#define SPDLOG_FMT_EXTERNAL
 #include <spdlog/logger.h>
 
 using namespace fmt::literals;
 
+#ifdef _WIN32
 #include "core/meta.hpp"
 #include "core/detail.hpp"
 #include "core/type_trait.hpp"
@@ -131,8 +142,13 @@ using namespace fmt::literals;
 #include "core/exception.hpp"
 #include "core/guard.hpp"
 #include "core/verify.hpp"
-//#include "concurrency/async_chain.hpp"
-//#include "concurrency/barrier.hpp"
-//#include "concurrency/latch.hpp"
-//#include "concurrency/synchronize.hpp"
-//using namespace core::literals;
+
+using namespace core::literals;
+#endif
+
+#if CORE_CONCURRENCY
+#include "concurrency/async_chain.hpp"
+#include "concurrency/barrier.hpp"
+#include "concurrency/latch.hpp"
+#include "concurrency/synchronize.hpp"
+#endif

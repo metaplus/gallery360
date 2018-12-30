@@ -1,11 +1,18 @@
 #pragma once
 
-#include <WinSock2.h>
-#include <boost/asio.hpp>
+#ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable: 4834)
-#include <boost/beast.hpp>
-#pragma warning(pop)
+#include <WinSock2.h>
+#endif
 
+#include <boost/asio.hpp>
+#include <boost/beast.hpp>
+
+#ifdef _WIN32
+#pragma warning(pop)
 #include "network/net.hpp"
 #include "network/session_base.h"
+#endif
+
+

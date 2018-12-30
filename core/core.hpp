@@ -50,16 +50,14 @@ namespace core
 
     namespace literals
     {
-        constexpr size_t operator""_kbyte(size_t const n) {
+        using integer_literal = unsigned long long int;
+
+        constexpr size_t operator""_kbyte(const integer_literal n) {
             return n * 1024;
         }
 
-        constexpr size_t operator""_mbyte(size_t const n) {
+        constexpr size_t operator""_mbyte(const integer_literal n) {
             return n * 1024 * 1024;
-        }
-
-        constexpr size_t operator""_gbyte(size_t const n) {
-            return n * 1024 * 1024 * 1024;
         }
 
         template <typename Represent, typename Period>
@@ -87,11 +85,16 @@ namespace core
     template <typename EntryPredicate>
     std::vector<std::filesystem::path> filter_directory_entry(const std::filesystem::path& directory,
                                                               const EntryPredicate& predicate) {
+#ifdef __linux__
+        return std::accumulate(
+#else
         return std::reduce(
+#endif
             std::filesystem::directory_iterator{ directory },
             std::filesystem::directory_iterator{},
             std::vector<std::filesystem::path>{},
-            [&predicate](std::vector<std::filesystem::path>&& container, const std::filesystem::directory_entry& entry) {
+            [&predicate](std::vector<std::filesystem::path> container,
+                         const std::filesystem::directory_entry& entry) {
                 if (predicate(entry)) {
                     container.emplace_back(entry.path());
                 }
@@ -120,19 +123,6 @@ namespace core
         };
     }
 
-    // enable DefaultConstructable
-    template <typename T>
-    class reference : public std::reference_wrapper<T>
-    {
-    public:
-        using std::reference_wrapper<T>::reference_wrapper;
-        using std::reference_wrapper<T>::operator=;
-        using std::reference_wrapper<T>::operator();
-
-        reference() noexcept
-            : std::reference_wrapper<T>(core::make_null_reference_wrapper<T>()) {}
-    };
-
     inline namespace tag //  tag dispatching usage, clarify semantics
     {
         inline constexpr struct use_future_tag final {} use_future;
@@ -144,81 +134,9 @@ namespace core
         inline constexpr struct defer_execute_tag final {} defer_execute;
     }
 
-    namespace v3
-    {
-        namespace detail
-        {
-            template <typename T, typename ...Types>
-            auto hash_value_tuple(const T& head, const Types& ...tails) noexcept;
-
-            template <typename T>
-            std::tuple<size_t> hash_value_tuple(const T& head) noexcept {
-                return std::make_tuple(std::hash<T>{}(head));
-            }
-
-            template <typename T, typename U>
-            std::tuple<size_t, size_t> hash_value_tuple(const std::pair<T, U>& head) noexcept {
-                return hash_value_tuple(head.first, head.second);
-            }
-
-            template <typename ...TupleTypes>
-            auto hash_value_tuple(const std::tuple<TupleTypes...>& head) noexcept {
-                return hash_value_tuple(std::get<TupleTypes>(head)...);
-            }
-
-            template <typename T, typename ...Types>
-            auto hash_value_tuple(const T& head,
-                                  const Types& ...tails) noexcept {
-                return std::tuple_cat(hash_value_tuple(head),
-                                      hash_value_tuple(tails...));
-            }
-        }
-
-        template <typename ...Types>
-        size_t hash_value_from(Types const& ...args) noexcept {
-            static_assert(sizeof...(Types) > 0);
-            const auto tuple = detail::hash_value_tuple(args...);
-            return std::hash<std::string_view>{}(
-                std::string_view{
-                    reinterpret_cast<const char*>(&tuple),
-                    sizeof tuple
-                });
-        }
-
-        template <typename ...Types>
-        struct byte_hash
-        {
-            size_t operator()(const Types& ...args) noexcept {
-                return hash_value_from(args);
-            }
-        };
-
-        template <>
-        struct byte_hash<void>
-        {
-            template <typename ...Types>
-            size_t operator()(const Types& ...args) const noexcept {
-                return hash_value_from(args...);
-            }
-        };
-    }
-
-    using v3::byte_hash;
-    using v3::hash_value_from;
-
-    template <typename Hash>
-    struct deref_hash
-    {
-        // smart pointer or iterator
-        template <typename Handle>
-        size_t operator()(const Handle& handle) const {
-            return Hash{}(*handle);
-        }
-    };
-
     template <typename Handle>
-    decltype(auto) get_pointer(Handle&& handle,
-                               std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr) {
+    decltype(auto) get_pointer(Handle && handle,
+                               std::enable_if_t < meta::has_operator_dereference<Handle>::value > * = nullptr) {
         return std::forward<Handle>(handle).operator->();
     }
 
@@ -294,5 +212,5 @@ namespace core
     folly::Function<
         std::shared_ptr<spdlog::logger>&()>
     console_logger_access(std::string logger_name,
-                          folly::Function<void(spdlog::logger&)> post_process = nullptr);
+                          folly::Function<void(spdlog::logger &)> post_process = nullptr);
 }

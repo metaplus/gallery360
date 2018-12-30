@@ -11,6 +11,7 @@ namespace net
         return std::make_unique<folly::NamedThreadFactory>("NetAsio");
     });
 
+#ifdef _WIN32
     namespace protocal
     {
         struct dash::parser::impl final
@@ -48,7 +49,7 @@ namespace net
             }
 
             static std::array<int, 6> split_spatial_description(std::string_view srd) {
-                std::array<int, 6> spatial{};
+                std::array < int, 6 > spatial{};
                 srd.remove_prefix(srd.find(',') + 1);
                 folly::splitTo<int>(',', srd, spatial.begin(), false);
                 return spatial;
@@ -229,12 +230,15 @@ namespace net
         }
         throw impl::duration_parse_mismatch{ __FUNCTION__ };
     }
+#endif
 
-    std::vector<std::filesystem::path> config_paths{ std::filesystem::current_path(),_NET_CONFIG_DIR };
+    auto workset_paths = folly::lazy([] {
+        return std::vector<std::filesystem::path>{ std::filesystem::current_path(), _NET_CONFIG_DIR };
+    });
 
     void add_config_path(std::filesystem::path&& path) {
         if (std::filesystem::is_directory(path)) {
-            config_paths.push_back(std::move(path));
+            workset_paths().push_back(std::move(path));
         }
     }
 
@@ -243,12 +247,12 @@ namespace net
             [] {
                 std::array<std::filesystem::path, 2> config_path_array;
                 const auto config_dir = std::find_if(
-                    config_paths.rbegin(), config_paths.rend(),
+                    workset_paths().rbegin(), workset_paths().rend(),
                     [](std::filesystem::path& dir) {
                         return std::filesystem::is_directory(dir);
                     });
-                assert(config_dir != config_paths.rend());
-                if (config_dir == std::prev(config_paths.rend())) {
+                assert(config_dir != workset_paths().rend());
+                if (config_dir == std::prev(workset_paths().rend())) {
                     logger()->warn("config directory uses default work path");
                 }
                 logger()->info("config directory {}", config_dir->generic_string());
@@ -289,7 +293,11 @@ namespace net
         auto& entry = config_json()[entry_path.front()];
         if (entry_path.size() > 1) {
             return
+#ifdef __linux__
+                *std::accumulate(
+#else
                 *std::reduce(
+#endif
                     std::next(entry_path.begin(), 1), entry_path.end(), &entry,
                     [](decltype(&entry) entry_ptr, std::string& name) {
                         assert(entry_ptr != nullptr);
@@ -318,7 +326,7 @@ namespace net
         ~asio_deleter() = default;
 
         asio_deleter(io_context* io_context, unsigned concurrency)
-            : guard{ std::make_unique<decltype(guard)::element_type>(make_work_guard(*io_context)) }
+            : guard{ std::make_unique < decltype(guard)::element_type > (make_work_guard(*io_context)) }
             , threads{ make_asio_threads(*io_context, concurrency) } { }
 
         void operator()(io_context* io_context) {
@@ -328,9 +336,10 @@ namespace net
                 threads.begin(), threads.end(),
                 [](std::thread& thread) {
                     if (thread.joinable()) {
-                        thread.join();
+                        //thread.join();
                         return true;
                     }
+
                     return false;
                 }
             );

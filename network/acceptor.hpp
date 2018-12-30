@@ -2,10 +2,10 @@
 
 namespace net::server
 {
-    template<typename Protocal>
+    template <typename Protocal>
     class acceptor;
 
-    template<>
+    template <>
     class acceptor<boost::asio::ip::tcp> final : protocal::base<protocal::tcp>
     {
         using entry = folly::Promise<boost::asio::ip::tcp::socket>;
@@ -27,7 +27,7 @@ namespace net::server
 
         folly::SemiFuture<socket_type> accept_socket();
 
-        template<typename Protocal, typename ...SessionArgs>
+        template <typename Protocal, typename ...SessionArgs>
         folly::SemiFuture<session_ptr<Protocal>> listen_session(SessionArgs&& ...args) {
             return accept_socket().deferValue(
                 [this, &args...](socket_type&& socket) {

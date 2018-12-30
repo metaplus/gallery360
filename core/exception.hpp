@@ -2,19 +2,19 @@
 
 namespace core
 {
-    using errinfo_stacktrace = boost::error_info<as_stacktrace_tag, boost::stacktrace::stacktrace>;
+    using error_stacktrace = boost::error_info<as_stacktrace_tag, boost::stacktrace::stacktrace>;
 
-    template<typename Exception>
+    template <typename Exception>
     [[noreturn]] void throw_with_stacktrace(Exception const& exp) {
         static_assert(meta::is_exception<Exception>::value);
         throw boost::enable_error_info(exp)
-            << errinfo_stacktrace(boost::stacktrace::stacktrace());
+            << error_stacktrace(boost::stacktrace::stacktrace());
     }
 
-    template<typename Exception>
+    template <typename Exception>
     void diagnose_stacktrace(Exception const& exp) {
         static_assert(meta::is_exception<Exception>::value);
-        if (auto const* stacktrace = boost::get_error_info<errinfo_stacktrace>(exp); stacktrace != nullptr)
+        if (auto const* stacktrace = boost::get_error_info<error_stacktrace>(exp); stacktrace != nullptr)
             fmt::print(std::cerr, "stacktrace:\n{}\n", *stacktrace);
     }
 
@@ -41,13 +41,13 @@ namespace core
 
     namespace detail
     {
-        template<typename Exception>
+        template <typename Exception>
         const char* message_otherwise_typename(char const* cstr, Exception const*) {
             static_assert(meta::is_exception<Exception>::value);
             static thread_local std::unordered_set<std::string> local_type_name;
             if (!std::string_view{ cstr }.empty())
                 return cstr;
-            auto const[iterator, success] = local_type_name.emplace(boost::typeindex::type_id<Exception>().pretty_name());
+            auto const [iterator, success] = local_type_name.emplace(boost::typeindex::type_id<Exception>().pretty_name());
             boost::ignore_unused(success);
             return iterator->c_str();
         }
@@ -58,8 +58,8 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(runtime_error::what(), this);
         }
     };
 
@@ -68,8 +68,8 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(runtime_error::what(), this);
         }
     };
 
@@ -78,8 +78,8 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(runtime_error::what(), this);
         }
     };
 
@@ -88,8 +88,8 @@ namespace core
         using logic_error::logic_error;
         using logic_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(logic_error::what(), this);
         }
     };
 
@@ -98,8 +98,8 @@ namespace core
         using logic_error::logic_error;
         using logic_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(logic_error::what(), this);
         }
     };
 
@@ -108,8 +108,8 @@ namespace core
         using logic_error::logic_error;
         using logic_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(logic_error::what(), this);
         }
     };
 
@@ -118,8 +118,8 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(runtime_error::what(), this);
         }
     };
 
@@ -128,8 +128,8 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(runtime_error::what(), this);
         }
     };
 
@@ -138,8 +138,8 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(runtime_error::what(), this);
         }
     };
 
@@ -148,11 +148,10 @@ namespace core
         using runtime_error::runtime_error;
         using runtime_error::operator=;
 
-        const char* what() const override {
-            return detail::message_otherwise_typename(what(), this);
+        const char* what() const noexcept override {
+            return detail::message_otherwise_typename(runtime_error::what(), this);
         }
     };
-
 
     [[noreturn]] inline void throw_unimplemented(std::string message = ""s) {
         throw not_implemented_error{ message };
