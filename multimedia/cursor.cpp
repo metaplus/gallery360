@@ -15,7 +15,6 @@ namespace media
                        [](const_buffer_iterator::reference buffer) {
                            return boost::asio::buffer_size(buffer);
                        });
-        //std::partial_sum(buffer_sizes.begin(), buffer_sizes.end(), buffer_sizes.begin());
     }
 
     int64_t cursor::seek_sequence(int64_t seek_offset) {
@@ -28,14 +27,12 @@ namespace media
     }
 
     int64_t cursor::buffer_size() const {
-        //auto const size = boost::asio::buffer_size(*buffer_iter);
         auto const size = buffer_sizes.at(std::distance(buffer_begin, buffer_iter));
         return folly::to<int64_t>(size);
     }
 
     int64_t cursor::sequence_size() const {
         return std::accumulate(buffer_sizes.begin(), buffer_sizes.end(), 0i64);
-        //fmt::print("sequence_size {}\n", size);
     }
 
     //-- generic_cursor

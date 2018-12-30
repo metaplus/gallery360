@@ -8,6 +8,7 @@ namespace unity
     BOOL DLL_EXPORT __stdcall _nativeLoadEnvConfig();
     void DLL_EXPORT __stdcall _nativeLibraryInitialize();
     void DLL_EXPORT __stdcall _nativeLibraryRelease();
+    BOOL DLL_EXPORT __stdcall _nativeTraceEvent(LPSTR instance, LPSTR event);
 
     namespace test
     {

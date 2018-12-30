@@ -46,7 +46,7 @@ namespace net::client
                 return shutdown_and_reject_request(core::bad_response_error{ response_parser_->get().reason().data() },
                                                    errc, boost::asio::socket_base::shutdown_receive);
             }
-            trace_event(fmt::format("response=recv:index={}:transfer={}", index, transfer_size));
+            trace_event("response=recv:index={}:transfer={}", index, transfer_size);
             request_list_.withWLock(
                 [this, &errc](request_list& response_list) {
                     response_list.front()(response_parser_->release());
@@ -67,9 +67,9 @@ namespace net::client
                 return shutdown_and_reject_request(core::bad_request_error{ errc.message() },
                                                    errc, boost::asio::socket_base::shutdown_send);
             }
-            trace_event(fmt::format("request=send:index={}:transfer={}", index, transfer_size));
-            boost::beast::http::async_read(socket_, recvbuf_,
-                                           *response_parser_, on_recv_response(index));
+            trace_event("request=send:index={}:transfer={}", index, transfer_size);
+            http::async_read(socket_, recvbuf_,
+                             *response_parser_, on_recv_response(index));
         };
     }
 
@@ -79,36 +79,33 @@ namespace net::client
         };
     }
 
-    void http_session::trace_event(std::string event) const {
-        if (trace_callback_) {
-            trace_callback_(event);
-        }
-    }
-
     auto http_session::send_request(request<empty_body>&& request)
     -> folly::SemiFuture<response<dynamic_body>> {
         logger_->info("send_request empty body");
         auto [promise_response, future_response] = folly::makePromiseContract<response<dynamic_body>>();
         request_list_.withWLock(
             [this, &request, &promise_response](request_list& request_list) {
-                auto index = ++round_index_;
+                auto request_index = ++round_index_;
+                auto request_target = request.target().to_string();
                 auto request_satisfy = [=,
                         promise_response = std::move(promise_response),
                         request = std::move(request)
                     ](request_param request_param) mutable {
+                    using request_type = base::request<empty_body>;
+                    using response_type = base::response<dynamic_body>;
                     core::visit(
                         request_param,
                         [=, &request](std::monostate) {
                             config_response_parser();
-                            auto request_ptr = std::make_shared<session::request<empty_body>>(std::move(request));
+                            auto request_ptr = std::make_shared<request_type>(std::move(request));
                             auto& request_ref = *request_ptr;
-                            trace_event(fmt::format("request=ready:index={}", index));
-                            boost::beast::http::async_write(socket_, request_ref,
-                                                            on_send_request(index, std::move(request_ptr)));
+                            trace_event("request=ready:index={}", request_index);
+                            http::async_write(socket_, request_ref,
+                                              on_send_request(request_index, std::move(request_ptr)));
                         },
                         [&promise_response](auto& response) {
                             using param_type = std::decay_t<decltype(response)>;
-                            if constexpr (std::is_same<session::response<dynamic_body>, param_type>::value) {
+                            if constexpr (std::is_same<response_type, param_type>::value) {
                                 return promise_response.setValue(std::move(response));
                             } else if constexpr (std::is_base_of<std::exception, param_type>::value) {
                                 return promise_response.setException(response);
@@ -117,7 +114,7 @@ namespace net::client
                         });
                 };
                 if (active_) {
-                    trace_event(fmt::format("request=pend:index={}", index));
+                    trace_event("request=pend:index={}:target={}", request_index, request_target);
                     request_list.push_back(std::move(request_satisfy));
                     if (std::size(request_list) == 1) {
                         request_list.front()(std::monostate{});

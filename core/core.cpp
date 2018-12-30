@@ -49,21 +49,31 @@ namespace core
 
     std::filesystem::path last_write_path_of_directory(const std::filesystem::path& directory) {
         return std::max_element(
+#ifndef __linux__
             std::execution::par,
+#endif
             std::filesystem::directory_iterator{ directory },
             std::filesystem::directory_iterator{},
-            [](const std::filesystem::directory_entry& left,
-               const std::filesystem::directory_entry& right) {
-                return left.last_write_time() < right.last_write_time();
-            }
+            last_write_time_comparator{}
         )->path();
+    }
+
+    //-- last_write_time_comparator
+    bool last_write_time_comparator::operator()(const std::filesystem::path& left,
+                                                const std::filesystem::path& right) const {
+        return last_write_time(left) < last_write_time(right);
+    }
+
+    bool last_write_time_comparator::operator()(const std::filesystem::directory_entry& left,
+                                                const std::filesystem::directory_entry& right) const {
+        return left.last_write_time() < right.last_write_time();
     }
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
                                                                 int queue_size,
                                                                 std::string_view pool_name) {
         static auto executor = make_pool_executor(concurrency, queue_size, false, pool_name);
-        assert(executor->numThreads() == concurrency);
+        assert(std::equal_to<size_t>{}(executor->numThreads(), concurrency));
         folly::setCPUExecutor(executor);
         return executor;
     }
@@ -71,7 +81,7 @@ namespace core
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
                                                                 std::string_view pool_name) {
         static auto executor = make_pool_executor(concurrency, pool_name);
-        assert(executor->numThreads() == concurrency);
+        assert(std::equal_to<size_t>{}(executor->numThreads(), concurrency));
         folly::setCPUExecutor(executor);
         return executor;
     }
@@ -118,8 +128,7 @@ namespace core
     };
 
     folly::Function<
-        std::pair<int64_t, std::shared_ptr<spdlog::logger>
-        >()
+        std::pair<int64_t, std::shared_ptr<spdlog::logger>>()
     >
     console_logger_factory(std::string logger_group) {
 
@@ -127,11 +136,11 @@ namespace core
             const auto logger_index = indexer->fetch_add(1);
             const auto logger_name = fmt::format("{}${}", logger_group, logger_index);
             auto logger = spdlog::stdout_color_mt(logger_name);
-            #ifdef NDEBUG
+#ifdef NDEBUG
             logger->set_level(spdlog::level::info);
-            #else
+#else
             logger->set_level(spdlog::level::debug);
-            #endif
+#endif
             return std::make_pair(logger_index, std::move(logger));
         };
     }

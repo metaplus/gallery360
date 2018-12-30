@@ -1,48 +1,50 @@
 #include "stdafx.h"
+#include "app.h"
 
-namespace util
+auto logger = core::console_logger_access("app.options");
+
+auto logged_wrapper = [](auto info, auto notifier) {
+    return [=](auto option) {
+        logger()->info("parse {} value {}", info, option);
+        notifier(option);
+    };
+};
+
+struct option_detail final
 {
-    auto logger = core::console_logger_access("app.options");
+    std::string description;
+    boost::program_options::value_semantic* semantic = nullptr;
+};
 
-    auto logged_wrapper = [](auto info, auto notifier) {
-        return [=](auto option) {
-            logger()->info("parse {} value {}", info, option);
-            notifier(option);
-        };
-    };
-
-    struct option_detail final
+const std::map<std::string, option_detail> option_details{
     {
-        std::string description;
-        boost::program_options::value_semantic* semantic = nullptr;
-    };
-
-    const std::map<std::string, option_detail> option_details{
-        {
-            "help,h", {
-                "help screen"
-            }
-        },
-        {
-            "config,c", {
-                "directory of config file",
-                boost::program_options::value<std::string>()->notifier(
-                    logged_wrapper(
-                        "config directory",
-                        [](std::string config) {
-                            net::add_config_path(config);
-                        }))
-            }
+        "help,h", {
+            "help screen"
         }
-    };
-
-    auto iterate_option_details = [](auto process) {
-        for (auto& [option, detail] : option_details) {
-            process(option, detail);
+    },
+    {
+        "config,c", {
+            "directory of config file",
+            boost::program_options::value<std::string>()->notifier(
+                logged_wrapper(
+                    "config directory",
+                    [](std::string config) {
+                        net::add_config_path(config);
+                    }))
         }
-    };
+    }
+};
 
+auto iterate_option_details = [](auto process) {
+    for (auto& [option, detail] : option_details) {
+        process(option, detail);
+    }
+};
+
+namespace app
+{
     void parse_options(int argc, char* argv[]) {
+        logger()->info("parsing {} launching parameters", argc - 1);
         boost::program_options::options_description description{ "server launch options" };
         iterate_option_details(
             [add_options = description.add_options()](auto& option, auto& detail) mutable {
@@ -56,7 +58,7 @@ namespace util
             options);
         boost::program_options::notify(options);
         if (options.count("help")) {
-            fmt::print( "{}", description);
+            fmt::print("{}", description);
             std::exit(0);
         }
     }

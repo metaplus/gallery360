@@ -2,15 +2,15 @@
 
 namespace net::client
 {
-    template<typename Protocal>
+    template <typename Protocal>
     class session;
 
-    template<typename Protocal>
+    template <typename Protocal>
     using session_ptr = std::unique_ptr<session<Protocal>>;
     using http_session = session<protocal::http>;
     using http_session_ptr = std::unique_ptr<session<protocal::http>>;
 
-    template<>
+    template <>
     class session<protocal::http> final : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
                                           protocal::base<protocal::http>
     {
@@ -45,7 +45,7 @@ namespace net::client
 
         folly::SemiFuture<response<dynamic_body>> send_request(request<empty_body>&& request);
 
-        template<typename Target, typename Body>
+        template <typename Target, typename Body>
         folly::SemiFuture<Target> send_request_for(request<Body>&& req) {
             static_assert(!std::is_reference<Target>::value);
             return send_request(std::move(req)).deferValue(
@@ -56,7 +56,7 @@ namespace net::client
                     if constexpr (std::is_same<multi_buffer, Target>::value) {
                         return std::move(response).body();
                     }
-                    core::throw_unreachable(__FUNCTION__);
+                    core::throw_unreachable("send_request_for");
                 });
         }
 
@@ -68,7 +68,7 @@ namespace net::client
     private:
         void config_response_parser();
 
-        template<typename Exception>
+        template <typename Exception>
         void shutdown_and_reject_request(Exception&& exception,
                                          boost::system::error_code errc,
                                          boost::asio::socket_base::shutdown_type operation) {
@@ -83,10 +83,15 @@ namespace net::client
                 });
         }
 
-        auto on_recv_response(int64_t index);
-
         auto on_send_request(int64_t index, std::any&& request);
 
-        void trace_event(std::string event) const;
+        auto on_recv_response(int64_t index);
+
+        template <typename ...EventArgs>
+        void trace_event(const char* event_format, EventArgs&& ...args) const {
+            if (trace_callback_) {
+                trace_callback_(fmt::format(event_format, std::forward<EventArgs>(args)...));
+            }
+        }
     };
 }

@@ -1,10 +1,14 @@
 ﻿{
-  "net": {
-    "protocal": "http",
-    "server": {
-      "port": 33666,
-      "directories": {
-        "root": "D:/Media",
+  "Net": {
+    "Protocal": "http",
+    "Server": {
+      "Port": 33666,
+      "Directories": {
+        "Root": {
+          "Win": "D:/Media",
+          "WSL": "/mnt/d/Media",
+          "Linux": "/mnt/d/Media"
+        },
         "log": null
       }
     }

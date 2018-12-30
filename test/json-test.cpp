@@ -58,4 +58,27 @@ namespace json_test
         ar.push_back(TS_RUNNING);
         XLOG(INFO) << ar.dump();
     }
+
+    TEST(Base, GetTo) {
+        auto j = "{ \"happy\": true, \"pi\": 3.141 }"_json;
+        {
+            auto h = false;
+            EXPECT_TRUE(j["happy"].get_to(h));
+            EXPECT_TRUE(h);
+        }
+        {
+            auto h = false;
+            EXPECT_NO_THROW(j["happy2"]);
+            EXPECT_THROW(j["happy2"].get_to(h), nlohmann::detail::type_error);
+            EXPECT_TRUE(j.value("happy", false));
+            EXPECT_NO_THROW(j.value("happy2", nullptr));
+            auto j2 = "{ \"happy\": true, \"pi\": 3.141 }"_json;
+            EXPECT_EQ(j2.value("happy2", 1), 1);
+        }
+        {
+            auto p = 0.;
+            EXPECT_EQ(j["pi"].get_to(p), 3.141);
+            EXPECT_EQ(p, 3.141);
+        }
+    }
 }

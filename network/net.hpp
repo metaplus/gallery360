@@ -145,7 +145,6 @@ namespace net
         request.target(target.data());
         request.keep_alive(true);
         request.set(boost::beast::http::field::host, host);
-        //request.set(boost::beast::http::field::user_agent, "MetaPlus");
         return request;
     }
 
