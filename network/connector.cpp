@@ -44,10 +44,10 @@ namespace net::client
                 [this, entry_iter](std::list<entry>& resolve_list) {
                     resolve_list.erase(entry_iter);
                     if (resolve_list.size()) {
-                        return boost::asio::dispatch(context_, [this, entry_iter = resolve_list.begin()] {
-                            resolver_.async_resolve(entry_iter->host,
-                                                    entry_iter->service,
-                                                    on_resolve(entry_iter));
+                        return boost::asio::dispatch(context_, [this, entry_iterator = resolve_list.begin()] {
+                            resolver_.async_resolve(entry_iterator->host,
+                                                    entry_iterator->service,
+                                                    on_resolve(entry_iterator));
                         });
                     }
                 });

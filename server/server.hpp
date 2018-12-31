@@ -42,11 +42,11 @@ namespace app
             , signals_{ *asio_pool_, SIGINT, SIGTERM }
             , worker_executor_{ core::make_threaded_executor("ServerWorker") }
             , logger_{ spdlog::stdout_color_mt("server") } {
-            logger_->info("root directory", directory_);
+            logger_->info("root directory {}", directory_);
             signals_.async_wait([&](boost::system::error_code error,
                                     int signal_count) {
+                acceptor_.close();
                 asio_pool_->stop();
-                worker_executor_ = nullptr;
             });
         }
 
@@ -65,16 +65,16 @@ namespace app
                                     logger_->warn("session with endpoint {} erased {}", endpoint, erase_count);
                                 });
                             assert(endpoint == session->remote_endpoint());
-                            auto [session_iter, success] = session_map_.emplace(endpoint, std::move(session));
+                            auto [session_iterator, success] = session_map_.emplace(endpoint, std::move(session));
                             if (!success) {
                                 logger_->error("endpoint duplicate");
-                                throw std::runtime_error{ "ConcurrentHashMap emplace fail" };
+                                throw session_emplace_error{ "ConcurrentHashMap emplace fail" };
                             }
                             assert(endpoint == session_iter->first);
-                            session_iter->second->wait_request();
+                            session_iterator->second->wait_request();
                         } while (true);
                     } catch (const std::exception& e) {
-                        logger_->error("worker catch exception {}", boost::diagnostic_information(e));
+                        logger_->error("worker catch exception \n{}", boost::diagnostic_information(e));
                     }
                 });
             return *this;

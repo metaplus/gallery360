@@ -49,7 +49,7 @@ namespace net
             }
 
             static std::array<int, 6> split_spatial_description(std::string_view srd) {
-                std::array < int, 6 > spatial{};
+                std::array<int, 6> spatial{};
                 srd.remove_prefix(srd.find(',') + 1);
                 folly::splitTo<int>(',', srd, spatial.begin(), false);
                 return spatial;
@@ -326,7 +326,7 @@ namespace net
         ~asio_deleter() = default;
 
         asio_deleter(io_context* io_context, unsigned concurrency)
-            : guard{ std::make_unique < decltype(guard)::element_type > (make_work_guard(*io_context)) }
+            : guard{ std::make_unique<decltype(guard)::element_type>(make_work_guard(*io_context)) }
             , threads{ make_asio_threads(*io_context, concurrency) } { }
 
         void operator()(io_context* io_context) {
@@ -336,10 +336,9 @@ namespace net
                 threads.begin(), threads.end(),
                 [](std::thread& thread) {
                     if (thread.joinable()) {
-                        //thread.join();
+                        thread.join();
                         return true;
                     }
-
                     return false;
                 }
             );
