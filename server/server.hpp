@@ -70,7 +70,7 @@ namespace app
                                 logger_->error("endpoint duplicate");
                                 throw session_emplace_error{ "ConcurrentHashMap emplace fail" };
                             }
-                            assert(endpoint == session_iter->first);
+                            assert(endpoint == session_iterator->first);
                             session_iterator->second->wait_request();
                         } while (true);
                     } catch (const std::exception& e) {
@@ -80,12 +80,13 @@ namespace app
             return *this;
         }
 
-        server& loop_listen() {
-            logger_->info("port {} listening", port_);
-            socket_queue_.enqueue(acceptor_.accept_socket()
-                                           .wait());
-            logger_->info("socket accepted");
-            return *this;
+        void loop_listen() {
+            while (true) {
+                logger_->info("port {} listening", port_);
+                socket_queue_.enqueue(acceptor_.accept_socket()
+                                               .wait());
+                logger_->info("socket accepted");
+            }
         }
 
         static void run() {

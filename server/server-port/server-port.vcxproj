@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|ARM">
@@ -35,9 +35,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{4f2ad9cc-2f46-452b-b03b-133f74a8da7a}</ProjectGuid>
+    <ProjectGuid>{2d60bc8a-9923-4331-91fb-58c9b1a31468}</ProjectGuid>
     <Keyword>Linux</Keyword>
-    <RootNamespace>server_linux</RootNamespace>
+    <RootNamespace>server_port</RootNamespace>
     <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
     <ApplicationType>Linux</ApplicationType>
     <ApplicationTypeRevision>1.0</ApplicationTypeRevision>
@@ -75,12 +75,15 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <AdditionalSourcesToCopyMapping>$(SolutionDir)../../core/stdafx.h:=~/projects/$(ProjectName)/core/stdafx.h;$(SolutionDir)../../core/pch.h:=~/projects/$(ProjectName)/core/pch.h;$(SolutionDir)../../core/exception.hpp:=~/projects/$(ProjectName)/core/exception.hpp;$(SolutionDir)../../core/verify.hpp:=~/projects/$(ProjectName)/core/verify.hpp;$(SolutionDir)../../core/guard.hpp:=~/projects/$(ProjectName)/core/guard.hpp;$(SolutionDir)../../core/core.hpp:=~/projects/$(ProjectName)/core/core.hpp;$(SolutionDir)../../core/core.cpp:=~/projects/$(ProjectName)/core/core.cpp;$(SolutionDir)../../core/meta.hpp:=~/projects/$(ProjectName)/core/meta.hpp;$(SolutionDir)../../core/detail.hpp:=~/projects/$(ProjectName)/core/detail.hpp;$(SolutionDir)../../core/type_trait.hpp:=~/projects/$(ProjectName)/core/type_trait.hpp;$(SolutionDir)../../network/stdafx.h:=~/projects/$(ProjectName)/network/stdafx.h;$(SolutionDir)../../network/pch.h:=~/projects/$(ProjectName)/network/pch.h;$(SolutionDir)../../network/net.hpp:=~/projects/$(ProjectName)/network/net.hpp;$(SolutionDir)../../network/config.json:=~/projects/$(ProjectName)/config.json;$(SolutionDir)../../network/acceptor.hpp:=~/projects/$(ProjectName)/network/acceptor.hpp;$(SolutionDir)../../network/session_base.h:=~/projects/$(ProjectName)/network/session_base.h;$(SolutionDir)../../network/server.hpp:=~/projects/$(ProjectName)/network/server.hpp;$(SolutionDir)../../network/acceptor.cpp:=~/projects/$(ProjectName)/network/acceptor.cpp;$(SolutionDir)../../network/net.cpp:=~/projects/$(ProjectName)/network/net.cpp;$(SolutionDir)../../network/server.cpp:=~/projects/$(ProjectName)/network/server.cpp;$(SolutionDir)../../server/stdafx.h:=~/projects/$(ProjectName)/server/stdafx.h;$(SolutionDir)../../server/server.hpp:=~/projects/$(ProjectName)/server/server.hpp;$(SolutionDir)../../server/app.h:=~/projects/$(ProjectName)/server/app.h;$(SolutionDir)../../server/app.cpp:=~/projects/$(ProjectName)/server/app.cpp;$(SolutionDir)../../server/option.cpp:=~/projects/$(ProjectName)/server/option.cpp</AdditionalSourcesToCopyMapping>
     <RemoteCCompileToolExe>g++-8</RemoteCCompileToolExe>
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
     <RemoteLdToolExe>g++-8</RemoteLdToolExe>
-    <AdditionalSourcesToCopyMapping>$(SolutionDir)core/stdafx.h:=~/projects/$(ProjectName)/core/stdafx.h;$(SolutionDir)core/pch.h:=~/projects/$(ProjectName)/core/pch.h;$(SolutionDir)core/exception.hpp:=~/projects/$(ProjectName)/core/exception.hpp;$(SolutionDir)core/verify.hpp:=~/projects/$(ProjectName)/core/verify.hpp;$(SolutionDir)core/guard.hpp:=~/projects/$(ProjectName)/core/guard.hpp;$(SolutionDir)core/core.hpp:=~/projects/$(ProjectName)/core/core.hpp;$(SolutionDir)core/core.cpp:=~/projects/$(ProjectName)/core/core.cpp;$(SolutionDir)core/meta.hpp:=~/projects/$(ProjectName)/core/meta.hpp;$(SolutionDir)core/detail.hpp:=~/projects/$(ProjectName)/core/detail.hpp;$(SolutionDir)core/type_trait.hpp:=~/projects/$(ProjectName)/core/type_trait.hpp;$(SolutionDir)network/stdafx.h:=~/projects/$(ProjectName)/network/stdafx.h;$(SolutionDir)network/pch.h:=~/projects/$(ProjectName)/network/pch.h;$(SolutionDir)network/net.hpp:=~/projects/$(ProjectName)/network/net.hpp;$(SolutionDir)network/config.json:=~/projects/$(ProjectName)/config.json;$(SolutionDir)network/acceptor.hpp:=~/projects/$(ProjectName)/network/acceptor.hpp;$(SolutionDir)network/session_base.h:=~/projects/$(ProjectName)/network/session_base.h;$(SolutionDir)network/server.hpp:=~/projects/$(ProjectName)/network/server.hpp;$(SolutionDir)network/acceptor.cpp:=~/projects/$(ProjectName)/network/acceptor.cpp;$(SolutionDir)network/net.cpp:=~/projects/$(ProjectName)/network/net.cpp;$(SolutionDir)network/server.cpp:=~/projects/$(ProjectName)/network/server.cpp;$(SolutionDir)server/stdafx.h:=~/projects/$(ProjectName)/server/stdafx.h;$(SolutionDir)server/server.hpp:=~/projects/$(ProjectName)/server/server.hpp;$(SolutionDir)server/app.h:=~/projects/$(ProjectName)/server/app.h;$(SolutionDir)server/app.cpp:=~/projects/$(ProjectName)/server/app.cpp;$(SolutionDir)server/option.cpp:=~/projects/$(ProjectName)/server/option.cpp</AdditionalSourcesToCopyMapping>
+    <ProjectPublicIncludePath>
+    </ProjectPublicIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <AdditionalSourcesToCopyMapping>$(SolutionDir)../../core/stdafx.h:=~/projects/$(ProjectName)/core/stdafx.h;$(SolutionDir)../../core/pch.h:=~/projects/$(ProjectName)/core/pch.h;$(SolutionDir)../../core/exception.hpp:=~/projects/$(ProjectName)/core/exception.hpp;$(SolutionDir)../../core/verify.hpp:=~/projects/$(ProjectName)/core/verify.hpp;$(SolutionDir)../../core/guard.hpp:=~/projects/$(ProjectName)/core/guard.hpp;$(SolutionDir)../../core/core.hpp:=~/projects/$(ProjectName)/core/core.hpp;$(SolutionDir)../../core/core.cpp:=~/projects/$(ProjectName)/core/core.cpp;$(SolutionDir)../../core/meta.hpp:=~/projects/$(ProjectName)/core/meta.hpp;$(SolutionDir)../../core/detail.hpp:=~/projects/$(ProjectName)/core/detail.hpp;$(SolutionDir)../../core/type_trait.hpp:=~/projects/$(ProjectName)/core/type_trait.hpp;$(SolutionDir)../../network/stdafx.h:=~/projects/$(ProjectName)/network/stdafx.h;$(SolutionDir)../../network/pch.h:=~/projects/$(ProjectName)/network/pch.h;$(SolutionDir)../../network/net.hpp:=~/projects/$(ProjectName)/network/net.hpp;$(SolutionDir)../../network/config.json:=~/projects/$(ProjectName)/config.json;$(SolutionDir)../../network/acceptor.hpp:=~/projects/$(ProjectName)/network/acceptor.hpp;$(SolutionDir)../../network/session_base.h:=~/projects/$(ProjectName)/network/session_base.h;$(SolutionDir)../../network/server.hpp:=~/projects/$(ProjectName)/network/server.hpp;$(SolutionDir)../../network/acceptor.cpp:=~/projects/$(ProjectName)/network/acceptor.cpp;$(SolutionDir)../../network/net.cpp:=~/projects/$(ProjectName)/network/net.cpp;$(SolutionDir)../../network/server.cpp:=~/projects/$(ProjectName)/network/server.cpp;$(SolutionDir)../../server/stdafx.h:=~/projects/$(ProjectName)/server/stdafx.h;$(SolutionDir)../../server/server.hpp:=~/projects/$(ProjectName)/server/server.hpp;$(SolutionDir)../../server/app.h:=~/projects/$(ProjectName)/server/app.h;$(SolutionDir)../../server/app.cpp:=~/projects/$(ProjectName)/server/app.cpp;$(SolutionDir)../../server/option.cpp:=~/projects/$(ProjectName)/server/option.cpp</AdditionalSourcesToCopyMapping>
     <RemoteCCompileToolExe>g++-8</RemoteCCompileToolExe>
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
     <RemoteLdToolExe>g++-8</RemoteLdToolExe>
@@ -92,8 +95,8 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <CppLanguageStandard>c++17</CppLanguageStandard>
       <PreprocessorDefinitions>_NET_CONFIG_DIR=R"(/home/jxing/projects/$(ProjectName))";_SERVER_WSL=1;</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>%(Link.AdditionalLibraryDirectories);/home/jxing/vcpkg/installed/x64-linux/debug/lib;</AdditionalLibraryDirectories>
@@ -103,13 +106,13 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions);_NET_CONFIG_DIR=R"(/home/jxing/projects/$(ProjectName))";_SERVER_WSL=1;</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions);_NET_CONFIG_DIR=R"(/home/jxing/projects/$(ProjectName))";_SERVER_WSL=1;</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>%(Link.AdditionalLibraryDirectories);/home/jxing/vcpkg/installed/x64-linux/lib;</AdditionalLibraryDirectories>
-      <AdditionalOptions>-Wl,--no-as-needed -ldl %(AdditionalOptions)</AdditionalOptions>
       <LibraryDependencies>stdc++fs;fmt;folly;tinyxml2;event;event_core;event_extra;pthread;double-conversion;glog;gflags;boost_system;boost_program_options;boost_context</LibraryDependencies>
+      <AdditionalOptions>-Wl,--no-as-needed -ldl %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
