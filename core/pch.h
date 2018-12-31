@@ -99,8 +99,6 @@ using namespace std::literals;
 //#include <folly/SynchronizedPtr.h>
 #include <folly/Uri.h>
 
-#include <range/v3/all.hpp>
-
 #include <boost/asio/buffer.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/multi_buffer.hpp>

@@ -5,7 +5,7 @@ namespace core_test
 {
     TEST(File, PathOfDirectory) {
         auto p = core::file_path_of_directory("C:/AppData", ".exe");
-        EXPECT_THAT(p.generic_string(), StrEq("C:/AppData/AppData.exe"));
+        EXPECT_EQ(p.generic_string(), "C:/AppData/AppData.exe");
     }
 
     #pragma warning(disable:244 267 101)
@@ -38,7 +38,7 @@ namespace core_test
             auto logger_access = core::console_logger_access(name, [&](auto&) {
                 process.assign(name);
             });
-            EXPECT_THAT(process, IsEmpty());
+            EXPECT_TRUE(process.empty());
             auto& logger = logger_access();
             EXPECT_EQ(name, logger->name());
             EXPECT_EQ(process, name);

@@ -17,6 +17,7 @@
 #include "core/pch.h"
 #include "multimedia/pch.h"
 #include "multimedia/component.h"
+#include <range/v3/view/iota.hpp>
 
 #pragma warning(push)
 #pragma warning(disable:4819)

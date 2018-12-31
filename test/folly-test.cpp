@@ -355,8 +355,8 @@ namespace folly_test
         auto* executor = config_executor(1);
         auto [p, sf] = folly::makePromiseContract<int>();
         auto id0 = folly::getCurrentThreadID();
-        auto id1 = 0;
-        auto id2 = 0;
+        auto id1 = 0ui64;
+        auto id2 = 0ui64;
         executor->add(
             [&] {
                 std::this_thread::sleep_for(1s);
@@ -709,7 +709,7 @@ namespace folly_test
         auto parsed = folly::parseJson(document);
         EXPECT_EQ(parsed["key"], 12);
         EXPECT_EQ(parsed["key2"][0], false);
-        EXPECT_EQ(parsed["key2"][1], nullptr);
+        EXPECT_TRUE(parsed["key2"][1] == nullptr);
         folly::dynamic dyn = folly::dynamic::object
             ("key2", folly::dynamic::array(false, nullptr, true, "yay"))
             ("key", 12);
@@ -747,5 +747,9 @@ namespace folly_test
             EXPECT_GE(res, 0);
             EXPECT_LT(res, 1);
         });
+    }
+
+    TEST(Fiber, Await) {
+        EXPECT_FALSE(folly::fibers::onFiber());
     }
 }

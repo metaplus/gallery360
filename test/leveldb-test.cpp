@@ -33,7 +33,7 @@ namespace leveldb_test
                 options.create_if_missing = false;
                 auto status = leveldb::DB::Open(options, path.value_or("F:/Debug/TraceDb"), &database);
                 EXPECT_TRUE(status.ok());
-                EXPECT_NE(database, nullptr);
+                EXPECT_TRUE(database != nullptr);
             }
             return (database);
         });
@@ -70,7 +70,7 @@ namespace leveldb_test
             }
             std::unique_ptr<leveldb::Iterator> iterator{ database->NewIterator(leveldb::ReadOptions{}) };
             for (iterator->SeekToFirst(); iterator->Valid(); iterator->Next()) {
-               std::cout << fmt::format("{}\n[event]{}\n", iterator->key().ToString(), iterator->value().ToString());
+                std::cout << fmt::format("{}\n[event]{}\n", iterator->key().ToString(), iterator->value().ToString());
             }
         }
     }

@@ -469,7 +469,6 @@ namespace media_test
 
     TEST_F(CommandBase, MergeDashMpd) {
         MakeDirectory("F:/Output/NewYork/");
-        EXPECT_THAT("NewYork_c0r0_1000kbps.mpd", MatchesRegex(R"(\w+_c\d+r\d+_\d+kbps.mpd)"));
         media::command::merge_dash_mpd();
     }
 
