@@ -33,7 +33,7 @@ namespace net
 {
     //-- buffer_sequence
     buffer_sequence::buffer_sequence(detail::multi_buffer& initial,
-                                   detail::multi_buffer&& data)
+                                     detail::multi_buffer&& data)
         : initial(initial)
         , data(std::move(data)) {}
 
@@ -81,7 +81,7 @@ namespace net::component
             const auto predict_index = [this, &video_set]() {
                 const auto represent_size = std::size(video_set.represents);
                 const auto probability = std::invoke(predict_callback, video_set.col, video_set.row);;
-                const auto predict_index = represent_size * probability;
+                const auto predict_index = represent_size * (1 - probability);
                 return std::min(static_cast<size_t>(predict_index),
                                 represent_size - 1);
             };

@@ -196,19 +196,20 @@ namespace unity
                 manager.predict_by([=](const int tile_col,
                                        const int tile_row) {
                     const auto field_of_view = std::atomic_load(&state::field_of_view);
-                    const std::divides<double> divide;
-                    const auto trim_offset = [](const int tile, const int view, const int frame) {
-                        const auto offset = std::abs(tile - view);
-                        if (offset > frame / 2) {
-                            return frame - offset;
-                        }
-                        return offset;
-                    };
-                    const auto col_degrade = config::predict_degrade_factor
-                        * divide(trim_offset(tile_col, field_of_view.col, frame_col), frame_col);
-                    const auto row_degrade = config::predict_degrade_factor
-                        * divide(trim_offset(tile_row, field_of_view.row, frame_col), frame_row);
-                    return std::max<double>(0, 1. - col_degrade - row_degrade);
+                    return field_of_view.col == tile_col && field_of_view.row == tile_row;
+                    /*     const std::divides<double> divide;
+                         const auto trim_offset = [](const int tile, const int view, const int frame) {
+                             const auto offset = std::abs(tile - view);
+                             if (offset > frame / 2) {
+                                 return frame - offset;
+                             }
+                             return offset;
+                         };
+                         const auto col_degrade = config::predict_degrade_factor
+                             * divide(trim_offset(tile_col, field_of_view.col, frame_col), frame_col);
+                         const auto row_degrade = config::predict_degrade_factor
+                             * divide(trim_offset(tile_row, field_of_view.row, frame_col), frame_row);
+                         return std::max<double>(0, 1. - col_degrade - row_degrade);*/
                 });
                 return manager;
             });
@@ -530,13 +531,12 @@ namespace unity
     }
 
     BOOL _nativeTraceEvent(LPSTR instance, LPSTR event) {
-        if(trace_event) {
+        if (trace_event) {
             trace_event(instance, event);
             return true;
         }
         return false;
     }
-
 }
 
 auto dequeue_render_context = [](int count) {

@@ -38,6 +38,13 @@ namespace net::server
         return std::move(future_socket);
     }
 
+    void acceptor<boost::asio::ip::tcp>::close(bool cancel) {
+        if (cancel) {
+            return acceptor_.cancel();
+        }
+        acceptor_.close();
+    }
+
     folly::Function<void(boost::system::error_code errc,
                          boost::asio::ip::tcp::socket socket)>
     acceptor<boost::asio::ip::tcp>::on_accept() {

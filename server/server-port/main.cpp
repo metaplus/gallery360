@@ -26,8 +26,8 @@
 #include "server/app.cpp"
 #include "server/option.cpp"
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     app::parse_options(argc, argv);
     app::run();
-    return 0;
 }

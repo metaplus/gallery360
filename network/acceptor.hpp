@@ -37,6 +37,8 @@ namespace net::server
                 });
         }
 
+        void close(bool cancel = false);
+
     private:
         folly::Function<void(boost::system::error_code errc,
                              boost::asio::ip::tcp::socket socket)>

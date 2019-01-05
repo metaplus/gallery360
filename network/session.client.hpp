@@ -23,15 +23,15 @@ namespace net::client
         using trace_callback = std::function<void(std::string_view, std::string)>;
         using trace_callback_wrapper = std::function<void(std::string)>;
 
+        const std::shared_ptr<spdlog::logger> logger_;
         folly::Synchronized<request_list> request_list_;
         std::optional<response_parser<dynamic_body>> response_parser_;
-        const int64_t index_ = 0;
-        const std::string identity_;
-        const std::shared_ptr<spdlog::logger> logger_;
         mutable bool active_ = true;
         mutable trace_callback_wrapper trace_callback_;
 
     public:
+        using pointer = std::unique_ptr<session>;
+
         session(socket_type&& socket,
                 boost::asio::io_context& context);
 
@@ -60,8 +60,8 @@ namespace net::client
                 });
         }
 
-        static http_session_ptr create(socket_type&& socket,
-                                       boost::asio::io_context& context);
+        static pointer create(socket_type&& socket,
+                              boost::asio::io_context& context);
 
         void trace_by(trace_callback callback);
 
@@ -73,7 +73,7 @@ namespace net::client
                                          boost::system::error_code errc,
                                          boost::asio::socket_base::shutdown_type operation) {
             request_list_.withWLock(
-                [this, errc, operation, &exception](request_list& request_list) {
+                [=, &exception](request_list& request_list) {
                     for (auto& request : request_list) {
                         request(std::forward<Exception>(exception));
                     }

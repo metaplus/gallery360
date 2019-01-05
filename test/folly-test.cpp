@@ -342,6 +342,31 @@ namespace folly_test
             EXPECT_EQ(id3, id0);
             EXPECT_GT(t3, t1);
         }
+        {
+            auto pool = core::make_pool_executor(4);
+            folly::stop_watch<milliseconds> w;
+            auto id0 = folly::getCurrentThreadID();
+            auto id1 = 0ui64;
+            executor.add([&] {
+                auto f = folly::via(pool.get(), [&] {
+                    std::this_thread::sleep_for(10ms);
+                    id1 = folly::getCurrentThreadID();
+                    EXPECT_GE(w.elapsed(), 10ms);
+                    EXPECT_LT(w.elapsed(), 20ms);
+                    return 1;
+                }).then(&executor, [&](int) {
+                    std::this_thread::sleep_for(10ms);
+                    EXPECT_EQ(id1, folly::getCurrentThreadID());
+                    EXPECT_GE(w.elapsed(), 20ms);
+                    EXPECT_LT(w.elapsed(), 30ms);
+                    return 2;
+                });
+                EXPECT_EQ(w.elapsed(), 0ms);
+                f.wait();
+                EXPECT_GE(w.elapsed(), 20ms);
+                EXPECT_LT(w.elapsed(), 30ms);
+            });
+        }
     }
 
     auto config_executor = [](auto concurrency) {
@@ -355,8 +380,8 @@ namespace folly_test
         auto* executor = config_executor(1);
         auto [p, sf] = folly::makePromiseContract<int>();
         auto id0 = folly::getCurrentThreadID();
-        auto id1 = 0;
-        auto id2 = 0;
+        auto id1 = 0ui64;
+        auto id2 = 0ui64;
         executor->add(
             [&] {
                 std::this_thread::sleep_for(1s);
@@ -709,7 +734,7 @@ namespace folly_test
         auto parsed = folly::parseJson(document);
         EXPECT_EQ(parsed["key"], 12);
         EXPECT_EQ(parsed["key2"][0], false);
-        EXPECT_EQ(parsed["key2"][1], nullptr);
+        EXPECT_TRUE(parsed["key2"][1] == nullptr);
         folly::dynamic dyn = folly::dynamic::object
             ("key2", folly::dynamic::array(false, nullptr, true, "yay"))
             ("key", 12);
@@ -747,5 +772,16 @@ namespace folly_test
             EXPECT_GE(res, 0);
             EXPECT_LT(res, 1);
         });
+    }
+
+    TEST(Baton, MultiPose) {
+        folly::Baton<false> b;
+        EXPECT_FALSE(b.ready());
+        b.post();
+        EXPECT_NO_THROW(b.post());
+        EXPECT_NO_THROW(b.post());
+        EXPECT_TRUE(b.ready());
+        b.reset();
+        EXPECT_FALSE(b.ready());
     }
 }

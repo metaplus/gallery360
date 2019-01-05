@@ -7,7 +7,7 @@ namespace re2_test
         int i;
         std::string s;
         EXPECT_TRUE(RE2::FullMatch("ruby:1234", "(\\w+):(\\d+)", &s, &i));
-        EXPECT_THAT(s, StrEq("ruby"));
+        EXPECT_EQ(s, "ruby");
         EXPECT_EQ(i, 1234);
         EXPECT_FALSE(RE2::FullMatch("ruby", "(.+)", &i));
         EXPECT_TRUE(RE2::FullMatch("ruby:1234", "(\\w+):(\\d+)", &s));
@@ -38,25 +38,25 @@ namespace re2_test
         {
             auto str = "tile9-576p-1500kbps_dash$Number$.m4s"s;
             EXPECT_TRUE(RE2::Replace(&str, "\\$Number\\$", folly::to<std::string>(666)));
-            EXPECT_THAT(str, StrEq("tile9-576p-1500kbps_dash666.m4s"));
+            EXPECT_EQ(str, "tile9-576p-1500kbps_dash666.m4s");
         }
         {
             auto str = "tile9-576p-1500kbps_dash$Number$$Number$.m4s"s;
             EXPECT_TRUE(RE2::Replace(&str, "\\$Number\\$", folly::to<std::string>(666)));
-            EXPECT_THAT(str, StrEq("tile9-576p-1500kbps_dash666$Number$.m4s"));
+            EXPECT_EQ(str, "tile9-576p-1500kbps_dash666$Number$.m4s");
             EXPECT_TRUE(RE2::Replace(&str, "\\$Number\\$", folly::to<std::string>(666)));
-            EXPECT_THAT(str, StrEq("tile9-576p-1500kbps_dash666666.m4s"));
+            EXPECT_EQ(str, "tile9-576p-1500kbps_dash666666.m4s");
             EXPECT_FALSE(RE2::Replace(&str, "\\$Number\\$", folly::to<std::string>(666)));
         }
         {
             auto str = "banana"s;
             EXPECT_TRUE(RE2::GlobalReplace(&str, "ana", folly::to<std::string>(1)));
-            EXPECT_THAT(str, StrEq("b1na"));
+            EXPECT_EQ(str, "b1na");
         }
         {
             auto str = "banana"s;
             EXPECT_TRUE(RE2::GlobalReplace(&str, "an", folly::to<std::string>(1)));
-            EXPECT_THAT(str, StrEq("b11a"));
+            EXPECT_EQ(str, "b11a");
         }
     }
 
@@ -64,17 +64,17 @@ namespace re2_test
         auto str = "tile9-576p-1500kbps_dash$Number$$Number$.m4s"s;
         auto extract = "123"s;
         EXPECT_TRUE(RE2::Extract(str, "\\$Number\\$", folly::to<std::string>(666), &extract));
-        EXPECT_THAT(str, StrEq("tile9-576p-1500kbps_dash$Number$$Number$.m4s"));
-        EXPECT_THAT(extract, StrNe("123"));
-        EXPECT_THAT(extract, StrEq("666"));
+        EXPECT_EQ(str, "tile9-576p-1500kbps_dash$Number$$Number$.m4s");
+        EXPECT_EQ(extract, "123");
+        EXPECT_EQ(extract, "666");
         EXPECT_TRUE(RE2::Extract(str, "\\$Number\\$", folly::to<std::string>(666), &extract));
         EXPECT_TRUE(RE2::Extract(str, "\\$Number\\$", folly::to<std::string>(666), &extract));
-        EXPECT_THAT(extract, StrEq("666"));
+        EXPECT_EQ(extract, "666");
     }
 
     TEST(Re2, QuoteMeta) {
-        EXPECT_THAT(RE2::QuoteMeta(".-?$"), StrEq("\\.\\-\\?\\$"));
-        EXPECT_THAT(RE2::QuoteMeta("123abc"), StrEq("123abc"));
+        EXPECT_EQ(RE2::QuoteMeta(".-?$"), "\\.\\-\\?\\$");
+        EXPECT_EQ(RE2::QuoteMeta("123abc"), "123abc");
     }
 
     TEST(Re2, Consume) {
@@ -85,11 +85,11 @@ namespace re2_test
             auto index = 0;
             while (RE2::Consume(&input, "(\\w+?)b", &consume) && ++index) {
                 if (index == 1) {
-                    EXPECT_THAT(input.data(), StrEq("cd12b456"));
-                    EXPECT_THAT(consume, StrEq("a"));
+                    EXPECT_EQ(input.data(), "cd12b456");
+                    EXPECT_EQ(consume, "a");
                 } else if (index == 2) {
-                    EXPECT_THAT(input.data(), StrEq("456"));
-                    EXPECT_THAT(consume, StrEq("cd12"));
+                    EXPECT_EQ(input.data(), "456");
+                    EXPECT_EQ(consume, "cd12");
                 } else {
                     FAIL();
                 }
@@ -115,11 +115,11 @@ namespace re2_test
         auto index = 0;
         while (RE2::FindAndConsume(&input, "(.b)", &consume) && ++index) {
             if (index == 1) {
-                EXPECT_THAT(input.data(), StrEq("cd12b456"));
-                EXPECT_THAT(consume, "ab");
+                EXPECT_STREQ(input.data(), "cd12b456");
+                EXPECT_EQ(consume, "ab");
             } else if (index == 2) {
-                EXPECT_THAT(input.data(), StrEq("456"));
-                EXPECT_THAT(consume, "2b");
+                EXPECT_STREQ(input.data(), "456");
+                EXPECT_EQ(consume, "2b");
             } else {
                 FAIL();
             }

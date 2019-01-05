@@ -14,9 +14,9 @@ namespace detail
         boost::asio::io_context& context_;
         boost::asio::basic_stream_socket<Protocal> socket_;
         buffer_type recvbuf_;
+        const int64_t index_ = 0;
+        const std::string identity_;
         mutable int64_t round_index_ = -1;
-
-        // static_assert(boost::asio::is_mutable_buffer_sequence<buffer_type>::value);
 
         session_base(boost::asio::basic_stream_socket<Protocal>&& socket,
                      boost::asio::io_context& context)
@@ -30,6 +30,14 @@ namespace detail
 
         void reserve_recvbuf_capacity(size_t size = boost::asio::detail::default_max_transfer_size) {
             recvbuf_.prepare(size);
+        }
+
+        int64_t index() const {
+            return index_;
+        }
+
+        const std::string& identity() const {
+            return identity_;
         }
 
         template<

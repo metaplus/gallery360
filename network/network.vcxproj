@@ -161,25 +161,25 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="acceptor.hpp" />
-    <ClInclude Include="client.hpp" />
+    <ClInclude Include="session.client.hpp" />
     <ClInclude Include="component.h" />
     <ClInclude Include="connector.hpp" />
     <ClInclude Include="net.hpp" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="server.hpp" />
-    <ClInclude Include="session_base.h" />
+    <ClInclude Include="session.server.hpp" />
+    <ClInclude Include="session.base.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="acceptor.cpp" />
-    <ClCompile Include="client.cpp" />
+    <ClCompile Include="sesssion.client.cpp" />
     <ClCompile Include="component.cpp" />
     <ClCompile Include="connector.cpp" />
     <ClCompile Include="net.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_DEBUG;_LIB;%(PreprocessorDefinitions);_NET_PROJECT;_NET_CONFIG_DIR=R"($(ProjectDir))";</PreprocessorDefinitions>
     </ClCompile>
-    <ClCompile Include="server.cpp" />
+    <ClCompile Include="session.server.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

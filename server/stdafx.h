@@ -20,7 +20,7 @@
 // TODO: reference additional headers your program requires here
 #include "core/pch.h"
 #include "network/pch.h"
-#include "network/server.hpp"
+#include "network/session.server.hpp"
 #include "network/acceptor.hpp"
 
 #pragma comment(lib,"Ws2_32")
