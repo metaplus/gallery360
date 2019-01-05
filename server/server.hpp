@@ -4,20 +4,18 @@ namespace app
 {
     class server final
     {
+        using session_type = net::server::session<net::protocal::http>;
+        using socket_type = session_type::socket_type;
+
+        std::unordered_map<boost::asio::ip::tcp::endpoint,
+                           session_type::pointer> session_map_;
         uint16_t port_ = 0;
         std::string directory_;
-        folly::ConcurrentHashMap<
-            boost::asio::ip::tcp::endpoint,
-            net::server::session_ptr<net::protocal::http>
-        > session_map_;
-        folly::USPSCQueue<
-            folly::SemiFuture<boost::asio::ip::tcp::socket>, true
-        > socket_queue_;
-        std::shared_ptr<boost::asio::io_context> asio_pool_;
         net::server::acceptor<boost::asio::ip::tcp> acceptor_;
         boost::asio::signal_set signals_;
-        std::shared_ptr<folly::ThreadedExecutor> worker_executor_;
+        folly::Baton<false> cancel_accept_;
         std::shared_ptr<spdlog::logger> logger_;
+        std::shared_ptr<boost::asio::io_context> asio_pool_;
 
     public:
         struct session_emplace_error final : std::runtime_error
@@ -37,67 +35,61 @@ namespace app
 #else
 #error unrecognized platform
 #endif
-            , asio_pool_{ net::make_asio_pool(std::thread::hardware_concurrency()) }
             , acceptor_{ port_, *asio_pool_ }
             , signals_{ *asio_pool_, SIGINT, SIGTERM }
-            , worker_executor_{ core::make_threaded_executor("ServerWorker") }
-            , logger_{ spdlog::stdout_color_mt("server") } {
+            , logger_{ spdlog::stdout_color_mt("server") }
+            , asio_pool_{ net::make_asio_pool(std::thread::hardware_concurrency()) } {
+
             logger_->info("root directory {}", directory_);
-            signals_.async_wait([&](boost::system::error_code error,
-                                    int signal_count) {
+            signals_.async_wait([this](boost::system::error_code error,
+                                       int signal_count) {
+                cancel_accept_.post();
                 acceptor_.close();
                 asio_pool_->stop();
             });
         }
 
-        server& spawn_session_builder() {
-            worker_executor_->add(
-                [this] {
-                    auto socket = folly::SemiFuture<boost::asio::ip::tcp::socket>::makeEmpty();
-                    try {
-                        do {
-                            socket_queue_.dequeue(socket);
-                            auto endpoint = socket.value().remote_endpoint();
-                            auto session = net::server::session<net::protocal::http>::create(
-                                std::move(socket).get(), *asio_pool_, directory_,
-                                [this, endpoint] {
-                                    const auto erase_count = session_map_.erase(endpoint);
-                                    logger_->warn("session with endpoint {} erased {}", endpoint, erase_count);
-                                });
-                            assert(endpoint == session->remote_endpoint());
-                            auto [session_iterator, success] = session_map_.emplace(endpoint, std::move(session));
-                            if (!success) {
-                                logger_->error("endpoint duplicate");
-                                throw session_emplace_error{ "ConcurrentHashMap emplace fail" };
-                            }
-                            assert(endpoint == session_iterator->first);
-                            session_iterator->second->wait_request();
-                        } while (true);
-                    } catch (const std::exception& e) {
-                        logger_->error("worker catch exception \n{}", boost::diagnostic_information(e));
-                    }
-                });
-            return *this;
-        }
-
-        void loop_listen() {
-            while (true) {
+        void establish_sessions(std::shared_ptr<folly::ThreadPoolExecutor> pool_executor) {
+            using session_iterator = decltype(session_map_)::iterator;
+            auto serial_executor = folly::SerialExecutor::create(folly::getKeepAliveToken(pool_executor.get()));
+            std::vector<folly::Future<folly::Unit>> procedure_list;
+            while (!cancel_accept_.ready()) {
                 logger_->info("port {} listening", port_);
-                socket_queue_.enqueue(acceptor_.accept_socket()
-                                               .wait());
-                logger_->info("socket accepted");
+                auto session_procedure =
+                    acceptor_.accept_socket().wait()
+                             .via(pool_executor.get()).thenValue(
+                                 [this](socket_type socket) {
+                                     return session_type::create(
+                                         std::move(socket), *asio_pool_, directory_);
+                                 })
+                             .thenMultiWithExecutor(
+                                 serial_executor.get(),
+                                 [this](session_type::pointer session) {
+                                     auto endpoint = session->remote_endpoint();
+                                     auto [iterator, success] = session_map_.emplace(endpoint, std::move(session));
+                                     if (!success) {
+                                         logger_->error("endpoint duplicate");
+                                         cancel_accept_.post();
+                                         throw session_emplace_error{ "session_map_ emplace fail" };
+                                     }
+                                     return folly::collectAllSemiFuture(
+                                         iterator->second->process_requests(),
+                                         folly::makeSemiFuture(iterator));
+                                 },
+                                 [this](std::tuple<folly::Try<folly::Unit>,
+                                                   folly::Try<session_iterator>> tuple) {
+                                     auto iterator = std::get<folly::Try<session_iterator>>(tuple).value();
+                                     logger_->warn("erase {} left {}", iterator->second->identity(), session_map_.size() - 1);
+                                     iterator = session_map_.erase(iterator);
+                                 });
+                procedure_list.push_back(std::move(session_procedure));
             }
-        }
-
-        static void run() {
-            auto logger = core::console_logger_access("app");
-            try {
-                app::server{}.spawn_session_builder()
-                             .loop_listen();
-            } catch (...) {
-                logger()->error("catch exception \n{}", boost::current_exception_diagnostic_information());
-            }
-            logger()->info("application quit");
+            const auto result_list = folly::collectAll(procedure_list).get();
+            const auto success = std::count_if(result_list.begin(), result_list.end(),
+                                               [](folly::Try<folly::Unit> result) {
+                                                   return result.hasValue();
+                                               });
+            logger_->info("exit success {} of {}", success, result_list.size());
         }
     };
 }

@@ -20,9 +20,9 @@
 
 #ifdef _WIN32
 #include "network/pch.h"
-#include "network/server.hpp"
+#include "network/session.server.hpp"
+#include "network/session.client.hpp"
 #include "network/acceptor.hpp"
-#include "network/client.hpp"
 #include "network/connector.hpp"
 #endif
 

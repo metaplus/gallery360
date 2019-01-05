@@ -75,16 +75,10 @@ using namespace std::literals;
 #include <folly/container/Iterator.h>
 #include <folly/executors/Async.h>
 #include <folly/executors/GlobalExecutor.h>
+#include <folly/executors/SerialExecutor.h>
 #include <folly/executors/ThreadedExecutor.h>
 #include <folly/executors/ThreadPoolExecutor.h>
 #include <folly/Function.h>
-#include <folly/fibers/Fiber.h>
-#include <folly/fibers/FiberManager.h>
-#include <folly/fibers/AddTasks.h>
-#include <folly/fibers/ForEach.h>
-#include <folly/fibers/Promise.h>
-#include <folly/fibers/Semaphore.h>
-#include <folly/fibers/WhenN.h>
 #include <folly/futures/Barrier.h>
 #include <folly/futures/Future.h>
 #include <folly/futures/FutureSplitter.h>
@@ -100,6 +94,7 @@ using namespace std::literals;
 #include <folly/Uri.h>
 
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/ip/basic_endpoint.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
 #include <boost/container/small_vector.hpp>
@@ -142,11 +137,4 @@ using namespace fmt::literals;
 #include "core/verify.hpp"
 
 using namespace core::literals;
-#endif
-
-#if CORE_CONCURRENCY
-#include "concurrency/async_chain.hpp"
-#include "concurrency/barrier.hpp"
-#include "concurrency/latch.hpp"
-#include "concurrency/synchronize.hpp"
 #endif

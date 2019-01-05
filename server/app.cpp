@@ -7,8 +7,8 @@ namespace app
         auto logger = spdlog::stdout_color_mt("app");
         logger->info("application run");
         try {
-            server{}.spawn_session_builder()
-                    .loop_listen();
+            const auto executor = core::set_cpu_executor(2, "ServerPool");
+            app::server{}.establish_sessions(executor);
         } catch (...) {
             logger->error("catch exception \n{}", boost::current_exception_diagnostic_information());
         }

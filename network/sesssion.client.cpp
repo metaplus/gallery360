@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "client.hpp"
+#include "session.client.hpp"
 
 namespace net::client
 {
@@ -7,32 +7,32 @@ namespace net::client
 
     auto make_logger = core::console_logger_factory("net.client.session");
 
-    http_session::session(socket_type&& socket,
-                          boost::asio::io_context& context)
-        : session_base(std::move(socket), context) {
+    session<protocal::http>::session(socket_type&& socket,
+                                     boost::asio::io_context& context)
+        : session_base{ std::move(socket), context } {
         assert(socket_.is_open());
         std::tie(core::as_mutable(index_),
                  core::as_mutable(logger_)) = make_logger();
-        core::as_mutable(identity_) = fmt::format("http_session${}", index_);
-        #ifdef NDEBUG
+        core::as_mutable(identity_) = fmt::format("session${}", index_);
+#ifdef NDEBUG
         logger_->set_level(spdlog::level::warn);
-        #endif
+#endif
         logger_->info("constructor socket endpoint client {} server {}", socket_.local_endpoint(), socket_.remote_endpoint());
         reserve_recvbuf_capacity();
     }
 
-    http_session_ptr session<protocal::http>::create(socket_type&& socket,
-                                                     boost::asio::io_context& context) {
+    auto session<protocal::http>::create(socket_type&& socket,
+                                         boost::asio::io_context& context) -> pointer {
         return std::make_unique<http_session>(std::move(socket),
                                               context);
     }
 
-    void http_session::config_response_parser() {
+    void session<protocal::http>::config_response_parser() {
         response_parser_.emplace()
                         .body_limit(std::numeric_limits<uint64_t>::max());
     }
 
-    auto http_session::on_recv_response(int64_t index) {
+    auto session<protocal::http>::on_recv_response(int64_t index) {
         return [=](boost::system::error_code errc,
                    std::size_t transfer_size) mutable {
             logger_->info("on_recv_response errc {} transfer {}", errc, transfer_size);
@@ -58,7 +58,7 @@ namespace net::client
         };
     }
 
-    auto http_session::on_send_request(int64_t index, std::any&& request) {
+    auto session<protocal::http>::on_send_request(int64_t index, std::any&& request) {
         return [=, request = std::move(request)](boost::system::error_code errc,
                                                  std::size_t transfer_size) mutable {
             logger_->info("on_send_request errc {} transfer {}", errc, transfer_size);
@@ -73,13 +73,13 @@ namespace net::client
         };
     }
 
-    void http_session::trace_by(trace_callback callback) {
+    void session<protocal::http>::trace_by(trace_callback callback) {
         trace_callback_ = [this, callback = std::move(callback)](std::string event) mutable {
             callback(identity_, std::move(event));
         };
     }
 
-    auto http_session::send_request(request<empty_body>&& request)
+    auto session<protocal::http>::send_request(request<empty_body>&& request)
     -> folly::SemiFuture<response<dynamic_body>> {
         logger_->info("send_request empty body");
         auto [promise_response, future_response] = folly::makePromiseContract<response<dynamic_body>>();

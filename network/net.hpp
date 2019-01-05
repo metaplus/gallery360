@@ -1,11 +1,9 @@
 #pragma once
 
-using namespace core::literals;
 
 namespace net
 {
-    template<typename... Options>
-    struct policy;
+    using namespace core::literals;
 
     inline constexpr size_t default_max_chunk_size = 128_kbyte;
     inline constexpr size_t default_max_chunk_quantity = 1024;
@@ -20,7 +18,7 @@ namespace net
 
     namespace protocal
     {
-        template<typename Protocal>
+        template <typename Protocal>
         struct base;
 
         struct http
@@ -29,32 +27,30 @@ namespace net
             constexpr static auto default_method = boost::beast::http::verb::get;
         };
 
-        template<>
+        template <>
         struct base<http>
         {
-            template<typename Body>
+            template <typename Body>
             using response = boost::beast::http::response<Body, boost::beast::http::fields>;
-            template<typename Body>
+            template <typename Body>
             using request = boost::beast::http::request<Body, boost::beast::http::fields>;
-            template<typename Body>
+            template <typename Body>
             using response_parser = boost::beast::http::response_parser<Body>;
-            template<typename Body>
+            template <typename Body>
             using request_parser = boost::beast::http::request_parser<Body>;
-            template<typename Body>
+            template <typename Body>
             using response_ptr = std::unique_ptr<response<Body>>;
-            template<typename Body>
+            template <typename Body>
             using request_ptr = std::unique_ptr<request<Body>>;
             using under_protocal_type = boost::asio::ip::tcp;
             using socket_type = boost::asio::ip::tcp::socket;
         };
 
-        struct tcp { };
+        struct tcp final { };
 
-        struct udp { };
+        struct udp final { };
 
-        struct icmp { };
-
-        template<>
+        template <>
         struct base<tcp>
         {
             using protocal_type = boost::asio::ip::tcp;
@@ -62,7 +58,7 @@ namespace net
             using context_type = boost::asio::io_context;
         };
 
-        template<>
+        template <>
         struct base<udp>
         {
             using protocal_type = boost::asio::ip::udp;
@@ -133,7 +129,7 @@ namespace net
         };
     }
 
-    template<typename Body>
+    template <typename Body>
     boost::beast::http::request<Body> make_http_request(const std::string& host,
                                                         const std::string& target) {
         static_assert(boost::beast::http::is_body<Body>::value);
@@ -153,7 +149,7 @@ namespace net
     std::string config_xml_entry(std::vector<std::string> entry_path);
     nlohmann::json::reference config_json_entry(std::vector<std::string> entry_path);
 
-    template<typename T>
+    template <typename T>
     T config_entry(std::string_view entry_name) {
         std::vector<std::string> entry_path;
         folly::split('.', entry_name, entry_path);
@@ -168,8 +164,8 @@ namespace net
     std::shared_ptr<boost::asio::io_context> make_asio_pool(unsigned concurrency);
 }
 
-template<typename Protocal>
-struct std::less<boost::asio::basic_socket<Protocal>>
+template <typename Protocal>
+struct std::less<boost::asio::basic_socket<Protocal>> final
 {
     bool operator()(boost::asio::basic_socket<Protocal> const& sock1,
                     boost::asio::basic_socket<Protocal> const& sock2) const {
@@ -179,8 +175,8 @@ struct std::less<boost::asio::basic_socket<Protocal>>
     }
 };
 
-template<typename Protocal>
-struct std::equal_to<boost::asio::basic_socket<Protocal>>
+template <typename Protocal>
+struct std::equal_to<boost::asio::basic_socket<Protocal>> final
 {
     bool operator()(boost::asio::basic_socket<Protocal> const& sock1,
                     boost::asio::basic_socket<Protocal> const& sock2) const {
@@ -189,8 +185,8 @@ struct std::equal_to<boost::asio::basic_socket<Protocal>>
     }
 };
 
-template<typename Protocal>
-struct std::hash<boost::asio::ip::basic_endpoint<Protocal>>
+template <typename Protocal>
+struct std::hash<boost::asio::ip::basic_endpoint<Protocal>> final
 {
     using argument_type = boost::asio::ip::basic_endpoint<Protocal>;
     using result_type = size_t;

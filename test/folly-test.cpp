@@ -342,6 +342,31 @@ namespace folly_test
             EXPECT_EQ(id3, id0);
             EXPECT_GT(t3, t1);
         }
+        {
+            auto pool = core::make_pool_executor(4);
+            folly::stop_watch<milliseconds> w;
+            auto id0 = folly::getCurrentThreadID();
+            auto id1 = 0ui64;
+            executor.add([&] {
+                auto f = folly::via(pool.get(), [&] {
+                    std::this_thread::sleep_for(10ms);
+                    id1 = folly::getCurrentThreadID();
+                    EXPECT_GE(w.elapsed(), 10ms);
+                    EXPECT_LT(w.elapsed(), 20ms);
+                    return 1;
+                }).then(&executor, [&](int) {
+                    std::this_thread::sleep_for(10ms);
+                    EXPECT_EQ(id1, folly::getCurrentThreadID());
+                    EXPECT_GE(w.elapsed(), 20ms);
+                    EXPECT_LT(w.elapsed(), 30ms);
+                    return 2;
+                });
+                EXPECT_EQ(w.elapsed(), 0ms);
+                f.wait();
+                EXPECT_GE(w.elapsed(), 20ms);
+                EXPECT_LT(w.elapsed(), 30ms);
+            });
+        }
     }
 
     auto config_executor = [](auto concurrency) {
@@ -749,7 +774,14 @@ namespace folly_test
         });
     }
 
-    TEST(Fiber, Await) {
-        EXPECT_FALSE(folly::fibers::onFiber());
+    TEST(Baton, MultiPose) {
+        folly::Baton<false> b;
+        EXPECT_FALSE(b.ready());
+        b.post();
+        EXPECT_NO_THROW(b.post());
+        EXPECT_NO_THROW(b.post());
+        EXPECT_TRUE(b.ready());
+        b.reset();
+        EXPECT_FALSE(b.ready());
     }
 }
