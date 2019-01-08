@@ -135,8 +135,8 @@ namespace core
     }
 
     template <typename Handle>
-    decltype(auto) get_pointer(Handle && handle,
-                               std::enable_if_t < meta::has_operator_dereference<Handle>::value > * = nullptr) {
+    decltype(auto) get_pointer(Handle&& handle,
+                               std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr) {
         return std::forward<Handle>(handle).operator->();
     }
 
@@ -205,12 +205,13 @@ namespace core
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
                                                                   std::string_view pool_name = "CorePool");
 
-    folly::Function<
-        std::pair<int64_t, std::shared_ptr<spdlog::logger>>()>
-    console_logger_factory(std::string logger_group);
+    using logger_access = folly::Function<spdlog::logger&() const>;
+    using logger_process = folly::Function<void(spdlog::logger&)>;
 
-    folly::Function<
-        std::shared_ptr<spdlog::logger>&()>
-    console_logger_access(std::string logger_name,
-                          folly::Function<void(spdlog::logger &)> post_process = nullptr);
+    folly::Function<std::pair<int64_t, logger_access>()>
+    console_logger_factory(std::string logger_group, bool null = false);
+
+    logger_access console_logger_access(std::string logger_name,
+                                        logger_process post_process = nullptr);
+    logger_access null_logger_access(std::string logger_name);
 }

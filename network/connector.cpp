@@ -10,7 +10,7 @@ namespace net::client
         , resolver_(context) {}
 
     void connector<protocal::tcp>::shutdown_and_reject_request(boost::system::error_code errc) {
-        logger()->error("close errc {} errmsg {}", errc, errc.message());
+        logger().error("close errc {} errmsg {}", errc, errc.message());
         resolver_.cancel();
         for (auto& entry : *resolve_list_.wlock()) {
             entry.socket.setException(std::runtime_error{ errc.message() });
@@ -22,7 +22,7 @@ namespace net::client
     connector<protocal::tcp>::on_resolve(std::list<entry>::iterator entry_iter) {
         return [this, entry_iter](boost::system::error_code errc,
                                   boost::asio::ip::tcp::resolver::results_type endpoints) {
-            logger()->info("on_resolve errc {} errmsg {}", errc, errc.message());
+            logger().info("on_resolve errc {} errmsg {}", errc, errc.message());
             if (errc) {
                 entry_iter->socket.setException(std::runtime_error{ errc.message() });
                 return shutdown_and_reject_request(errc);
@@ -33,7 +33,7 @@ namespace net::client
                 socket_ref, endpoints,
                 [this, socket_ptr = std::move(socket_ptr), entry = std::move(*entry_iter)](boost::system::error_code errc,
                                                                                            boost::asio::ip::tcp::endpoint endpoint) mutable {
-                    logger()->info("on_connect errc {} errmsg {}", errc, errc.message());
+                    logger().info("on_connect errc {} errmsg {}", errc, errc.message());
                     if (errc) {
                         entry.socket.setException(std::runtime_error{ errc.message() });
                         return shutdown_and_reject_request(errc);
@@ -45,8 +45,7 @@ namespace net::client
                     resolve_list.erase(entry_iter);
                     if (resolve_list.size()) {
                         return boost::asio::dispatch(context_, [this, entry_iterator = resolve_list.begin()] {
-                            resolver_.async_resolve(entry_iterator->host,
-                                                    entry_iterator->service,
+                            resolver_.async_resolve(entry_iterator->host, entry_iterator->service,
                                                     on_resolve(entry_iterator));
                         });
                     }

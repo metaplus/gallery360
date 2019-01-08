@@ -5,7 +5,7 @@ auto logger = core::console_logger_access("app.options");
 
 auto logged_wrapper = [](auto info, auto notifier) {
     return [=](auto option) {
-        logger()->info("parse {} value {}", info, option);
+        logger().info("parse {} value {}", info, option);
         notifier(option);
     };
 };
@@ -44,7 +44,7 @@ auto iterate_option_details = [](auto process) {
 namespace app
 {
     void parse_options(int argc, char* argv[]) {
-        logger()->info("parsing {} launching parameters", argc - 1);
+        logger().info("parsing {} launching parameters", argc - 1);
         boost::program_options::options_description description{ "server launch options" };
         iterate_option_details(
             [add_options = description.add_options()](auto& option, auto& detail) mutable {
@@ -59,7 +59,7 @@ namespace app
         boost::program_options::notify(options);
         if (options.count("help")) {
             fmt::print("{}", description);
-            std::exit(0);
+            std::exit(EXIT_SUCCESS);
         }
     }
 }
