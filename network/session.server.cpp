@@ -11,7 +11,6 @@ namespace net::server
                                      boost::asio::io_context& context)
         : session_base{ std::move(socket), context } {
         assert(socket_.is_open());
-        assert(std::filesystem::is_directory(root_path_));
         std::tie(core::as_mutable(index_),
                  core::as_mutable(logger_)) = make_logger();
         core::as_mutable(identity_) = fmt::format("session${}", index_);
@@ -20,6 +19,7 @@ namespace net::server
     }
 
     session<protocal::http>& session<protocal::http>::root_directory(std::filesystem::path root) {
+        assert(std::filesystem::is_directory(root));
         root_path_ = std::move(root);
         return *this;
     }

@@ -10,7 +10,7 @@ namespace net::server
                                              bool reuse_addr)
         : context_(context)
         , acceptor_(context, endpoint, reuse_addr) {
-        core::verify(acceptor_.is_open());
+        assert(acceptor_.is_open());
         logger()->info("listen address {}, port {}", endpoint.address(), listen_port());
     }
 
@@ -18,8 +18,7 @@ namespace net::server
                                              boost::asio::io_context& context,
                                              bool reuse_addr)
         : acceptor(boost::asio::ip::tcp::endpoint{ boost::asio::ip::tcp::v4(), port },
-                   context,
-                   reuse_addr) {}
+                   context, reuse_addr) {}
 
     uint16_t acceptor<boost::asio::ip::tcp>::listen_port() const {
         return acceptor_.local_endpoint().port();

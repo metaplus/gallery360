@@ -11,11 +11,11 @@ namespace app
                            session_type::pointer> session_map_;
         uint16_t port_ = 0;
         std::string directory_;
+        std::shared_ptr<boost::asio::io_context> asio_pool_;
         net::server::acceptor<boost::asio::ip::tcp> acceptor_;
         boost::asio::signal_set signals_;
         folly::Baton<false> cancel_accept_;
         std::shared_ptr<spdlog::logger> logger_;
-        std::shared_ptr<boost::asio::io_context> asio_pool_;
 
     public:
         struct session_emplace_error final : std::runtime_error
@@ -35,11 +35,10 @@ namespace app
 #else
 #error unrecognized platform
 #endif
+            , asio_pool_{ net::make_asio_pool(std::thread::hardware_concurrency()) }
             , acceptor_{ port_, *asio_pool_ }
             , signals_{ *asio_pool_, SIGINT, SIGTERM }
-            , logger_{ spdlog::stdout_color_mt("server") }
-            , asio_pool_{ net::make_asio_pool(std::thread::hardware_concurrency()) } {
-
+            , logger_{ spdlog::stdout_color_mt("server") } {
             logger_->info("root directory {}", directory_);
             signals_.async_wait([this](boost::system::error_code error,
                                        int signal_count) {

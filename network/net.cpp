@@ -268,7 +268,7 @@ namespace net
         static const auto config_document = folly::lazy(
             [] {
                 auto config_document = std::make_unique<tinyxml2::XMLDocument>();
-                const auto load_success = config_document->LoadFile(config_path(false).string().data());
+                [[maybe_unused]] const auto load_success = config_document->LoadFile(config_path(false).string().data());
                 assert(load_success == tinyxml2::XML_SUCCESS);
                 return config_document;
             });

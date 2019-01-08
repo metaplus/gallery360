@@ -33,40 +33,6 @@ namespace media
 
     class cursor_base;
 
-    struct io
-    {
-        class cursor_view
-        {
-        protected:
-            std::weak_ptr<cursor_base> cursor_{};
-        public:
-            cursor_view() = default;
-            cursor_view(const cursor_view&) = default;
-            cursor_view(cursor_view&&) noexcept = default;
-
-            cursor_view& operator=(const cursor_view&) = default;
-            cursor_view& operator=(cursor_view&&) noexcept = default;
-            virtual ~cursor_view() = default;
-
-            bool active() const noexcept;
-        };
-
-        struct reader : cursor_view
-        {
-            virtual int read(uint8_t* buffer, int size);
-        };
-
-        struct writer : cursor_view
-        {
-            virtual int write(uint8_t* buffer, int size);
-        };
-
-        struct seeker : cursor_view
-        {
-            virtual int64_t seek(int64_t offset, int whence);
-        };
-    };
-
     namespace detail
     {
         using boost::asio::const_buffer;
@@ -78,7 +44,7 @@ namespace media
     class buffer_list_cursor final : public io_base
     {
         std::list<detail::const_buffer> buffer_list_;
-        std::list<detail::const_buffer>::iterator buffer_iter_;
+        std::list<detail::const_buffer>::iterator buffer_iterator_;
         int64_t offset_ = 0;
         int64_t full_read_size_ = 0;
         int64_t full_offset_ = 0;
@@ -107,7 +73,7 @@ namespace media
     {
         const detail::const_buffer_iterator buffer_begin;
         const detail::const_buffer_iterator buffer_end;
-        detail::const_buffer_iterator buffer_iter;
+        detail::const_buffer_iterator buffer_iterator;
         int64_t buffer_offset = 0;
         int64_t sequence_offset = 0;
         std::vector<int64_t> const buffer_sizes;
