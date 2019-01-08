@@ -8,8 +8,8 @@ using boost::logic::tribool;
 using boost::logic::indeterminate;
 using net::protocal::http;
 using net::protocal::dash;
-using net::client::http_session_ptr;
 using ordinal = std::pair<int16_t, int16_t>;
+using http_session_ptr = net::client::session<http>::pointer;
 using io_context_ptr = std::invoke_result_t<decltype(&net::make_asio_pool), unsigned>;
 using net::component::dash_manager;
 

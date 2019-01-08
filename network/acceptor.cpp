@@ -11,7 +11,7 @@ namespace net::server
         : context_(context)
         , acceptor_(context, endpoint, reuse_addr) {
         assert(acceptor_.is_open());
-        logger()->info("listen address {}, port {}", endpoint.address(), listen_port());
+        logger().info("listen address {}, port {}", endpoint.address(), listen_port());
     }
 
     acceptor<boost::asio::ip::tcp>::acceptor(uint16_t port,
@@ -49,7 +49,7 @@ namespace net::server
     acceptor<boost::asio::ip::tcp>::on_accept() {
         return [this](boost::system::error_code errc,
                       boost::asio::ip::tcp::socket socket) {
-            logger()->info("on_accept errc {}, errmsg {}", errc, errc.message());
+            logger().info("on_accept errc {}, errmsg {}", errc, errc.message());
             accept_list_.withWLock(
                 [this, &errc, &socket](std::list<entry>& accept_list) {
                     if (errc) {
@@ -63,7 +63,7 @@ namespace net::server
                             acceptor_.async_accept(on_accept());
                         });
                     }
-                    logger()->info("on_accept local {} remote {}", socket.local_endpoint(), socket.remote_endpoint());
+                    logger().info("on_accept local {} remote {}", socket.local_endpoint(), socket.remote_endpoint());
                     accept_list.front().setValue(std::move(socket));
                     accept_list.pop_front();
                 });
@@ -72,7 +72,7 @@ namespace net::server
     }
 
     void acceptor<boost::asio::ip::tcp>::close_acceptor(boost::system::error_code errc) {
-        logger()->error("close errc {} errmsg {}", errc, errc.message());
+        logger().error("close errc {} errmsg {}", errc, errc.message());
         acceptor_.cancel();
         acceptor_.close();
     }

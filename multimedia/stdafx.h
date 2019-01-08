@@ -18,6 +18,7 @@
 #include "multimedia/pch.h"
 #include "multimedia/component.h"
 #include <range/v3/view/iota.hpp>
+#include <boost/container/small_vector.hpp>
 
 #pragma warning(push)
 #pragma warning(disable:4819)

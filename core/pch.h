@@ -89,7 +89,7 @@ using namespace std::literals;
 #include <folly/ProducerConsumerQueue.h>
 //#include <folly/PackedSyncPtr.h>
 #include <folly/Random.h>
-#include <folly/Synchronized.h>
+//#include <folly/Synchronized.h>
 //#include <folly/SynchronizedPtr.h>
 #include <folly/Uri.h>
 
@@ -97,7 +97,7 @@ using namespace std::literals;
 #include <boost/asio/ip/basic_endpoint.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
-#include <boost/container/small_vector.hpp>
+#include <boost/container/container_fwd.hpp>
 #include <boost/container_hash/hash_fwd.hpp>
 #include <boost/core/ignore_unused.hpp>
 #include <boost/core/null_deleter.hpp>

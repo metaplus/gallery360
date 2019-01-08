@@ -7,28 +7,22 @@ namespace net::client
 
     template <typename Protocal>
     using session_ptr = std::unique_ptr<session<Protocal>>;
-    using http_session = session<protocal::http>;
-    using http_session_ptr = std::unique_ptr<session<protocal::http>>;
 
     template <>
     class session<protocal::http> final : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
                                           protocal::base<protocal::http>
     {
-        using request_param = std::variant<std::monostate,
-                                           response<dynamic_body>,
-                                           core::bad_request_error,
-                                           core::bad_response_error,
-                                           core::session_closed_error>;
         using request_list = std::list<
             std::pair<request<empty_body>,
                       folly::Promise<response<dynamic_body>>>>;
         using request_sequence = boost::asio::strand<boost::asio::io_context::executor_type>;
+        using response_body_parser = response_parser<dynamic_body>;
         using trace_callback = std::function<void(std::string_view, std::string)>;
         using trace_callback_wrapper = std::function<void(std::string)>;
 
-        const std::shared_ptr<spdlog::logger> logger_;
+        const core::logger_access logger_;
         request_list request_list_;
-        std::optional<response_parser<dynamic_body>> response_parser_;
+        std::optional<response_body_parser> response_parser_;
         mutable bool active_ = true;
         mutable request_sequence request_sequence_;
         mutable trace_callback_wrapper trace_callback_;

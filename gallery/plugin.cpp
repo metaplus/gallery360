@@ -5,6 +5,7 @@
 #include "multimedia/component.h"
 #include "graphic.h"
 #include "database.h"
+#include <boost/container/small_vector.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
 #include <boost/date_time/time_clock.hpp>
 #include <boost/logic/tribool.hpp>

@@ -62,10 +62,10 @@
     <ClCompile Include="component.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="sesssion.client.cpp">
+    <ClCompile Include="session.server.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="session.server.cpp">
+    <ClCompile Include="session.client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

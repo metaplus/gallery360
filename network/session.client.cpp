@@ -5,7 +5,7 @@ namespace net::client
 {
     namespace http = boost::beast::http;
 
-    auto make_logger = core::console_logger_factory("net.client.session");
+    auto make_logger = core::console_logger_factory("net.client.session", true);
 
     session<protocal::http>::session(socket_type&& socket,
                                      boost::asio::io_context& context)
@@ -16,15 +16,15 @@ namespace net::client
                  core::as_mutable(logger_)) = make_logger();
         core::as_mutable(identity_) = fmt::format("session${}", index_);
 #ifdef NDEBUG
-        logger_->set_level(spdlog::level::warn);
+        logger_().set_level(spdlog::level::warn);
 #endif
-        logger_->info("constructor socket endpoint client {} server {}", socket_.local_endpoint(), socket_.remote_endpoint());
+        logger_().info("constructor socket endpoint client {} server {}", socket_.local_endpoint(), socket_.remote_endpoint());
         reserve_recvbuf_capacity();
     }
 
     auto session<protocal::http>::create(socket_type&& socket,
                                          boost::asio::io_context& context) -> pointer {
-        return std::make_unique<http_session>(std::move(socket), context);
+        return std::make_unique<session<protocal::http>>(std::move(socket), context);
     }
 
     void session<protocal::http>::config_response_parser() {
@@ -36,14 +36,14 @@ namespace net::client
         return [=](boost::system::error_code errc,
                    std::size_t transfer_size) mutable {
             assert(request_sequence_.running_in_this_thread());
-            logger_->info("on_recv_response errc {} transfer {}", errc, transfer_size);
+            logger_().info("on_recv_response errc {} transfer {}", errc, transfer_size);
             if (errc) {
-                logger_->error("on_recv_response failure");
+                logger_().error("on_recv_response failure");
                 return shutdown_and_reject_request(core::bad_response_error{ errc.message() },
                                                    errc, boost::asio::socket_base::shutdown_receive);
             }
             if (response_parser_->get().result() != http::status::ok) {
-                logger_->error("on_recv_response bad response");
+                logger_().error("on_recv_response bad response");
                 return shutdown_and_reject_request(core::bad_response_error{ response_parser_->get().reason().data() },
                                                    errc, boost::asio::socket_base::shutdown_receive);
             }
@@ -58,9 +58,9 @@ namespace net::client
         return [=](boost::system::error_code errc,
                    std::size_t transfer_size) mutable {
             assert(request_sequence_.running_in_this_thread());
-            logger_->info("on_send_request errc {} transfer {}", errc, transfer_size);
+            logger_().info("on_send_request errc {} transfer {}", errc, transfer_size);
             if (errc) {
-                logger_->error("on_send_request failure");
+                logger_().error("on_send_request failure");
                 return shutdown_and_reject_request(core::bad_request_error{ errc.message() },
                                                    errc, boost::asio::socket_base::shutdown_send);
             }
@@ -89,7 +89,7 @@ namespace net::client
 
     auto session<protocal::http>::send_request(request<empty_body>&& request)
     -> folly::SemiFuture<response<dynamic_body>> {
-        logger_->info("send_request empty body");
+        logger_().info("send_request empty body");
         auto [promise_response, future_response] = folly::makePromiseContract<response<dynamic_body>>();
         boost::asio::post(
             request_sequence_,
