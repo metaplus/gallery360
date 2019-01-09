@@ -16,7 +16,6 @@
 
 #pragma warning(push)
 #pragma warning(disable: 4819)
-//#include "unity/detail/PlatformBase.h"
 #include "unity/IUnityGraphics.h"
 #include "unity/IUnityRenderingExtensions.h"
 #pragma warning(pop)

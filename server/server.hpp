@@ -15,7 +15,7 @@ namespace app
         net::server::acceptor<boost::asio::ip::tcp> acceptor_;
         boost::asio::signal_set signals_;
         folly::Baton<false> cancel_accept_;
-        std::shared_ptr<spdlog::logger> logger_;
+        core::logger_access logger_;
 
     public:
         struct session_emplace_error final : std::runtime_error
@@ -38,8 +38,8 @@ namespace app
             , asio_pool_{ net::make_asio_pool(std::thread::hardware_concurrency()) }
             , acceptor_{ port_, *asio_pool_ }
             , signals_{ *asio_pool_, SIGINT, SIGTERM }
-            , logger_{ spdlog::stdout_color_mt("server") } {
-            logger_->info("root directory {}", directory_);
+            , logger_{ core::console_logger_access("server") } {
+            logger_().info("root directory {}", directory_);
             signals_.async_wait([this](boost::system::error_code error,
                                        int signal_count) {
                 cancel_accept_.post();
@@ -53,7 +53,7 @@ namespace app
             auto serial_executor = folly::SerialExecutor::create(folly::getKeepAliveToken(pool_executor.get()));
             std::vector<folly::Future<folly::Unit>> procedure_list;
             while (!cancel_accept_.ready()) {
-                logger_->info("port {} listening", port_);
+                logger_().info("port {} listening", port_);
                 auto session_procedure =
                     acceptor_.accept_socket().wait()
                              .via(pool_executor.get()).thenValue(
@@ -67,7 +67,7 @@ namespace app
                                      auto endpoint = session->remote_endpoint();
                                      auto [iterator, success] = session_map_.emplace(endpoint, std::move(session));
                                      if (!success) {
-                                         logger_->error("endpoint duplicate");
+                                         logger_().error("endpoint duplicate");
                                          cancel_accept_.post();
                                          throw session_emplace_error{ "session_map_ emplace fail" };
                                      }
@@ -78,17 +78,15 @@ namespace app
                                  [this](std::tuple<folly::Try<folly::Unit>,
                                                    folly::Try<session_iterator>> tuple) {
                                      auto iterator = std::get<folly::Try<session_iterator>>(tuple).value();
-                                     logger_->warn("erase {} left {}", iterator->second->identity(), session_map_.size() - 1);
+                                     logger_().warn("erase {} left {}", iterator->second->identity(), session_map_.size() - 1);
                                      iterator = session_map_.erase(iterator);
                                  });
                 procedure_list.push_back(std::move(session_procedure));
             }
             const auto result_list = folly::collectAll(procedure_list).get();
             const auto success = std::count_if(result_list.begin(), result_list.end(),
-                                               [](folly::Try<folly::Unit> result) {
-                                                   return result.hasValue();
-                                               });
-            logger_->info("exit success {} of {}", success, result_list.size());
+                                               std::mem_fn(&folly::Try<folly::Unit>::hasValue));
+            logger_().info("exit success {} of {}", success, result_list.size());
         }
     };
 }
