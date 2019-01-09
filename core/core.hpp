@@ -205,8 +205,8 @@ namespace core
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
                                                                   std::string_view pool_name = "CorePool");
 
-    using logger_access = folly::Function<spdlog::logger&() const>;
-    using logger_process = folly::Function<void(spdlog::logger&)>;
+    using logger_access = meta::access_functor<spdlog::logger, true>::type;
+    using logger_process = meta::process_functor<spdlog::logger>::type;
 
     folly::Function<std::pair<int64_t, logger_access>()>
     console_logger_factory(std::string logger_group, bool null = false);
@@ -214,4 +214,24 @@ namespace core
     logger_access console_logger_access(std::string logger_name,
                                         logger_process post_process = nullptr);
     logger_access null_logger_access(std::string logger_name);
+
+    struct coordinate
+    {
+        int col = 0;
+        int row = 0;
+
+        bool operator<(const coordinate& that) const;
+        bool operator==(const coordinate& that) const;
+    };
+
+    size_t hash_value(const coordinate& coordinate);
+
+    struct dimension
+    {
+        int width = 0;
+        int height = 0;
+
+        bool operator<(const dimension& that) const;
+        bool operator==(const dimension& that) const;
+    };
 }

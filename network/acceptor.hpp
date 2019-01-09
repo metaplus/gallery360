@@ -6,22 +6,18 @@ namespace net::server
     class acceptor;
 
     template <>
-    class acceptor<boost::asio::ip::tcp> final : protocal::base<protocal::tcp>
+    class acceptor<boost::asio::ip::tcp> final :
+        protocal::protocal_base<protocal::tcp>
     {
-        using entry = folly::Promise<boost::asio::ip::tcp::socket>;
-
-        folly::Synchronized<std::list<entry>> accept_list_;
         boost::asio::io_context& context_;
         boost::asio::ip::tcp::acceptor acceptor_;
 
     public:
         acceptor(boost::asio::ip::tcp::endpoint endpoint,
-                 boost::asio::io_context& context,
-                 bool reuse_addr = false);
+                 boost::asio::io_context& context, bool reuse_addr = false);
 
         acceptor(uint16_t port,
-                 boost::asio::io_context& context,
-                 bool reuse_addr = false);
+                 boost::asio::io_context& context, bool reuse_addr = false);
 
         uint16_t listen_port() const;
 
@@ -31,20 +27,16 @@ namespace net::server
         folly::SemiFuture<session_ptr<Protocal>> listen_session(SessionArgs&& ...args) {
             return accept_socket().deferValue(
                 [this, &args...](socket_type&& socket) {
-                    return session<Protocal>::create(std::move(socket),
-                                                     context_,
+                    return session<Protocal>::create(std::move(socket), context_,
                                                      std::forward<SessionArgs>(args)...);
                 });
         }
 
-        void close(bool cancel = false);
+        void close(std::optional<boost::system::error_code> error = std::nullopt,
+                   bool cancel = false);
 
     private:
-        folly::Function<void(boost::system::error_code errc,
-                             boost::asio::ip::tcp::socket socket)>
-        on_accept();
-
-        void close_acceptor(boost::system::error_code errc);
+        auto on_accept(folly::Promise<socket_type>&& promise);
     };
 
     template class acceptor<boost::asio::ip::tcp>;

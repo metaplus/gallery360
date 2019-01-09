@@ -61,17 +61,17 @@ using namespace std::literals;
 //#include <folly/AtomicLinkedList.h>
 //#include <folly/AtomicUnorderedMap.h>
 //#include <folly/ConcurrentSkipList.h>
+//#include <folly/concurrency/ConcurrentHashMap.h>
 #ifdef _WIN32
-#pragma warning(disable:4200 4305 4244)
+#pragma warning(disable:4244)
 #endif
-#include <folly/concurrency/ConcurrentHashMap.h>
+#include <folly/container/Foreach.h>
 #ifdef _WIN32
 #pragma warning(pop)
 #endif
 #include <folly/concurrency/DynamicBoundedQueue.h>
 #include <folly/concurrency/UnboundedQueue.h>
 #include <folly/container/Array.h>
-#include <folly/container/Foreach.h>
 #include <folly/container/Iterator.h>
 #include <folly/executors/Async.h>
 #include <folly/executors/GlobalExecutor.h>
@@ -87,7 +87,6 @@ using namespace std::literals;
 #include <folly/MPMCQueue.h>
 #include <folly/PriorityMPMCQueue.h>
 #include <folly/ProducerConsumerQueue.h>
-//#include <folly/PackedSyncPtr.h>
 #include <folly/Random.h>
 //#include <folly/Synchronized.h>
 //#include <folly/SynchronizedPtr.h>
@@ -97,6 +96,7 @@ using namespace std::literals;
 #include <boost/asio/ip/basic_endpoint.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
+#include <boost/circular_buffer_fwd.hpp>
 #include <boost/container/container_fwd.hpp>
 #include <boost/container_hash/hash_fwd.hpp>
 #include <boost/core/ignore_unused.hpp>

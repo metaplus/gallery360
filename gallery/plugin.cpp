@@ -81,10 +81,9 @@ inline namespace resource
 
     namespace description
     {
-        std::pair<int, int> frame_grid;
-        std::pair<int, int> frame_scale;
-        auto tile_width = 0;
-        auto tile_height = 0;
+        core::coordinate frame_grid;
+        core::dimension frame_scale;
+        core::dimension tile_scale;
         auto tile_count = 0;
     }
 }
@@ -130,15 +129,9 @@ namespace state
     std::optional<struct frame_batch> frame_batch;
     std::unique_ptr<folly::UMPMCQueue<update_batch::tile_render_context, false>> render_tile_queue;
 
-    struct coordinate final
-    {
-        int col = 0;
-        int row = 0;
-    };
+    static_assert(std::is_trivially_copyable<core::coordinate>::value);
 
-    static_assert(std::is_trivially_copyable<coordinate>::value);
-
-    std::atomic<coordinate> field_of_view;
+    std::atomic<core::coordinate> field_of_view;
 
     struct stream final
     {
@@ -160,13 +153,13 @@ namespace state
 
 auto tile_index = [](int col, int row) constexpr {
     using resource::description::frame_grid;
-    return col + row * frame_grid.first + 1;
+    return col + row * frame_grid.col + 1;
 };
 
 auto tile_coordinate = [](int index) constexpr {
     using resource::description::frame_grid;
-    const auto x = (index - 1) % frame_grid.first;
-    const auto y = (index - 1) / frame_grid.first;
+    const auto x = (index - 1) % frame_grid.col;
+    const auto y = (index - 1) / frame_grid.col;
     return std::make_pair(x, y);
 };
 
@@ -189,28 +182,25 @@ namespace unity
         assert(!url.empty());
         manager = dash_manager::create_parsed(url, config::asio_concurrency.value(), compute_executor)
             .thenValue([](dash_manager manager) {
-                auto frame_col = 0, frame_row = 0;
-                std::tie(frame_col, frame_row) = manager.grid_size();
                 if (config::database::enable) {
                     manager.trace_by(database_entity->produce_callback());
                 }
                 manager.predict_by([=](const int tile_col,
                                        const int tile_row) {
+                    using description::frame_grid;
                     const auto field_of_view = std::atomic_load(&state::field_of_view);
-                    return field_of_view.col == tile_col && field_of_view.row == tile_row;
-                    /*     const std::divides<double> divide;
-                         const auto trim_offset = [](const int tile, const int view, const int frame) {
-                             const auto offset = std::abs(tile - view);
-                             if (offset > frame / 2) {
-                                 return frame - offset;
-                             }
-                             return offset;
-                         };
-                         const auto col_degrade = config::predict_degrade_factor
-                             * divide(trim_offset(tile_col, field_of_view.col, frame_col), frame_col);
-                         const auto row_degrade = config::predict_degrade_factor
-                             * divide(trim_offset(tile_row, field_of_view.row, frame_col), frame_row);
-                         return std::max<double>(0, 1. - col_degrade - row_degrade);*/
+                    const auto trim_offset = [](const int tile, const int view, const int frame) {
+                        const auto offset = std::abs(tile - view);
+                        if (offset > frame / 2) {
+                            return frame - offset;
+                        }
+                        return offset;
+                    };
+                    const auto col_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
+                    const auto row_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
+                    assert(col_offset >= 0 && row_offset >= 0);
+                    return col_offset == 0 && row_offset <= 1
+                        || row_offset == 0 && col_offset <= 1;
                 });
                 return manager;
             });
@@ -222,12 +212,11 @@ namespace unity
         using namespace resource::description;
         if (manager.wait().hasValue()) {
             frame_grid = manager.value().grid_size();
-            frame_scale = manager.value().scale_size();
-            std::tie(col, row) = frame_grid;
-            std::tie(width, height) = frame_scale;
-            tile_width = frame_scale.first / frame_grid.first;
-            tile_height = frame_scale.second / frame_grid.second;
-            tile_count = frame_grid.first * frame_grid.second;
+            frame_scale = manager.value().frame_size();
+            tile_scale = manager.value().tile_size();
+            tile_count = manager.value().tile_count();
+            std::tie(col, row) = std::tie(frame_grid.col, frame_grid.row);
+            std::tie(width, height) = std::tie(frame_scale.width, frame_scale.height);
             config::decoder_concurrency.alter(
                 std::max(1u, std::thread::hardware_concurrency() / tile_count));
             assert(config::decoder_concurrency.value() >= 1);
@@ -240,15 +229,14 @@ namespace unity
 
     HANDLE _nativeDashCreateTileStream(INT col, INT row, INT index,
                                        HANDLE tex_y, HANDLE tex_u, HANDLE tex_v) {
-        using resource::description::tile_width;
-        using resource::description::tile_height;
+        using resource::description::tile_scale;
+        using resource::description::tile_count;
         assert(manager.isReady());
         assert(manager.hasValue());
         stream_context tile_stream{ config::decode_capacity };
         tile_stream.index = index;
-        tile_stream.coordinate = std::make_pair(col, row);
-        tile_stream.width_offset = col * tile_width;
-        tile_stream.height_offset = row * tile_height;
+        tile_stream.coordinate = { col, row };
+        tile_stream.offset = { col * tile_scale.width, row * tile_scale.height };
         if (tex_y && tex_u && tex_v) {
             tile_stream.texture_array[0] = static_cast<ID3D11Texture2D*>(tex_y);
             tile_stream.texture_array[1] = static_cast<ID3D11Texture2D*>(tex_u);
@@ -257,7 +245,7 @@ namespace unity
         auto [iterator,success] = tile_stream_table.emplace_back(std::move(tile_stream));
         assert(success && "tile stream emplace failure");
         if (cached_tile_streams.empty()) {
-            cached_tile_streams.assign(description::tile_count, nullptr);
+            cached_tile_streams.assign(tile_count, nullptr);
         }
         return cached_tile_streams.at(index - 1) = &core::as_mutable(iterator.operator*());
     }
@@ -265,16 +253,16 @@ namespace unity
     auto stream_mpeg_dash = [](stream_context& tile_stream) {
         auto& dash_manager = manager.value();
         return [&tile_stream, &dash_manager] {
-            auto [col, row] = tile_stream.coordinate;
-            auto future_tile = dash_manager.request_tile_context(col, row);
+            auto buffer_streamer = dash_manager.tile_buffer_streamer(tile_stream.coordinate);
+            auto future_buffer = buffer_streamer();
             try {
                 while (true) {
-                    auto tile_context = std::move(future_tile).get();
-                    future_tile = dash_manager.request_tile_context(col, row);
+                    auto buffer_sequence = std::move(future_buffer).get();
+                    future_buffer = buffer_streamer();
                     frame_segmentor frame_segmentor{
                         config::decoder_concurrency.value(),
-                        tile_context.initial,
-                        tile_context.data
+                        buffer_sequence.initial,
+                        buffer_sequence.data
                     };
                     assert(frame_segmentor.context_valid());
                     while (frame_segmentor.codec_valid()) {
@@ -308,7 +296,7 @@ namespace unity
 
     void _nativeDashPrefetch() {
         using resource::description::frame_grid;
-        assert(std::size(tile_stream_table) == frame_grid.first*frame_grid.second);
+        assert(std::size(tile_stream_table) == frame_grid.col*frame_grid.row);
         assert(manager.hasValue());
         assert(state::stream::available());
         for (auto& tile_stream : tile_stream_table.get<coordinate_key>()) {
@@ -330,10 +318,10 @@ namespace unity
         auto decode_success = false;
         auto& tile_stream_index = tile_stream_table.get<coordinate_key>();
         const auto modify_success = tile_stream_index.modify(
-            tile_stream_index.find(std::make_pair(col, row)),
+            tile_stream_index.find(core::coordinate{ col, row }),
             [=, &decode_success](stream_context& tile_stream) {
-                assert(tile_stream.coordinate.first == col);
-                assert(tile_stream.coordinate.second == row);
+                assert(tile_stream.coordinate.col == col);
+                assert(tile_stream.coordinate.row == row);
                 decode_success = _nativeDashTilePtrPollUpdate(&tile_stream, frame_index, batch_index);
             });
         assert(modify_success && "tile_stream_table modify fail");
@@ -349,7 +337,7 @@ namespace unity
                 tile_stream.update.decode_success++;
                 auto enqueue_try = 0;
                 while (!tile_stream.render.queue->write(std::move(frame))) {
-                    assert(enqueue_try++ < 10 && !"poll_update_frame enqueue_try > 10 times");
+                    assert(enqueue_try++ < 10 && "poll_update_frame enqueue_try > 10 times");
                 }
                 return true;
             }

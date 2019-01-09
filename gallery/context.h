@@ -4,10 +4,9 @@
 struct stream_context final
 {
     graphic::texture_array texture_array = {};
-    int width_offset = 0;
-    int height_offset = 0;
+    core::dimension offset;
     int index = 0;
-    std::pair<int, int> coordinate = { 0, 0 };
+    core::coordinate coordinate;
 
     struct decode_event final
     {

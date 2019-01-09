@@ -15,28 +15,28 @@ namespace net_test
         core::set_cpu_executor(3);
         {
             auto manager = dash_manager::create_parsed("http://localhost:33666/Output/NewYork/5x3/NewYork.mpd").get();
-            auto spatial_size = manager.scale_size();
+            auto spatial_size = manager.frame_size();
             auto grid_size = manager.grid_size();
             EXPECT_EQ(grid_size, std::make_pair(5, 3));
             EXPECT_EQ(spatial_size, std::make_pair(3840, 1920));
         }
         {
             auto manager = dash_manager::create_parsed("http://localhost:8900/dash/tos_srd_4K.mpd").get();
-            auto spatial_size = manager.scale_size();
+            auto spatial_size = manager.frame_size();
             auto grid_size = manager.grid_size();
             EXPECT_EQ(grid_size, std::make_pair(3, 3));
             EXPECT_EQ(spatial_size, std::make_pair(3840, 1728));
         }
         {
             auto manager = dash_manager::create_parsed("http://localhost:8900/dash/NewYork/5k/NewYork_5k.mpd").get();
-            auto spatial_size = manager.scale_size();
+            auto spatial_size = manager.frame_size();
             auto grid_size = manager.grid_size();
             EXPECT_EQ(grid_size, std::make_pair(3, 3));
             EXPECT_EQ(spatial_size, std::make_pair(3840, 1920));
         }
         {
             auto manager = dash_manager::create_parsed("http://localhost:8900/Output/NewYork/NewYork.mpd").get();
-            auto spatial_size = manager.scale_size();
+            auto spatial_size = manager.frame_size();
             auto grid_size = manager.grid_size();
             EXPECT_EQ(grid_size, std::make_pair(3, 3));
             EXPECT_EQ(spatial_size, std::make_pair(3840, 1920));

@@ -156,18 +156,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\detail\IUnityGraphics.h" />
-    <ClInclude Include="..\detail\IUnityGraphicsD3D11.h" />
-    <ClInclude Include="..\detail\IUnityInterface.h" />
-    <ClInclude Include="..\detail\IUnityRenderingExtensions.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="database.h" />
     <ClInclude Include="export.h" />
     <ClInclude Include="graphic.h" />
-    <ClInclude Include="openvr.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="unity\IUnityGraphics.h" />
+    <ClInclude Include="unity\IUnityGraphicsD3D11.h" />
+    <ClInclude Include="unity\IUnityInterface.h" />
+    <ClInclude Include="unity\IUnityRenderingExtensions.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="database.cpp" />

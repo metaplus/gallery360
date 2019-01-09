@@ -44,18 +44,17 @@ namespace net::component
         dash_manager& operator=(dash_manager&&) noexcept = default;
         ~dash_manager() = default;
 
-        static folly::Future<dash_manager> create_parsed(std::string mpd_url,
-                                                         unsigned concurrency = std::thread::hardware_concurrency(),
-                                                         std::shared_ptr<folly::ThreadPoolExecutor> executor = nullptr);
+        static folly::Future<dash_manager> create_parsed(
+            std::string mpd_url, unsigned concurrency = std::thread::hardware_concurrency(),
+            std::shared_ptr<folly::ThreadPoolExecutor> executor = nullptr);
 
-        std::pair<int, int> scale_size() const;
-        std::pair<int, int> grid_size() const;
-
+        core::dimension frame_size() const;
+        core::dimension tile_size() const;
+        core::coordinate grid_size() const;
+        int tile_count() const;
         void trace_by(detail::trace_callback callback) const;
         void predict_by(detail::predict_callback callback) const;
-
         bool available() const;
-
-        folly::SemiFuture<buffer_sequence> request_tile_context(int col, int row) const;
+        folly::Function<folly::SemiFuture<buffer_sequence>()> tile_buffer_streamer(core::coordinate coordinate);
     };
 }

@@ -6,50 +6,71 @@ namespace net::client
     auto logger = core::console_logger_access("net.connector");
 
     connector<protocal::tcp>::connector(boost::asio::io_context& context)
-        : context_(context)
-        , resolver_(context) {}
+        : context_{ context }
+        , resolver_{ context }
+        , connect_sequence_{ context.get_executor() } {}
 
-    void connector<protocal::tcp>::shutdown_and_reject_request(boost::system::error_code errc) {
-        logger().error("close errc {} errmsg {}", errc, errc.message());
+    void connector<protocal::tcp>::fail_socket_then_cancel(boost::system::error_code errc) {
+        assert(connect_sequence_.running_in_this_thread());
+        logger().error("close error {} message {}", errc, errc.message());
         resolver_.cancel();
-        for (auto& entry : *resolve_list_.wlock()) {
-            entry.socket.setException(std::runtime_error{ errc.message() });
+        for (auto& connect_token : connect_list_) {
+            connect_token.socket.setException(std::runtime_error{ errc.message() });
         }
     }
 
-    folly::Function<void(boost::system::error_code errc,
-                         boost::asio::ip::tcp::resolver::results_type endpoints) const>
-    connector<protocal::tcp>::on_resolve(std::list<entry>::iterator entry_iter) {
-        return [this, entry_iter](boost::system::error_code errc,
-                                  boost::asio::ip::tcp::resolver::results_type endpoints) {
-            logger().info("on_resolve errc {} errmsg {}", errc, errc.message());
-            if (errc) {
-                entry_iter->socket.setException(std::runtime_error{ errc.message() });
-                return shutdown_and_reject_request(errc);
+    auto connector<protocal::tcp>::on_resolve() {
+        return [this](boost::system::error_code error,
+                      boost::asio::ip::tcp::resolver::results_type endpoints) {
+            assert(connect_sequence_.running_in_this_thread());
+            logger().info("on_resolve error {} message {}", error, error.message());
+            if (error) {
+                return fail_socket_then_cancel(error);
             }
             auto socket_ptr = std::make_unique<socket_type>(context_);
-            auto& socket_ref = *socket_ptr;
+            auto& socket_ref = socket_ptr.operator*();
             boost::asio::async_connect(
-                socket_ref, endpoints,
-                [this, socket_ptr = std::move(socket_ptr), entry = std::move(*entry_iter)](boost::system::error_code errc,
-                                                                                           boost::asio::ip::tcp::endpoint endpoint) mutable {
-                    logger().info("on_connect errc {} errmsg {}", errc, errc.message());
-                    if (errc) {
-                        entry.socket.setException(std::runtime_error{ errc.message() });
-                        return shutdown_and_reject_request(errc);
-                    }
-                    entry.socket.setValue(std::move(*socket_ptr));
-                });
-            resolve_list_.withWLock(
-                [this, entry_iter](std::list<entry>& resolve_list) {
-                    resolve_list.erase(entry_iter);
-                    if (resolve_list.size()) {
-                        return boost::asio::dispatch(context_, [this, entry_iterator = resolve_list.begin()] {
-                            resolver_.async_resolve(entry_iterator->host, entry_iterator->service,
-                                                    on_resolve(entry_iterator));
+                socket_ref, endpoints, [this,
+                    socket_ptr = std::move(socket_ptr),
+                    promise = std::move(connect_list_.front().socket)
+                ](boost::system::error_code error,
+                  boost::asio::ip::tcp::endpoint endpoint) mutable {
+                    logger().info("on_connect error {} message {}", error, error.message());
+                    if (error) {
+                        promise.setException(std::runtime_error{ error.message() });
+                        boost::asio::post(connect_sequence_, [=] {
+                            fail_socket_then_cancel(error);
                         });
+                        return;
                     }
+                    promise.setValue(std::move(*socket_ptr));
                 });
+            connect_list_.pop_front();
+            if (!connect_list_.empty()) {
+                resolve_front_endpoint();
+            }
         };
+    }
+
+    folly::SemiFuture<protocal::protocal_base<protocal::tcp>::socket_type>
+    connector<protocal::tcp>::connect_socket(std::string_view host, std::string_view service) {
+        auto [promise, future] = folly::makePromiseContract<socket_type>();
+        boost::asio::post(
+            connect_sequence_, [this, host = std::string{ host },
+                service = std::string{ service }, promise = std::move(promise)]()mutable {
+                connect_list_.emplace_back(
+                    connect_token{ std::move(host), std::move(service), std::move(promise) });
+                if (connect_list_.size() == 1) {
+                    resolve_front_endpoint();
+                }
+            });
+        return std::move(future);
+    }
+
+    void connector<protocal::tcp>::resolve_front_endpoint() {
+        assert(connect_sequence_.running_in_this_thread());
+        auto& connect_token = connect_list_.front();
+        resolver_.async_resolve(connect_token.host, connect_token.service,
+                                boost::asio::bind_executor(connect_sequence_, on_resolve()));
     }
 }

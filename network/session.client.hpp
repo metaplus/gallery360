@@ -9,8 +9,9 @@ namespace net::client
     using session_ptr = std::unique_ptr<session<Protocal>>;
 
     template <>
-    class session<protocal::http> final : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
-                                          protocal::base<protocal::http>
+    class session<protocal::http> final :
+        detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
+        protocal::protocal_base<protocal::http>
     {
         using request_list = std::list<
             std::pair<request<empty_body>,
@@ -64,10 +65,10 @@ namespace net::client
         void trace_by(trace_callback callback);
 
     private:
-        void config_response_parser();
+        void emplace_response_parser();
 
         template <typename Exception>
-        void shutdown_and_reject_request(Exception&& exception, boost::system::error_code errc,
+        void fail_request_then_close(Exception&& exception, boost::system::error_code errc,
                                          boost::asio::socket_base::shutdown_type operation) {
             assert(request_sequence_.running_in_this_thread());
             for (auto& [request, response] : request_list_) {
@@ -78,7 +79,7 @@ namespace net::client
             active_ = false;
         }
 
-        void send_request_if_single();
+        void send_front_request();
 
         auto on_send_request(int64_t index);
 

@@ -17,9 +17,9 @@ namespace net::protocal
 {
     struct dash::video_adaptation_set::context final
     {
-        boost::circular_buffer<size_t> trace{ 300 };
+        boost::circular_buffer<size_t> trace{ 120 };
         size_t trace_index = 0;
-        folly::SemiFuture<http_session_ptr> tile_client = folly::SemiFuture<http_session_ptr>::makeEmpty();
+        folly::SemiFuture<http_session_ptr> http_session = folly::SemiFuture<http_session_ptr>::makeEmpty();
         bool drain = false;
     };
 }
@@ -118,7 +118,7 @@ namespace net::component
             };
             const auto url_path = replace_suffix(mpd_uri->path(), suffix(initial));
             return video_set.context
-                            ->tile_client.wait().value()
+                            ->http_session.wait().value()
                             ->send_request_for<multi_buffer>(
                                 net::make_http_request<empty_body>(mpd_uri->host(),
                                                                    url_path));
@@ -139,9 +139,8 @@ namespace net::component
                             ->getSemiFuture();
         }
 
-        folly::SemiFuture<http_session_ptr> make_http_client() {
-            return connector->establish_session<http>(mpd_uri->host(),
-                                                      folly::to<std::string>(mpd_uri->port()))
+        folly::SemiFuture<http_session_ptr> make_http_session() {
+            return connector->establish_session<http>(mpd_uri->host(), folly::to<std::string>(mpd_uri->port()))
                             .deferValue([this](http_session_ptr session) {
                                 if (trace_callback) {
                                     session->trace_by(trace_callback);
@@ -160,9 +159,9 @@ namespace net::component
         impl_->executor = std::move(executor);
     }
 
-    folly::Future<dash_manager> dash_manager::create_parsed(std::string mpd_url, unsigned concurrency,
-                                                            std::shared_ptr<folly::ThreadPoolExecutor> executor) {
-        static_assert(std::is_move_assignable<dash_manager>::value);
+    folly::Future<dash_manager> dash_manager::create_parsed(
+        std::string mpd_url, unsigned concurrency,
+        std::shared_ptr<folly::ThreadPoolExecutor> executor) {
         if (!executor) {
             executor = std::dynamic_pointer_cast<folly::ThreadPoolExecutor>(folly::getCPUExecutor());
         }
@@ -170,7 +169,7 @@ namespace net::component
         dash_manager dash_manager{ std::move(mpd_url), concurrency, executor };
         logger->info("create_parsed @{} establish session", std::this_thread::get_id());
         return dash_manager.impl_
-                           ->make_http_client()
+                           ->make_http_session()
                            .via(executor.get()).thenValue(
                                [dash_manager](http_session_ptr session) mutable {
                                    logger->info("create_parsed @{} send request", std::this_thread::get_id());;
@@ -190,14 +189,28 @@ namespace net::component
                                });
     }
 
-    std::pair<int, int> dash_manager::scale_size() const {
+    core::dimension dash_manager::frame_size() const {
         return impl_->mpd_parser
-                    ->scale_size();
+                    ->scale();
     }
 
-    std::pair<int, int> dash_manager::grid_size() const {
+    core::dimension dash_manager::tile_size() const {
+        const auto frame_size = this->frame_size();
+        const auto grid_size = this->grid_size();
+        return {
+            frame_size.width / grid_size.col,
+            frame_size.height / grid_size.row
+        };
+    }
+
+    core::coordinate dash_manager::grid_size() const {
         return impl_->mpd_parser
-                    ->grid_size();
+                    ->grid();
+    }
+
+    int dash_manager::tile_count() const {
+        const auto grid_size = this->grid_size();
+        return grid_size.col * grid_size.row;
     }
 
     bool dash_manager::available() const {
@@ -212,32 +225,31 @@ namespace net::component
         impl_->predict_callback = std::move(callback);
     }
 
-    folly::SemiFuture<buffer_sequence>
-    dash_manager::request_tile_context(int col, int row) const {
-        auto& video_set = impl_->mpd_parser->video_set(col, row);
-        assert(video_set.col == col);
-        assert(video_set.row == row);
-        core::access(video_set.context);
-        if (video_set.context->drain) {
-            return folly::makeSemiFuture<buffer_sequence>(
-                core::stream_drained_error{ __FUNCTION__ });
-        }
-        if (!video_set.context->tile_client.valid()) {
-            video_set.context->tile_client = impl_->make_http_client();
-        }
-        auto& represent = impl_->predict_represent(video_set);
-        auto initial_segment = impl_->request_initial_if_null(video_set, represent);
-        auto tile_segment = impl_->request_send(video_set, represent, false);
-        return folly::collectAllSemiFuture(initial_segment, tile_segment)
-            .deferValue([](
-                std::tuple<
-                    folly::Try<std::shared_ptr<multi_buffer>>,
-                    folly::Try<multi_buffer>
-                >&& buffer_tuple) {
-                    auto& [initial_buffer, data_buffer] = buffer_tuple;
-                    data_buffer.throwIfFailed();
-                    return buffer_sequence{ **initial_buffer, std::move(*data_buffer) };
-                }
-            );
+    folly::Function<folly::SemiFuture<buffer_sequence>()>
+    dash_manager::tile_buffer_streamer(core::coordinate coordinate) {
+        auto& video_set = impl_->mpd_parser->video_set(coordinate);
+        assert(video_set.col == coordinate.col);
+        assert(video_set.row == coordinate.row);
+        core::access(video_set.context)->http_session = impl_->make_http_session();
+        return [this, &video_set] {
+            if (video_set.context->drain) {
+                return folly::makeSemiFuture<buffer_sequence>(
+                    core::stream_drained_error{ __FUNCTION__ });
+            }
+            auto& represent = impl_->predict_represent(video_set);
+            auto initial_segment = impl_->request_initial_if_null(video_set, represent);
+            auto tile_segment = impl_->request_send(video_set, represent, false);
+            return folly::collectAllSemiFuture(initial_segment, tile_segment)
+                .deferValue([](
+                    std::tuple<
+                        folly::Try<std::shared_ptr<multi_buffer>>,
+                        folly::Try<multi_buffer>
+                    >&& buffer_tuple) {
+                        auto& [initial_buffer, data_buffer] = buffer_tuple;
+                        data_buffer.throwIfFailed();
+                        return buffer_sequence{ **initial_buffer, std::move(*data_buffer) };
+                    }
+                );
+        };
     }
 }

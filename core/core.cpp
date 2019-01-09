@@ -140,7 +140,7 @@ namespace core
                         std::move(logger_name),
                         [](spdlog::logger& logger) {
 #ifdef NDEBUG
-                logger.set_level(spdlog::level::info);
+                            logger.set_level(spdlog::level::info);
 #else
                             logger.set_level(spdlog::level::debug);
 #endif
@@ -168,5 +168,28 @@ namespace core
         return [logger = spdlog::create<spdlog::sinks::null_sink_st>(std::move(logger_name))]() -> decltype(auto) {
             return logger.operator*();
         };
+    }
+
+    size_t hash_value(const coordinate& coordinate) {
+        return boost::hash_value(std::tie(coordinate.col,
+                                          coordinate.row));
+    }
+
+    bool coordinate::operator<(const coordinate& that) const {
+        return col < that.col
+            || col == that.col && row < that.row;
+    }
+
+    bool coordinate::operator==(const coordinate& that) const {
+        return col == that.col && row == that.row;
+    }
+
+    bool dimension::operator<(const dimension& that) const {
+        return width < that.width
+            || width == that.width && height < that.height;
+    }
+
+    bool dimension::operator==(const dimension& that) const {
+        return width == that.width && height == that.height;
     }
 }

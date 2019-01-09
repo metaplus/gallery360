@@ -27,7 +27,7 @@ namespace net::client
         return std::make_unique<session<protocal::http>>(std::move(socket), context);
     }
 
-    void session<protocal::http>::config_response_parser() {
+    void session<protocal::http>::emplace_response_parser() {
         response_parser_.emplace()
                         .body_limit(std::numeric_limits<uint64_t>::max());
     }
@@ -39,18 +39,20 @@ namespace net::client
             logger_().info("on_recv_response errc {} transfer {}", errc, transfer_size);
             if (errc) {
                 logger_().error("on_recv_response failure");
-                return shutdown_and_reject_request(core::bad_response_error{ errc.message() },
-                                                   errc, boost::asio::socket_base::shutdown_receive);
+                return fail_request_then_close(core::bad_response_error{ errc.message() },
+                                               errc, boost::asio::socket_base::shutdown_receive);
             }
             if (response_parser_->get().result() != http::status::ok) {
                 logger_().error("on_recv_response bad response");
-                return shutdown_and_reject_request(core::bad_response_error{ response_parser_->get().reason().data() },
-                                                   errc, boost::asio::socket_base::shutdown_receive);
+                return fail_request_then_close(core::bad_response_error{ response_parser_->get().reason().data() },
+                                               errc, boost::asio::socket_base::shutdown_receive);
             }
             trace_event("response=recv:index={}:transfer={}", index, transfer_size);
             request_list_.front().second.setValue(response_parser_->release());
             request_list_.pop_front();
-            send_request_if_single();
+            if (!request_list_.empty()) {
+                send_front_request();
+            }
         };
     }
 
@@ -61,8 +63,8 @@ namespace net::client
             logger_().info("on_send_request errc {} transfer {}", errc, transfer_size);
             if (errc) {
                 logger_().error("on_send_request failure");
-                return shutdown_and_reject_request(core::bad_request_error{ errc.message() },
-                                                   errc, boost::asio::socket_base::shutdown_send);
+                return fail_request_then_close(core::bad_request_error{ errc.message() },
+                                               errc, boost::asio::socket_base::shutdown_send);
             }
             trace_event("request=send:index={}:transfer={}", index, transfer_size);
             http::async_read(socket_, recvbuf_, *response_parser_,
@@ -70,15 +72,13 @@ namespace net::client
         };
     }
 
-    void session<protocal::http>::send_request_if_single() {
+    void session<protocal::http>::send_front_request() {
         assert(request_sequence_.running_in_this_thread());
-        if (std::size(request_list_) == 1) {
-            config_response_parser();
-            auto request_index = ++round_index_;
-            trace_event("request=ready:index={}", request_index);
-            http::async_write(socket_, request_list_.front().first,
-                              boost::asio::bind_executor(request_sequence_, on_send_request(request_index)));
-        }
+        emplace_response_parser();
+        auto request_index = ++round_index_;
+        trace_event("request=ready:index={}", request_index);
+        http::async_write(socket_, request_list_.front().first,
+                          boost::asio::bind_executor(request_sequence_, on_send_request(request_index)));
     }
 
     void session<protocal::http>::trace_by(trace_callback callback) {
@@ -90,18 +90,20 @@ namespace net::client
     auto session<protocal::http>::send_request(request<empty_body>&& request)
     -> folly::SemiFuture<response<dynamic_body>> {
         logger_().info("send_request empty body");
-        auto [promise_response, future_response] = folly::makePromiseContract<response<dynamic_body>>();
+        auto [promise, future] = folly::makePromiseContract<response<dynamic_body>>();
         boost::asio::post(
             request_sequence_,
-            [this, request = std::move(request), response = std::move(promise_response)]() mutable {
+            [this, request = std::move(request), response = std::move(promise)]() mutable {
                 auto request_target = request.target().to_string();
                 if (active_) {
                     request_list_.emplace_back(std::move(request), std::move(response));
-                    send_request_if_single();
+                    if (request_list_.size() == 1) {
+                        send_front_request();
+                    }
                 } else {
-                    response.setException(core::session_closed_error{ "send_request_task" });
+                    response.setException(core::session_closed_error{ "send_request inactive" });
                 }
             });
-        return std::move(future_response);
+        return std::move(future);
     }
 }

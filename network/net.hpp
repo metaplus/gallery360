@@ -1,6 +1,5 @@
 #pragma once
 
-
 namespace net
 {
     using namespace core::literals;
@@ -19,7 +18,7 @@ namespace net
     namespace protocal
     {
         template <typename Protocal>
-        struct base;
+        struct protocal_base;
 
         struct http
         {
@@ -28,7 +27,7 @@ namespace net
         };
 
         template <>
-        struct base<http>
+        struct protocal_base<http>
         {
             template <typename Body>
             using response = boost::beast::http::response<Body, boost::beast::http::fields>;
@@ -42,7 +41,7 @@ namespace net
             using response_ptr = std::unique_ptr<response<Body>>;
             template <typename Body>
             using request_ptr = std::unique_ptr<request<Body>>;
-            using under_protocal_type = boost::asio::ip::tcp;
+            using underlying_protocal = boost::asio::ip::tcp;
             using socket_type = boost::asio::ip::tcp::socket;
         };
 
@@ -51,18 +50,20 @@ namespace net
         struct udp final { };
 
         template <>
-        struct base<tcp>
+        struct protocal_base<tcp>
         {
             using protocal_type = boost::asio::ip::tcp;
             using socket_type = boost::asio::ip::tcp::socket;
+            using socket_ptr = std::unique_ptr<boost::asio::ip::tcp::socket>;
             using context_type = boost::asio::io_context;
         };
 
         template <>
-        struct base<udp>
+        struct protocal_base<udp>
         {
             using protocal_type = boost::asio::ip::udp;
             using socket_type = boost::asio::ip::udp::socket;
+            using socket_ptr = std::unique_ptr<boost::asio::ip::udp::socket>;
             using context_type = boost::asio::io_context;
         };
 
@@ -85,15 +86,11 @@ namespace net
             {
                 std::string codecs;
                 std::string mime_type;
-                std::vector<represent> represents;
+                boost::container::small_vector<represent, 5> represents;
             };
 
-            struct video_adaptation_set final : adaptation_set
+            struct video_adaptation_set final : adaptation_set, core::coordinate, core::dimension
             {
-                int col = 0;
-                int row = 0;
-                int width = 0;
-                int height = 0;
                 struct context;
                 std::shared_ptr<context> context;
             };
@@ -118,10 +115,10 @@ namespace net
                 ~parser() = default;
 
                 std::string_view title() const;
-                std::pair<int, int> grid_size() const;
-                std::pair<int, int> scale_size() const;
+                core::coordinate grid() const;
+                core::dimension scale() const;
 
-                video_adaptation_set& video_set(int col, int row) const;
+                video_adaptation_set& video_set(core::coordinate coordinate) const;
                 audio_adaptation_set& audio_set() const;
 
                 static std::chrono::milliseconds parse_duration(std::string_view duration);
@@ -156,10 +153,9 @@ namespace net
         return config_json_entry(entry_path).get<T>();
     }
 
-    struct asio_deleter;
-
-    std::vector<std::thread> make_asio_threads(boost::asio::io_context& context,
-                                               unsigned concurrency = std::thread::hardware_concurrency());
+    boost::container::small_vector<std::thread, 8>
+    make_asio_threads(boost::asio::io_context& context,
+                      unsigned concurrency = std::thread::hardware_concurrency());
 
     std::shared_ptr<boost::asio::io_context> make_asio_pool(unsigned concurrency);
 }
@@ -167,8 +163,8 @@ namespace net
 template <typename Protocal>
 struct std::less<boost::asio::basic_socket<Protocal>> final
 {
-    bool operator()(boost::asio::basic_socket<Protocal> const& sock1,
-                    boost::asio::basic_socket<Protocal> const& sock2) const {
+    bool operator()(const boost::asio::basic_socket<Protocal>& sock1,
+                    const boost::asio::basic_socket<Protocal>& sock2) const {
         return sock1.remote_endpoint() < sock2.remote_endpoint()
             || !(sock2.remote_endpoint() < sock1.remote_endpoint())
             && sock1.local_endpoint() < sock2.local_endpoint();
@@ -178,8 +174,8 @@ struct std::less<boost::asio::basic_socket<Protocal>> final
 template <typename Protocal>
 struct std::equal_to<boost::asio::basic_socket<Protocal>> final
 {
-    bool operator()(boost::asio::basic_socket<Protocal> const& sock1,
-                    boost::asio::basic_socket<Protocal> const& sock2) const {
+    bool operator()(const boost::asio::basic_socket<Protocal>& sock1,
+                    const boost::asio::basic_socket<Protocal>& sock2) const {
         return sock1.remote_endpoint() == sock2.remote_endpoint()
             && sock1.local_endpoint() == sock2.local_endpoint();
     }

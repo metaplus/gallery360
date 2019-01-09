@@ -9,8 +9,9 @@ namespace net::server
     using session_ptr = std::unique_ptr<session<Protocal>>;
 
     template <>
-    class session<protocal::http> final : private detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
-                                          public protocal::base<protocal::http>
+    class session<protocal::http> final :
+        detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
+        protocal::protocal_base<protocal::http>
     {
         const core::logger_access logger_;
         std::filesystem::path root_path_;
@@ -28,6 +29,7 @@ namespace net::server
         using session_base::remote_endpoint;
         using session_base::index;
         using session_base::identity;
+        using protocal_base::socket_type;
 
         folly::SemiFuture<folly::Unit> process_requests();
 

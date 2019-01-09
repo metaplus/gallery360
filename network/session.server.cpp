@@ -47,7 +47,7 @@ namespace net::server
             }
             auto target_path = concat_target_path(request->target());
             const auto send_response = [this](auto&& response_ptr) {
-                auto& response_ref = *response_ptr;
+                auto& response_ref = response_ptr.operator*();
                 logger_().info("on_recv_request response reason {}", response_ptr->reason());
                 http::async_write(socket_, response_ref, on_send_response(std::move(response_ptr)));
             };
@@ -72,7 +72,7 @@ namespace net::server
     void session<protocal::http>::receive_request() {
         logger_().info("receive_request");
         auto request_ptr = std::make_unique<request<dynamic_body>>();
-        auto& request_ref = *request_ptr;
+        auto& request_ref = request_ptr.operator*();
         http::async_read(socket_, recvbuf_, request_ref,
                          on_recv_request(std::move(request_ptr)));
     }
