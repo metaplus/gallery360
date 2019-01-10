@@ -170,15 +170,14 @@ namespace net::component
         logger->info("create_parsed @{} establish session", std::this_thread::get_id());
         return dash_manager.impl_
                            ->make_http_session()
-                           .via(executor.get()).thenValue(
+                           .via(executor.get()).thenMulti(
                                [dash_manager](http_session_ptr session) mutable {
                                    logger->info("create_parsed @{} send request", std::this_thread::get_id());;
                                    return (dash_manager.impl_->manager_client = std::move(session))
                                        ->send_request_for<multi_buffer>(
                                            net::make_http_request<empty_body>(dash_manager.impl_->mpd_uri->host(),
                                                                               dash_manager.impl_->mpd_uri->path()));
-                               })
-                           .via(executor.get()).thenValue(
+                               },
                                [dash_manager](multi_buffer&& buffer) {
                                    logger->info("create_parsed @{} parse mpd", std::this_thread::get_id());
                                    auto mpd_content = buffers_to_string(buffer.data());
