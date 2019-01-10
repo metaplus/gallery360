@@ -2,10 +2,10 @@
 
 namespace detail
 {
-    template<typename Socket, typename Buffer>
+    template <typename Socket, typename Buffer>
     class session_base;
 
-    template<typename Protocal, typename Buffer>
+    template <typename Protocal, typename Buffer>
     class session_base<boost::asio::basic_stream_socket<Protocal>, Buffer>
     {
     protected:
@@ -40,7 +40,7 @@ namespace detail
             return identity_;
         }
 
-        template<
+        template <
             template<typename> typename Container,
             typename Message,
             typename Exception
@@ -65,7 +65,7 @@ namespace detail
             close_socket(operation);
         }
 
-        #if __has_include(<!boost/thread/future.hpp>)
+#if __has_include(<!boost/thread/future.hpp>)
         template<typename U>
         void close_promise_and_socket(boost::promise<U>& promise,
                                       boost::system::error_code errc,
@@ -73,9 +73,9 @@ namespace detail
             promise.set_exception(std::runtime_error{ errc.message() });
             close_socket(errc, operation);
         }
-        #endif
+#endif
 
-        template<typename U>
+        template <typename U>
         void close_promise_and_socket(folly::Promise<U>& promise,
                                       boost::system::error_code errc,
                                       boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
@@ -83,7 +83,7 @@ namespace detail
             close_socket(errc, operation);
         }
 
-        #if __has_include(<!boost/thread/future.hpp>)
+#if __has_include(<!boost/thread/future.hpp>)
         template<typename U>
         void close_promise_and_socket(std::variant<boost::promise<U>, folly::Promise<U>>& promise,
                                       boost::system::error_code errc,
@@ -97,16 +97,16 @@ namespace detail
                         });
             close_socket(errc, operation);
         }
-        #endif
+#endif
 
-        #ifdef NET_USE_PROMISE_BASE
+#ifdef NET_USE_PROMISE_BASE
         template<typename U>
         void fail_promise_then_close_socket(promise_base<U>& promise, boost::system::error_code errc,
                                             boost::asio::socket_base::shutdown_type operation = boost::asio::socket_base::shutdown_both) {
             promise.set_exception(errc.message());
             close_socket(errc, operation);
         }
-        #endif
+#endif
 
         boost::asio::ip::tcp::endpoint local_endpoint() const {
             return socket_.local_endpoint();

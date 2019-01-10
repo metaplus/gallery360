@@ -173,7 +173,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="acceptor.cpp" />
-    <ClCompile Include="sesssion.client.cpp" />
+    <ClCompile Include="session.client.cpp" />
     <ClCompile Include="component.cpp" />
     <ClCompile Include="connector.cpp" />
     <ClCompile Include="net.cpp">

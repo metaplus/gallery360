@@ -9,7 +9,7 @@ namespace media
     cursor::cursor(const multi_buffer& buffer)
         : buffer_begin(boost::asio::buffer_sequence_begin(buffer.data()))
         , buffer_end(boost::asio::buffer_sequence_end(buffer.data()))
-        , buffer_iter(buffer_begin) {
+        , buffer_iterator(buffer_begin) {
         auto& buffer_sizes = core::as_mutable(this->buffer_sizes);
         std::transform(buffer_begin, buffer_end, std::back_inserter(buffer_sizes),
                        [](const_buffer_iterator::reference buffer) {
@@ -19,7 +19,7 @@ namespace media
 
     int64_t cursor::seek_sequence(int64_t seek_offset) {
         auto const size_iter = std::upper_bound(buffer_sizes.crbegin(), buffer_sizes.crend(), seek_offset, std::greater<>{});
-        buffer_iter = std::prev(buffer_end, std::distance(buffer_sizes.crbegin(), size_iter));
+        buffer_iterator = std::prev(buffer_end, std::distance(buffer_sizes.crbegin(), size_iter));
         auto const partial_sequence_size = size_iter != buffer_sizes.crend() ? *size_iter : 0;
         buffer_offset = std::min(seek_offset - partial_sequence_size, buffer_size());
         sequence_offset = partial_sequence_size + buffer_offset;
@@ -27,7 +27,7 @@ namespace media
     }
 
     int64_t cursor::buffer_size() const {
-        auto const size = buffer_sizes.at(std::distance(buffer_begin, buffer_iter));
+        auto const size = buffer_sizes.at(std::distance(buffer_begin, buffer_iterator));
         return folly::to<int64_t>(size);
     }
 
@@ -74,19 +74,19 @@ namespace media
         : cursor(buffer) {}
 
     int random_access_cursor::read(uint8_t* buffer, int expect_size) {
-        if (buffer_iter == buffer_end)
+        if (buffer_iterator == buffer_end)
             return AVERROR_EOF;
         auto total_read_size = 0;
         fmt::print("cursor reading, expect_size {}, sequence{}/{}\n", expect_size, sequence_offset, sequence_size());
-        while (buffer_iter != buffer_end && total_read_size < expect_size) {
-            auto const read_ptr = static_cast<char const*>((*buffer_iter).data());
+        while (buffer_iterator != buffer_end && total_read_size < expect_size) {
+            auto const read_ptr = static_cast<char const*>((*buffer_iterator).data());
             auto const read_size = std::min<int64_t>(expect_size - total_read_size, buffer_size() - buffer_offset);
             assert(read_size > 0);
             std::copy_n(read_ptr + buffer_offset, read_size, buffer + total_read_size);
             buffer_offset += read_size;
             sequence_offset += read_size;
             if (buffer_offset == buffer_size()) {
-                buffer_iter.operator++();
+                buffer_iterator.operator++();
                 buffer_offset = 0;
             }
             total_read_size += folly::to<int>(read_size);
@@ -152,22 +152,6 @@ namespace media
         core::throw_unimplemented(__FUNCSIG__);
     }
 
-    bool io::cursor_view::active() const noexcept {
-        return !cursor_.expired();
-    }
-
-    int io::reader::read(uint8_t* buffer, int size) {
-        core::throw_unimplemented(__FUNCSIG__);
-    }
-
-    int io::writer::write(uint8_t* buffer, int size) {
-        core::throw_unimplemented(__FUNCSIG__);
-    }
-
-    int64_t io::seeker::seek(int64_t offset, int whence) {
-        core::throw_unimplemented(__FUNCSIG__);
-    }
-
     //-- buffer_list_cursor
     buffer_list_cursor::buffer_list_cursor(std::list<const_buffer> bufs) {
         full_size_ = std::accumulate(
@@ -176,20 +160,21 @@ namespace media
                 return sum + buffer.size();
             });
         buffer_list_ = std::move(bufs);
-        buffer_iter_ = buffer_list_.begin();
+        buffer_iterator_ = buffer_list_.begin();
     }
 
     int buffer_list_cursor::read(uint8_t* buffer, int expect_size) {
-        if (buffer_iter_ != buffer_list_.end()) {
+        if (buffer_iterator_ != buffer_list_.end()) {
             auto read_size = 0i64;
-            while (buffer_iter_ != buffer_list_.end() && read_size < expect_size) {
-                auto* pointer = static_cast<const char*>(buffer_iter_->data());
-                const auto increment = std::min<int64_t>(expect_size - read_size, buffer_iter_->size() - offset_);
+            while (buffer_iterator_ != buffer_list_.end() && read_size < expect_size) {
+                auto* pointer = static_cast<const char*>(buffer_iterator_->data());
+                const auto increment = std::min<int64_t>(expect_size - read_size,
+                                                         buffer_iterator_->size() - offset_);
                 assert(increment > 0);
                 std::copy_n(pointer + offset_, increment, buffer + read_size);
                 offset_ += increment;
-                if (offset_ == buffer_iter_->size()) {
-                    if (buffer_iter_.operator++() == buffer_list_.end()) {
+                if (offset_ == buffer_iterator_->size()) {
+                    if (buffer_iterator_.operator++() == buffer_list_.end()) {
                         eof_ = true;
                     }
                     offset_ = 0;
@@ -209,26 +194,26 @@ namespace media
 
     int64_t buffer_list_cursor::seek(int64_t seek_offset, int whence) {
         switch (whence) {
-            case SEEK_SET: 
+            case SEEK_SET:
                 break;
             case SEEK_END:
                 seek_offset += full_size_;
                 break;
-            case SEEK_CUR: 
+            case SEEK_CUR:
                 seek_offset += full_offset_;
                 break;
-            case AVSEEK_SIZE: 
-                return -1;    //TODO: return -1 for streaming
+            case AVSEEK_SIZE:
+                return -1; //TODO: return -1 for streaming
             default: throw core::unreachable_execution_error{ __FUNCSIG__ };
         }
         if (seek_offset >= full_size_) {
-            buffer_iter_ = buffer_list_.end();
+            buffer_iterator_ = buffer_list_.end();
             full_offset_ = full_size_;
             offset_ = 0;
             return full_size_;
         }
         auto partial_sum = 0i64;
-        buffer_iter_ = std::find_if(
+        buffer_iterator_ = std::find_if(
             buffer_list_.begin(), buffer_list_.end(),
             [&partial_sum, &seek_offset](const_buffer& buffer) {
                 const auto buffer_size = folly::to<int64_t>(buffer.size());
@@ -253,7 +238,7 @@ namespace media
     }
 
     bool buffer_list_cursor::available() const {
-        return buffer_iter_ != buffer_list_.end();
+        return buffer_iterator_ != buffer_list_.end();
     }
 
     int64_t buffer_list_cursor::consume_size() const {

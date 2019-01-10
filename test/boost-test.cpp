@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <boost/asio.hpp>
 #include <boost/circular_buffer.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/date_time/microsec_time_clock.hpp>
@@ -7,6 +8,7 @@
 #include <boost/date_time/posix_time/time_parsers.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/process/environment.hpp>
+#include <boost/process/system.hpp>
 
 namespace boost_test
 {
@@ -193,5 +195,154 @@ namespace boost_test
         EXPECT_EQ(t.to_string(), "F:\\TraceDb");
         EXPECT_EQ(t.to_vector().size(), 1);
         EXPECT_EQ(t.to_vector().front(), "F:\\TraceDb");
+    }
+
+    TEST(Asio, DeferContext) {
+        boost::asio::io_context ctx;
+        std::thread::id id0, id1, id2, id3;
+        EXPECT_EQ(id0, id1);
+        EXPECT_EQ(id0, id2);
+        auto work = [&ctx] {
+            ctx.run();
+        };
+        auto work_guard = boost::asio::make_work_guard(ctx);
+        std::thread th1{ work };
+        std::thread th2{ work };
+        folly::stop_watch<milliseconds> w;
+        boost::asio::post(ctx, [&] {
+            id1 = std::this_thread::get_id();
+            EXPECT_TRUE(ctx.get_executor().running_in_this_thread());
+            boost::asio::defer(ctx, [&] {
+                id3 = std::this_thread::get_id();
+                EXPECT_GE(w.elapsed(), 50ms);
+                EXPECT_LT(w.elapsed(), 60ms);
+                std::this_thread::sleep_for(50ms);
+            });
+            EXPECT_GE(w.elapsed(), 0ms);
+            EXPECT_LT(w.elapsed(), 10ms);
+            std::this_thread::sleep_for(100ms);
+        });
+        boost::asio::post(ctx, [&] {
+            id2 = std::this_thread::get_id();
+            std::this_thread::sleep_for(50ms);
+        });
+        std::this_thread::sleep_for(200ms);
+        EXPECT_NE(id0, id1);
+        EXPECT_NE(id0, id2);
+        EXPECT_NE(id1, id2);
+        EXPECT_EQ(id2, id3);
+        work_guard.reset();
+        th1.join();
+        th2.join();
+    }
+
+    TEST(Asio, DeferStrand) {
+        boost::asio::io_context ctx;
+        boost::asio::strand<decltype(ctx)::executor_type> st{ ctx.get_executor() };
+        std::thread::id id0, id1, id2;
+        milliseconds t1, t2;
+        EXPECT_EQ(id0, id1);
+        EXPECT_EQ(id0, id2);
+        auto work = [&ctx] {
+            ctx.run();
+        };
+        auto work_guard = boost::asio::make_work_guard(ctx);
+        std::thread th1{ work };
+        std::thread th2{ work };
+        std::thread th3{ work };
+        folly::stop_watch<milliseconds> w;
+        boost::asio::post(ctx, [&] {
+            id1 = std::this_thread::get_id();
+            EXPECT_TRUE(ctx.get_executor().running_in_this_thread());
+            boost::asio::dispatch(ctx, [&] {
+                EXPECT_EQ(id1, std::this_thread::get_id());
+                boost::asio::defer(st, [&] {
+                    t1 = w.elapsed();
+                    std::this_thread::sleep_for(50ms);
+                });
+                std::this_thread::sleep_for(50ms);
+            });
+            EXPECT_GE(w.elapsed(), 50ms);
+            EXPECT_LT(w.elapsed(), 60ms);
+            std::this_thread::sleep_for(200ms);
+        });
+        boost::asio::post(ctx, [&] {
+            id2 = std::this_thread::get_id();
+            boost::asio::defer(st, [&] {
+                t2 = w.elapsed();
+                std::this_thread::sleep_for(50ms);
+            });
+            std::this_thread::sleep_for(200ms);
+        });
+        std::this_thread::sleep_for(300ms);
+        EXPECT_NE(id0, id1);
+        EXPECT_NE(id0, id2);
+        EXPECT_NE(id1, id2);
+        EXPECT_GE(std::min(t1, t2), 0ms);
+        EXPECT_LT(std::min(t1, t2), 10ms);
+        EXPECT_GE(std::max(t1, t2), 50ms);
+        EXPECT_LT(std::max(t1, t2), 60ms);
+        work_guard.reset();
+        th1.join();
+        th2.join();
+        th3.join();
+    }
+
+    TEST(Asio, DispatchStrand) {
+        boost::asio::io_context ctx;
+        boost::asio::strand<decltype(ctx)::executor_type> st{ ctx.get_executor() };
+        std::thread::id id0, id1, id2;
+        milliseconds t1, t2, t3, t4;
+        EXPECT_EQ(id0, id1);
+        EXPECT_EQ(id0, id2);
+        auto work = [&ctx] {
+            ctx.run();
+        };
+        auto work_guard = boost::asio::make_work_guard(ctx);
+        std::thread th1{ work };
+        std::thread th2{ work };
+        folly::stop_watch<milliseconds> w;
+        boost::asio::post(ctx, [&] {
+            id1 = std::this_thread::get_id();
+            EXPECT_TRUE(ctx.get_executor().running_in_this_thread());
+            boost::asio::dispatch(ctx, [&] {    // as-if boost::asio::defer, no blocking triggered in contest
+                EXPECT_EQ(id1, std::this_thread::get_id());
+                std::this_thread::sleep_for(1ms);
+                boost::asio::dispatch(st, [&] {
+                    EXPECT_EQ(id2, std::this_thread::get_id());
+                    t1 = w.elapsed();
+                    std::this_thread::sleep_for(50ms);
+                });
+                t3 = w.elapsed();
+                std::this_thread::sleep_for(50ms);
+            });
+            EXPECT_GE(w.elapsed(), 50ms);
+            EXPECT_LT(w.elapsed(), 60ms);
+            std::this_thread::sleep_for(200ms);
+        });
+        boost::asio::post(ctx, [&] {
+            id2 = std::this_thread::get_id();
+            boost::asio::dispatch(st, [&] {
+                t2 = w.elapsed();
+                std::this_thread::sleep_for(50ms);
+            });
+            t4 = w.elapsed();
+            std::this_thread::sleep_for(200ms);
+        });
+        std::this_thread::sleep_for(500ms);
+        EXPECT_NE(id0, id1);
+        EXPECT_NE(id0, id2);
+        EXPECT_NE(id1, id2);
+        EXPECT_GE(t2, 0ms);
+        EXPECT_LT(t2, 10ms);
+        EXPECT_GE(t4, 50ms);
+        EXPECT_LT(t4, 60ms);
+        EXPECT_GE(t3, 1ms);
+        EXPECT_LT(t3, 11ms);
+        EXPECT_GE(t1, 250ms);
+        EXPECT_LT(t1, 260ms);
+        work_guard.reset();
+        th1.join();
+        th2.join();
     }
 }

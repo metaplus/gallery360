@@ -1,11 +1,12 @@
 #include "stdafx.h"
 #include "app.h"
+#include <boost/container/flat_map.hpp>
 
 auto logger = core::console_logger_access("app.options");
 
 auto logged_wrapper = [](auto info, auto notifier) {
     return [=](auto option) {
-        logger()->info("parse {} value {}", info, option);
+        logger().info("parse {} value {}", info, option);
         notifier(option);
     };
 };
@@ -16,7 +17,7 @@ struct option_detail final
     boost::program_options::value_semantic* semantic = nullptr;
 };
 
-const std::map<std::string, option_detail> option_details{
+const boost::container::flat_map<std::string, option_detail> option_details{
     {
         "help,h", {
             "help screen"
@@ -44,7 +45,7 @@ auto iterate_option_details = [](auto process) {
 namespace app
 {
     void parse_options(int argc, char* argv[]) {
-        logger()->info("parsing {} launching parameters", argc - 1);
+        logger().info("parsing {} launching parameters", argc - 1);
         boost::program_options::options_description description{ "server launch options" };
         iterate_option_details(
             [add_options = description.add_options()](auto& option, auto& detail) mutable {
@@ -59,7 +60,7 @@ namespace app
         boost::program_options::notify(options);
         if (options.count("help")) {
             fmt::print("{}", description);
-            std::exit(0);
+            std::exit(EXIT_SUCCESS);
         }
     }
 }

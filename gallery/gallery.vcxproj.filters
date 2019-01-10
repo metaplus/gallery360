@@ -27,18 +27,6 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="openvr.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\detail\IUnityGraphics.h">
-      <Filter>Header Files\unity</Filter>
-    </ClInclude>
-    <ClInclude Include="..\detail\IUnityGraphicsD3D11.h">
-      <Filter>Header Files\unity</Filter>
-    </ClInclude>
-    <ClInclude Include="..\detail\IUnityInterface.h">
-      <Filter>Header Files\unity</Filter>
-    </ClInclude>
     <ClInclude Include="export.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -51,7 +39,16 @@
     <ClInclude Include="database.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\detail\IUnityRenderingExtensions.h">
+    <ClInclude Include="unity\IUnityGraphics.h">
+      <Filter>Header Files\unity</Filter>
+    </ClInclude>
+    <ClInclude Include="unity\IUnityGraphicsD3D11.h">
+      <Filter>Header Files\unity</Filter>
+    </ClInclude>
+    <ClInclude Include="unity\IUnityInterface.h">
+      <Filter>Header Files\unity</Filter>
+    </ClInclude>
+    <ClInclude Include="unity\IUnityRenderingExtensions.h">
       <Filter>Header Files\unity</Filter>
     </ClInclude>
   </ItemGroup>

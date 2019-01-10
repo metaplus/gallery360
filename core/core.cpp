@@ -3,6 +3,7 @@
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/null_sink.h>
 #include <boost/date_time/microsec_time_clock.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
@@ -91,10 +92,8 @@ namespace core
             std::make_shared<folly::NamedThreadFactory>(thread_name));
     }
 
-    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
-                                                                  int queue_size,
-                                                                  bool throw_if_full,
-                                                                  std::string_view pool_name) {
+    std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency, int queue_size,
+                                                                  bool throw_if_full, std::string_view pool_name) {
         std::unique_ptr<folly::BlockingQueue<folly::CPUThreadPoolExecutor::CPUTask>> task_queue;
         if (throw_if_full) {
             task_queue = std::make_unique<
@@ -127,37 +126,70 @@ namespace core
         return std::make_unique<std::atomic<int64_t>>(init);
     };
 
-    folly::Function<
-        std::pair<int64_t, std::shared_ptr<spdlog::logger>>()
-    >
-    console_logger_factory(std::string logger_group) {
+    folly::Function<std::pair<int64_t, logger_access>()>
+    console_logger_factory(std::string logger_group, bool null) {
 
-        return [logger_group = std::move(logger_group), indexer = atomic_index()] {
+        return [null, logger_group = std::move(logger_group), indexer = atomic_index()] {
             const auto logger_index = indexer->fetch_add(1);
-            const auto logger_name = fmt::format("{}${}", logger_group, logger_index);
-            auto logger = spdlog::stdout_color_mt(logger_name);
+            auto logger_name = fmt::format("{}${}", logger_group, logger_index);
+            return std::make_pair(
+                logger_index,
+                null
+                    ? null_logger_access(std::move(logger_name))
+                    : console_logger_access(
+                        std::move(logger_name),
+                        [](spdlog::logger& logger) {
 #ifdef NDEBUG
-            logger->set_level(spdlog::level::info);
+                            logger.set_level(spdlog::level::info);
 #else
-            logger->set_level(spdlog::level::debug);
+                            logger.set_level(spdlog::level::debug);
 #endif
-            return std::make_pair(logger_index, std::move(logger));
+                        }));
         };
     }
 
-    folly::Function<
-        std::shared_ptr<spdlog::logger>&()>
-    console_logger_access(std::string logger_name,
-                          folly::Function<void(spdlog::logger&)> post_process) {
-        auto generate_logger = [logger_name, process = std::move(post_process)]() mutable {
+    logger_access console_logger_access(std::string logger_name,
+                                        logger_process post_process) {
+        auto generate_logger = [
+                logger_name = std::move(logger_name),
+                process = std::move(post_process)]() mutable {
             auto logger = spdlog::stdout_color_mt(logger_name);
             if (process != nullptr) {
                 process(*logger);
             }
             return logger;
         };
-        return [logger = folly::lazy(std::move(generate_logger))]() mutable -> decltype(auto) {
-            return logger();
+        return [logger = folly::lazy(std::move(generate_logger))]() -> decltype(auto) {
+            return logger().operator*();
         };
+    }
+
+    logger_access null_logger_access(std::string logger_name) {
+        return [logger = spdlog::create<spdlog::sinks::null_sink_st>(std::move(logger_name))]() -> decltype(auto) {
+            return logger.operator*();
+        };
+    }
+
+    size_t hash_value(const coordinate& coordinate) {
+        return boost::hash_value(std::tie(coordinate.col,
+                                          coordinate.row));
+    }
+
+    bool coordinate::operator<(const coordinate& that) const {
+        return col < that.col
+            || col == that.col && row < that.row;
+    }
+
+    bool coordinate::operator==(const coordinate& that) const {
+        return col == that.col && row == that.row;
+    }
+
+    bool dimension::operator<(const dimension& that) const {
+        return width < that.width
+            || width == that.width && height < that.height;
+    }
+
+    bool dimension::operator==(const dimension& that) const {
+        return width == that.width && height == that.height;
     }
 }

@@ -21,7 +21,6 @@
 #pragma warning(disable:4267)
 #include "core/pch.h"
 #include "multimedia/pch.h"
-//#include "network/pch.h"
 #pragma warning(pop)
 
 #include <d3d11.h>
@@ -29,7 +28,6 @@
 #include <boost/circular_buffer.hpp>
 #include <range/v3/view/iota.hpp>
 #include <fstream>
-#include "gallery/openvr.h"
 #include "gallery/pch.h"
 #include "unity/IUnityGraphicsD3D11.h"
 

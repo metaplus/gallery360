@@ -1,8 +1,9 @@
 #include "stdafx.h"
 #include "net.hpp"
-#include <tinyxml2.h>
-#include <re2/re2.h>
+#include <boost/container/flat_map.hpp>
 #include <fstream>
+#include <re2/re2.h>
+#include <tinyxml2.h>
 
 namespace net
 {
@@ -16,19 +17,15 @@ namespace net
     {
         struct dash::parser::impl final
         {
-            std::unordered_map<
-                std::pair<int, int>,
-                video_adaptation_set
-            > video_adaptation_sets;
+            boost::container::flat_map<
+                core::coordinate, video_adaptation_set> video_adaptation_sets;
             audio_adaptation_set audio_adaptation_set;
             std::string title;
             std::chrono::milliseconds min_buffer_time;
             std::chrono::milliseconds max_segment_duration;
             std::chrono::milliseconds presentation_time;
-            int grid_width = 0;
-            int grid_height = 0;
-            int scale_width = 0;
-            int scale_height = 0;
+            core::coordinate grid;
+            core::dimension scale;
             std::shared_ptr<folly::ThreadPoolExecutor> executor;
 
             struct duration_parse_mismatch final : std::runtime_error
@@ -64,8 +61,9 @@ namespace net
                     adaptation_set.mime_type = represents.front()->Attribute("mimeType");
                     adaptation_set.width = folly::to<int>(element->Attribute("maxWidth"));
                     adaptation_set.height = folly::to<int>(element->Attribute("maxHeight"));
-                    auto [x, y, w, h, total_w, total_h] = split_spatial_description(element->FirstChildElement("SupplementalProperty")
-                                                                                           ->Attribute("value"));
+                    auto [x, y, w, h, total_w, total_h] = split_spatial_description(
+                        element->FirstChildElement("SupplementalProperty")
+                               ->Attribute("value"));
                     adaptation_set.col = x;
                     adaptation_set.row = y;
                     adaptation_set.represents.resize(represents.size());
@@ -97,7 +95,7 @@ namespace net
                                       tinyxml2::XMLElement* element) {
                         auto video_set = make_video_set(element);
                         auto [iterator, success] = reduce.try_emplace(
-                            std::make_pair(video_set.col, video_set.row),
+                            static_cast<core::coordinate&>(video_set),
                             std::move(video_set));
                         assert(success);
                         return std::move(reduce);
@@ -117,36 +115,36 @@ namespace net
                 represent.initial = element->FirstChildElement("SegmentTemplate")
                                            ->Attribute("initialization");
                 audio_adaptation_set.represents.push_back(std::move(represent));
-                audio_adaptation_set.sample_rate = std::stoi(element->Attribute("audioSamplingRate"));
+                audio_adaptation_set.sample_rate = folly::to<int>(element->Attribute("audioSamplingRate"));
             }
 
             void parse_grid_size(tinyxml2::XMLElement* element) {
-                auto [x, y, w, h, total_w, total_h] = split_spatial_description(element->FirstChildElement("SupplementalProperty")
-                                                                                       ->Attribute("value"));
-                grid_width = total_w;
-                grid_height = total_h;
+                auto [x, y, w, h, total_w, total_h] =
+                    split_spatial_description(element->FirstChildElement("SupplementalProperty")
+                                                     ->Attribute("value"));
+                grid = core::coordinate{ total_w, total_h };
             }
 
             void parse_scale_size() {
                 using scale_pair = std::pair<int, int>;
-                std::tie(scale_width, scale_height) = std::transform_reduce(
+                scale = std::transform_reduce(
                     std::execution::par,
                     video_adaptation_sets.begin(), video_adaptation_sets.end(),
-                    scale_pair{ 0, 0 },
-                    [](scale_pair sum, scale_pair increment) {
-                        return scale_pair{
-                            sum.first + increment.first,
-                            sum.second + increment.second
+                    core::dimension{ 0, 0 },
+                    [](core::dimension sum, core::dimension increment) {
+                        return core::dimension{
+                            sum.width + increment.width,
+                            sum.height + increment.height
                         };
                     },
                     [](decltype(video_adaptation_sets)::reference adaptation_set) {
-                        return scale_pair{
+                        return core::dimension{
                             adaptation_set.second.width,
                             adaptation_set.second.height
                         };
                     });
-                scale_width /= grid_height;
-                scale_height /= grid_width;
+                scale.width /= grid.row;
+                scale.height /= grid.col;
             }
         };
 
@@ -198,22 +196,21 @@ namespace net
             return impl_->title;
         }
 
-        std::pair<int, int> dash::parser::grid_size() const {
-            return std::make_pair(impl_->grid_width,
-                                  impl_->grid_height);
+        core::coordinate dash::parser::grid() const {
+            return impl_->grid;
         }
 
-        std::pair<int, int> dash::parser::scale_size() const {
-            return std::make_pair(impl_->scale_width,
-                                  impl_->scale_height);
+        core::dimension dash::parser::scale() const {
+            return impl_->scale;
         }
 
-        dash::video_adaptation_set& dash::parser::video_set(int col, int row) const {
-            const auto index = col + row * impl_->grid_width;
-            return impl_->video_adaptation_sets.at(std::make_pair(col, row));
+        dash::video_adaptation_set&
+        dash::parser::video_set(core::coordinate coordinate) const {
+            return impl_->video_adaptation_sets.at(coordinate);
         }
 
-        dash::audio_adaptation_set& dash::parser::audio_set() const {
+        dash::audio_adaptation_set&
+        dash::parser::audio_set() const {
             return impl_->audio_adaptation_set;
         }
     }
@@ -253,9 +250,9 @@ namespace net
                     });
                 assert(config_dir != workset_paths().rend());
                 if (config_dir == std::prev(workset_paths().rend())) {
-                    logger()->warn("config directory uses default work path");
+                    logger().warn("config directory uses default work path");
                 }
-                logger()->info("config directory {}", config_dir->generic_string());
+                logger().info("config directory {}", config_dir->generic_string());
                 config_path_array[false] = *config_dir / "config.xml";
                 config_path_array[true] = *config_dir / "config.json";
                 assert(std::filesystem::is_regular_file(config_path_array[true]));
@@ -268,7 +265,7 @@ namespace net
         static const auto config_document = folly::lazy(
             [] {
                 auto config_document = std::make_unique<tinyxml2::XMLDocument>();
-                const auto load_success = config_document->LoadFile(config_path(false).string().data());
+                [[maybe_unused]] const auto load_success = config_document->LoadFile(config_path(false).string().data());
                 assert(load_success == tinyxml2::XML_SUCCESS);
                 return config_document;
             });
@@ -309,32 +306,35 @@ namespace net
 
     using boost::asio::io_context;
     using boost::asio::executor_work_guard;
+    using boost::container::small_vector;
 
-    struct asio_deleter final : std::default_delete<io_context>
+    class asio_deleter final : std::default_delete<io_context>
     {
-        std::unique_ptr<
-            executor_work_guard<
-                io_context::executor_type>
-        > guard;
-        std::vector<std::thread> threads;
+        executor_work_guard<io_context::executor_type> guard_;
+        small_vector<std::thread, 8> threads_;
+
+    public:
+        asio_deleter(io_context* io_context, unsigned concurrency)
+            : guard_{ make_work_guard(*io_context) }
+            , threads_{ make_asio_threads(*io_context, concurrency) } { }
 
         asio_deleter() = default;
         asio_deleter(asio_deleter const&) = delete;
-        asio_deleter(asio_deleter&&) noexcept = default;
+
+        asio_deleter(asio_deleter&& that) noexcept
+            : guard_{ std::move(that.guard_) }
+            , threads_{ std::move(that.threads_) } { }
+
         asio_deleter& operator=(asio_deleter const&) = delete;
-        asio_deleter& operator=(asio_deleter&&) noexcept = default;
+        asio_deleter& operator=(asio_deleter&&) noexcept = delete;
         ~asio_deleter() = default;
 
-        asio_deleter(io_context* io_context, unsigned concurrency)
-            : guard{ std::make_unique<decltype(guard)::element_type>(make_work_guard(*io_context)) }
-            , threads{ make_asio_threads(*io_context, concurrency) } { }
-
         void operator()(io_context* io_context) {
-            guard = nullptr;
+            guard_.reset();
             io_context->stop();
-            logger()->info("threads join start");
+            logger().info("threads join start");
             const auto join_count = std::count_if(
-                threads.begin(), threads.end(),
+                threads_.begin(), threads_.end(),
                 [](std::thread& thread) {
                     if (thread.joinable()) {
                         thread.join();
@@ -343,37 +343,39 @@ namespace net
                     return false;
                 }
             );
-            logger()->info("threads join {} of {}", join_count, std::size(threads));
+            logger().info("threads join {} of {}", join_count, std::size(threads_));
             static_cast<default_delete&>(*this)(io_context);
-            logger()->info("io_context destruct");
+            logger().info("io_context destruct");
         }
     };
 
+    static_assert(std::is_move_constructible<executor_work_guard<io_context::executor_type>>::value);
+    static_assert(std::is_move_constructible<small_vector<std::thread, 8>>::value);
     static_assert(std::is_move_constructible<asio_deleter>::value);
 
-    std::vector<std::thread> make_asio_threads(boost::asio::io_context& io_context,
-                                               unsigned concurrency) {
-        std::vector<std::thread> threads(concurrency);
+    small_vector<std::thread, 8>
+    make_asio_threads(io_context& io_context, unsigned concurrency) {
+        small_vector<std::thread, 8> threads{ concurrency };
         std::generate(threads.begin(), threads.end(),
                       [&io_context] {
                           return thread_factory()->newThread([&io_context] {
                               const auto thread_id = std::this_thread::get_id();
                               try {
-                                  logger()->info("thread@{} start", thread_id);
+                                  logger().info("thread@{} start", thread_id);
                                   io_context.run();
-                                  logger()->info("thread@{} finish", thread_id);
+                                  logger().info("thread@{} finish", thread_id);
                               } catch (...) {
                                   const auto message = boost::current_exception_diagnostic_information();
-                                  logger()->error("thread@{} error {}", thread_id, message);
+                                  logger().error("thread@{} error {}", thread_id, message);
                               }
-                              logger()->info("thread@{} exit", thread_id);
+                              logger().info("thread@{} exit", thread_id);
                           });
                       });
         return threads;
     }
 
     std::shared_ptr<io_context> make_asio_pool(unsigned concurrency) {
-        logger()->info("make_asio_pool");
+        logger().info("make_asio_pool");
         auto* io_context_ptr = new io_context{};
         return std::shared_ptr<io_context>{
             io_context_ptr, asio_deleter{ io_context_ptr, concurrency }

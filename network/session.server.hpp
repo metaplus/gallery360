@@ -7,14 +7,13 @@ namespace net::server
 
     template <typename Protocal>
     using session_ptr = std::unique_ptr<session<Protocal>>;
-    using http_session = session<protocal::http>;
-    using http_session_ptr = std::unique_ptr<session<protocal::http>>;
 
     template <>
-    class session<protocal::http> final : private detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
-                                          public protocal::base<protocal::http>
+    class session<protocal::http> final :
+        detail::session_base<boost::asio::ip::tcp::socket, flat_buffer>,
+        protocal::protocal_base<protocal::http>
     {
-        const std::shared_ptr<spdlog::logger> logger_;
+        const core::logger_access logger_;
         std::filesystem::path root_path_;
         folly::Promise<folly::Unit> completion_;
 
@@ -30,6 +29,7 @@ namespace net::server
         using session_base::remote_endpoint;
         using session_base::index;
         using session_base::identity;
+        using protocal_base::socket_type;
 
         folly::SemiFuture<folly::Unit> process_requests();
 
@@ -46,7 +46,7 @@ namespace net::server
         auto on_send_response(response_ptr<Body> response) {
             return [this, response = std::move(response)](boost::system::error_code errc,
                                                           std::size_t transfer_size) mutable {
-                logger_->info("on_send_response errc {} last {} transfer {}", errc, response->need_eof(), transfer_size);
+                logger_().info("on_send_response errc {} last {} transfer {}", errc, response->need_eof(), transfer_size);
                 if (errc || response->need_eof()) {
                     return close_socket_then_complete(errc, boost::asio::socket_base::shutdown_send);
                 }

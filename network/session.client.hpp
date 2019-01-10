@@ -7,26 +7,25 @@ namespace net::client
 
     template <typename Protocal>
     using session_ptr = std::unique_ptr<session<Protocal>>;
-    using http_session = session<protocal::http>;
-    using http_session_ptr = std::unique_ptr<session<protocal::http>>;
 
     template <>
-    class session<protocal::http> final : detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
-                                          protocal::base<protocal::http>
+    class session<protocal::http> final :
+        detail::session_base<boost::asio::ip::tcp::socket, multi_buffer>,
+        protocal::protocal_base<protocal::http>
     {
-        using request_param = std::variant<std::monostate,
-                                           response<dynamic_body>,
-                                           core::bad_request_error,
-                                           core::bad_response_error,
-                                           core::session_closed_error>;
-        using request_list = std::list<folly::Function<void(request_param)>>;
+        using request_list = std::list<
+            std::pair<request<empty_body>,
+                      folly::Promise<response<dynamic_body>>>>;
+        using request_sequence = boost::asio::strand<boost::asio::io_context::executor_type>;
+        using response_body_parser = response_parser<dynamic_body>;
         using trace_callback = std::function<void(std::string_view, std::string)>;
         using trace_callback_wrapper = std::function<void(std::string)>;
 
-        const std::shared_ptr<spdlog::logger> logger_;
-        folly::Synchronized<request_list> request_list_;
-        std::optional<response_parser<dynamic_body>> response_parser_;
+        const core::logger_access logger_;
+        request_list request_list_;
+        std::optional<response_body_parser> response_parser_;
         mutable bool active_ = true;
+        mutable request_sequence request_sequence_;
         mutable trace_callback_wrapper trace_callback_;
 
     public:
@@ -66,24 +65,23 @@ namespace net::client
         void trace_by(trace_callback callback);
 
     private:
-        void config_response_parser();
+        void emplace_response_parser();
 
         template <typename Exception>
-        void shutdown_and_reject_request(Exception&& exception,
-                                         boost::system::error_code errc,
+        void fail_request_then_close(Exception&& exception, boost::system::error_code errc,
                                          boost::asio::socket_base::shutdown_type operation) {
-            request_list_.withWLock(
-                [=, &exception](request_list& request_list) {
-                    for (auto& request : request_list) {
-                        request(std::forward<Exception>(exception));
-                    }
-                    request_list.clear();
-                    close_socket(errc, operation);
-                    active_ = false;
-                });
+            assert(request_sequence_.running_in_this_thread());
+            for (auto& [request, response] : request_list_) {
+                response.setException(std::forward<Exception>(exception));
+            }
+            request_list_.clear();
+            close_socket(errc, operation);
+            active_ = false;
         }
 
-        auto on_send_request(int64_t index, std::any&& request);
+        void send_front_request();
+
+        auto on_send_request(int64_t index);
 
         auto on_recv_response(int64_t index);
 
