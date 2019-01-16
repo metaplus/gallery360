@@ -249,13 +249,13 @@ namespace media
         return full_size_ - full_offset_;
     }
 
-    std::shared_ptr<buffer_list_cursor>
+    std::unique_ptr<buffer_list_cursor>
     buffer_list_cursor::create(const multi_buffer& buffer) {
-        return std::make_shared<buffer_list_cursor>(core::split_buffer_sequence(buffer));
+        return std::make_unique<buffer_list_cursor>(core::split_buffer_sequence(buffer));
     }
 
-    std::shared_ptr<buffer_list_cursor>
+    std::unique_ptr<buffer_list_cursor>
     buffer_list_cursor::create(std::list<const_buffer>&& buffer_list) {
-        return std::make_shared<buffer_list_cursor>(std::move(buffer_list));
+        return std::make_unique<buffer_list_cursor>(std::move(buffer_list));
     }
 }

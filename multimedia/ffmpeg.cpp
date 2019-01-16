@@ -1,6 +1,12 @@
 #include "stdafx.h"
 #include "ffmpeg.h"
 
+void media::frame::deleter::operator()(AVFrame* object) const {
+    if (object != nullptr) {
+        av_frame_free(&object);
+    }
+}
+
 media::frame::frame()
     : handle_(av_frame_alloc(), deleter{}) {}
 
@@ -17,6 +23,12 @@ media::frame::pointer media::frame::operator->() const {
 
 void media::frame::unreference() const {
     av_frame_unref(handle_.get());
+}
+
+void media::packet::deleter::operator()(AVPacket* object) const {
+    if (object != nullptr) {
+        av_packet_free(&object);
+    }
 }
 
 media::packet::packet(std::nullptr_t) {}

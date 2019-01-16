@@ -10,17 +10,22 @@ namespace media::component
     namespace detail
     {
         using boost::asio::const_buffer;
-        template<typename T>
+        template <typename T>
         using vector = boost::container::small_vector<T, 1>;
     }
 
     using pixel_array = std::array<uint8_t*, 3>;
     using pixel_consume = folly::Function<void(pixel_array&)>;
 
-    class frame_segmentor
+    class frame_segmentor final
     {
         struct impl;
-        std::shared_ptr<impl> impl_;
+        struct impl_deleter final : private std::default_delete<impl>
+        {
+            void operator()(impl* impl);
+        };
+
+        std::unique_ptr<impl, impl_deleter> impl_;
 
     public:
         frame_segmentor() = default;
@@ -33,20 +38,14 @@ namespace media::component
         explicit frame_segmentor(std::list<detail::const_buffer> buffer_list,
                                  unsigned concurrency = std::thread::hardware_concurrency());
 
-        template<typename ...BufferSequence>
-        explicit frame_segmentor(unsigned concurrency, BufferSequence&& ...sequence)
-            : frame_segmentor(core::split_buffer_sequence(std::forward<BufferSequence>(sequence)...),
-                              concurrency) {}
-
         explicit operator bool() const;
 
         void parse_context(std::list<detail::const_buffer> buffer_list, unsigned concurrency);
         bool codec_valid() const noexcept;
         bool context_valid() const noexcept;
         bool buffer_available() const;
-        void reset_buffer_list(std::list<detail::const_buffer> buffer_list);
-        bool try_read();
-        detail::vector<media::frame> try_consume();
+        bool try_read() const;
+        detail::vector<media::frame> try_consume() const;
         bool try_consume_once(const pixel_consume& pixel_consume) const;
         media::frame try_consume_once() const;
         folly::Future<folly::Function<void()>> defer_consume_once(const pixel_consume& pixel_consume) const;

@@ -107,9 +107,7 @@ namespace net::component
                     return path.assign(std::move(suffix));
                 }
                 assert(path.front() == '/');
-                return path.replace(path.rfind('/') + 1,
-                                    path.size(),
-                                    suffix);
+                return path.replace(path.rfind('/') + 1, path.size(), suffix);
             };
             const auto suffix = [&video_set, &represent](bool initial) {
                 return initial

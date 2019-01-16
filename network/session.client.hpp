@@ -69,7 +69,7 @@ namespace net::client
 
         template <typename Exception>
         void fail_request_then_close(Exception&& exception, boost::system::error_code errc,
-                                         boost::asio::socket_base::shutdown_type operation) {
+                                     boost::asio::socket_base::shutdown_type operation) {
             assert(request_sequence_.running_in_this_thread());
             for (auto& [request, response] : request_list_) {
                 response.setException(std::forward<Exception>(exception));

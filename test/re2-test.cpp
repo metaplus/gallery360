@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "re2/re2.h"
 
+using namespace std::literals;
+
 namespace re2_test
 {
     TEST(Re2, Submatch) {

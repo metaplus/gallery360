@@ -4,13 +4,18 @@ namespace media
 {
     class io_context final : io_context_base
     {
-        std::shared_ptr<io_base> io_base_;
-        std::shared_ptr<AVIOContext> io_handle_;
+        using value_type = AVIOContext;
+        using pointer = AVIOContext *;
+
+        struct deleter final
+        {
+            void operator()(pointer context) const;
+        };
+
+        std::unique_ptr<io_base> io_base_;
+        std::unique_ptr<AVIOContext, deleter> io_handle_;
 
     public:
-        using value_type = AVIOContext;
-        using pointer = AVIOContext*;
-
         static constexpr inline size_t default_cache_page_size = 4096;
         static constexpr inline bool default_buffer_writable = false;
 
@@ -21,14 +26,13 @@ namespace media
         io_context& operator=(io_context const&) = default;
         io_context& operator=(io_context&&) noexcept = default;
 
-        explicit io_context(std::shared_ptr<io_base> io_cursor);
+        explicit io_context(std::unique_ptr<io_base> io_cursor);
         io_context(read_context&& read, write_context&& write, seek_context&& seek);
 
         pointer operator->() const;
         explicit operator bool() const;
 
         bool available() const noexcept;
-        std::shared_ptr<io_base> exchange_cursor(std::shared_ptr<io_base> cursor);
 
     private:
         static int on_read_buffer(void* opaque, uint8_t* buffer, int size);
@@ -38,16 +42,20 @@ namespace media
 
     class format_context final
     {
-        std::shared_ptr<AVFormatContext> format_handle_;
-        io_context io_handle_;
+        using value_type = AVFormatContext;
+        using pointer = AVFormatContext *;
+
+        struct deleter final
+        {
+            void operator()(pointer context) const;
+        };
+
+        std::unique_ptr<AVFormatContext, deleter> format_handle_;
+        std::reference_wrapper<io_context> io_handle_;
 
     public:
-        using value_type = AVFormatContext;
-        using pointer = AVFormatContext*;
-
-        format_context(io_context io, source::format iformat);
-        format_context(io_context io, sink::format oformat);
-        explicit format_context(io_context io, bool source = true);
+        format_context(io_context& io, source::format iformat);
+        format_context(io_context& io, sink::format oformat);
         explicit format_context(source::path ipath);
         explicit format_context(sink::path opath);
 
@@ -67,22 +75,27 @@ namespace media
 
     namespace detail
     {
-        template<typename T>
+        template <typename T>
         using vector = boost::container::small_vector<T, 1>;
     }
 
     class codec_context final
     {
-        std::shared_ptr<AVCodecContext> codec_handle_;
+        using value_type = AVCodecContext;
+        using pointer = AVCodecContext *;
+        using resolution = std::pair<decltype(AVCodecContext::width), decltype(AVCodecContext::height)>;
+
+        struct deleter final
+        {
+            void operator()(pointer context) const;
+        };
+
+        std::unique_ptr<AVCodecContext, deleter> codec_handle_;
         stream format_stream_;
         mutable int64_t dispose_count_ = 0;
         mutable bool flushed_ = false;
 
     public:
-        using value_type = AVCodecContext;
-        using pointer = AVCodecContext*;
-        using resolution = std::pair<decltype(AVCodecContext::width), decltype(AVCodecContext::height)>;
-
         codec_context(codec codec, stream stream, unsigned threads = std::thread::hardware_concurrency());
         codec_context(format_context& format, media::type type, unsigned threads = std::thread::hardware_concurrency());
 

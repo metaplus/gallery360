@@ -5,6 +5,7 @@
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <boost/beast/core/ostream.hpp>
+#include <boost/container/small_vector.hpp>
 
 using boost::beast::multi_buffer;
 using boost::beast::flat_buffer;

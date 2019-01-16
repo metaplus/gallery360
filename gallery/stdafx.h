@@ -23,6 +23,7 @@
 #include "multimedia/pch.h"
 #pragma warning(pop)
 
+#include <folly/ProducerConsumerQueue.h>
 #include <d3d11.h>
 #include <leveldb/db.h>
 #include <boost/circular_buffer.hpp>

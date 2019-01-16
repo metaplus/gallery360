@@ -260,9 +260,8 @@ namespace unity
                     auto buffer_sequence = std::move(future_buffer).get();
                     future_buffer = buffer_streamer();
                     frame_segmentor frame_segmentor{
-                        config::decoder_concurrency.value(),
-                        buffer_sequence.initial,
-                        buffer_sequence.data
+                        core::split_buffer_sequence(buffer_sequence.initial, buffer_sequence.data),
+                        config::decoder_concurrency.value()
                     };
                     assert(frame_segmentor.context_valid());
                     while (frame_segmentor.codec_valid()) {

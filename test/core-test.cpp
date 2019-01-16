@@ -40,7 +40,7 @@ namespace core_test
             });
             EXPECT_TRUE(process.empty());
             auto& logger = logger_access();
-            EXPECT_EQ(name, logger->name());
+            EXPECT_EQ(name, logger.name());
             EXPECT_EQ(process, name);
         }
         {
