@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "ffmpeg.h"
+#include "media.h"
 
 void media::frame::deleter::operator()(AVFrame* object) const {
     if (object != nullptr) {

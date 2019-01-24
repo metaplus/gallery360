@@ -123,7 +123,7 @@ auto plugin_routine = [](std::string url) {
     };
 };
 
-namespace gallery_test
+namespace gallery::test
 {
     TEST(Gallery, PluginPollProfile) {
         auto profile_codec_concurrency = plugin_routine("http://localhost:8900/Output/NewYork/5x3/NewYork.mpd");
@@ -140,19 +140,19 @@ namespace gallery_test
 
     TEST(Gallery, Concurrency) {
         unsigned codec = 0, net = 0, executor = 0;
-        test::_nativeConcurrencyValue(codec, net, executor);
+        unity::test::_nativeConcurrencyValue(codec, net, executor);
         EXPECT_EQ(codec, 2);
         EXPECT_EQ(net, 8);
         EXPECT_EQ(executor, 8);
-        test::_nativeConfigConcurrency(4, 4);
-        test::_nativeConcurrencyValue(codec, net, executor);
+        unity::test::_nativeConfigConcurrency(4, 4);
+        unity::test::_nativeConcurrencyValue(codec, net, executor);
         EXPECT_EQ(codec, 4);
         EXPECT_EQ(net, 4);
         EXPECT_EQ(executor, 8);
     }
 
     TEST(Test, ManagedString) {
-        auto str = test::_nativeTestString();
+        auto str = unity::test::_nativeTestString();
         EXPECT_GT(std::strlen(str), 0);
         CoTaskMemFree(str);
     }

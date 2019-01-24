@@ -24,25 +24,25 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="net.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="acceptor.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="connector.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="component.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="session.client.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="session.server.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="session.base.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="acceptor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="connector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="session.client.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="session.server.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="net.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

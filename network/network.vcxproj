@@ -160,13 +160,13 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="acceptor.hpp" />
-    <ClInclude Include="session.client.hpp" />
+    <ClInclude Include="acceptor.h" />
+    <ClInclude Include="session.client.h" />
     <ClInclude Include="component.h" />
-    <ClInclude Include="connector.hpp" />
-    <ClInclude Include="net.hpp" />
+    <ClInclude Include="connector.h" />
+    <ClInclude Include="net.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="session.server.hpp" />
+    <ClInclude Include="session.server.h" />
     <ClInclude Include="session.base.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
@@ -191,6 +191,9 @@
     <None Include="config.json" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\core\core.vcxproj">
+      <Project>{9057a59a-b55f-42e0-9121-072432c0826d}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\multimedia\multimedia.vcxproj">
       <Project>{ed7175d4-b639-4ff1-b130-48b879dbdd3c}</Project>
     </ProjectReference>

@@ -12,6 +12,6 @@
 
 #ifdef _WIN32
 #pragma warning(pop)
-#include "network/net.hpp"
+#include "network/net.h"
 #include "network/session.base.h"
 #endif

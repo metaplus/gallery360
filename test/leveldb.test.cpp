@@ -3,7 +3,7 @@
 #include <boost/process/environment.hpp>
 #include <re2/re2.h>
 
-namespace leveldb_test
+namespace leveldb::test
 {
     TEST(Database, Base) {
         leveldb::DB* db;

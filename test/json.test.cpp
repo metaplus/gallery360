@@ -1,9 +1,8 @@
 #include "pch.h"
 #include <nlohmann/json.hpp>
 
-namespace json_test
+namespace nlohmann::test
 {
-    using namespace nlohmann;
     TEST(Base, OperatorAccess) {
         json j;
         j["pi"] = 3.141;

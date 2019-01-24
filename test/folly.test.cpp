@@ -8,7 +8,7 @@
 
 using boost::beast::multi_buffer;
 
-namespace folly_test
+namespace folly::test
 {
     TEST(Executor, ThreadedExecutor) {
         uint64_t i1 = 0, i2 = 0, i3 = 0;

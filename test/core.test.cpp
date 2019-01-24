@@ -1,7 +1,7 @@
 #include "pch.h"
 #include <folly/executors/CPUThreadPoolExecutor.h>
 
-namespace core_test
+namespace core::test
 {
     TEST(File, PathOfDirectory) {
         auto p = core::file_path_of_directory("C:/AppData", ".exe");

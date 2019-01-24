@@ -1,6 +1,6 @@
 #include "pch.h"
 
-namespace std_test
+namespace std::test
 {
     TEST(FileSystem, DefaultConstruct) {
         const std::filesystem::path p1;

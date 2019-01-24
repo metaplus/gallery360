@@ -65,8 +65,7 @@ namespace media::component
             impl_->format_context.emplace(
                 impl_->io_context.emplace(buffer_list_cursor::create(std::move(buffer_list))),
                 source::format{}),
-            media::type::video,
-            concurrency);
+            media::type::video, concurrency);
     }
 
     bool frame_segmentor::codec_valid() const noexcept {

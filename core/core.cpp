@@ -2,6 +2,7 @@
 #include "core.hpp"
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
+#include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/null_sink.h>
 #include <boost/date_time/microsec_time_clock.hpp>

@@ -20,10 +20,10 @@
 
 #ifdef _WIN32
 #include "network/pch.h"
-#include "network/session.server.hpp"
-#include "network/session.client.hpp"
-#include "network/acceptor.hpp"
-#include "network/connector.hpp"
+#include "network/session.server.h"
+#include "network/session.client.h"
+#include "network/acceptor.h"
+#include "network/connector.h"
 #endif
 
 static_assert(

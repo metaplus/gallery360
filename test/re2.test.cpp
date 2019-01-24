@@ -3,7 +3,7 @@
 
 using namespace std::literals;
 
-namespace re2_test
+namespace re2::test
 {
     TEST(Re2, Submatch) {
         int i;

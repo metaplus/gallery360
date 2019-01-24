@@ -10,7 +10,7 @@
 #include <boost/process/environment.hpp>
 #include <boost/process/system.hpp>
 
-namespace boost_test
+namespace boost::test
 {
     TEST(Beast, MultiBuffer) {
         std::array<char, 64> ar;
