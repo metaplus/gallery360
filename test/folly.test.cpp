@@ -687,7 +687,6 @@ namespace folly::test
         };
         folly::for_each(range_one, func);
         folly::for_each(range_two, func);
-
     }
 
     TEST(ForEach, Fetch) {
@@ -783,5 +782,33 @@ namespace folly::test
         EXPECT_TRUE(b.ready());
         b.reset();
         EXPECT_FALSE(b.ready());
+    }
+
+    TEST(Function, AllocateMemory) {
+        folly::Func f;
+        EXPECT_EQ(sizeof f, 64);
+        EXPECT_FALSE(f.operator bool());
+        EXPECT_FALSE(f.hasAllocatedMemory());
+        f = [] {};
+        EXPECT_TRUE(f.operator bool());
+        EXPECT_FALSE(f.hasAllocatedMemory());
+        f = [x = int64_t{ 20 }] {};
+        EXPECT_TRUE(f.operator bool());
+        EXPECT_FALSE(f.hasAllocatedMemory());
+        f = [x = std::vector<int>{ 20 }] {};
+        EXPECT_TRUE(f.operator bool());
+        EXPECT_FALSE(f.hasAllocatedMemory());
+        f = [x = std::vector<int>{ 20 }, y = int64_t{ 10 }] {};
+        EXPECT_TRUE(f.operator bool());
+        EXPECT_FALSE(f.hasAllocatedMemory());
+        f = [x = std::vector<int>{ 20 }, y = int64_t{ 10 }, y2 = int64_t{ 10 }] {};
+        EXPECT_TRUE(f.operator bool());
+        EXPECT_FALSE(f.hasAllocatedMemory()); // 48B threshold
+        f = [x = std::vector<int>{ 20 }, y = int64_t{ 10 }, y2 = int64_t{ 10 }, y3 = int64_t{ 10 }] {};
+        EXPECT_TRUE(f.operator bool());
+        EXPECT_TRUE(f.hasAllocatedMemory());
+        f = [x = std::vector<int>{ 20 }, y = std::vector<int>{ 20 }] {};
+        EXPECT_TRUE(f.operator bool());
+        EXPECT_TRUE(f.hasAllocatedMemory());
     }
 }

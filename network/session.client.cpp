@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "session.client.hpp"
+#include "session.client.h"
 
 namespace net::client
 {

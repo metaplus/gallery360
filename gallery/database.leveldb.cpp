@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "database.h"
+#include "database.leveldb.h"
 #include <boost/process/environment.hpp>
 
 inline namespace plugin

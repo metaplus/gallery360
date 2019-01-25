@@ -37,7 +37,7 @@
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="abseil.test.cpp" />
+    <ClCompile Include="absl.test.cpp" />
     <ClCompile Include="boost.test.cpp" />
     <ClCompile Include="core.test.cpp" />
     <ClCompile Include="folly.test.cpp" />
@@ -49,6 +49,7 @@
     <ClCompile Include="network.test.cpp" />
     <ClCompile Include="re2.test.cpp" />
     <ClCompile Include="spdlog.test.cpp" />
+    <ClCompile Include="sqlite.test.cpp" />
     <ClCompile Include="std.test.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

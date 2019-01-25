@@ -11,17 +11,6 @@
 
 namespace core
 {
-    std::string time_format(std::string_view format,
-                            std::tm*(*timing)(std::time_t const*)) {
-        // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        const auto current_time = std::time(nullptr);
-        return fmt::format("{}", std::put_time(timing(&current_time), format.data()));
-    }
-
-    std::string local_date_time() {
-        return fmt::format("{}", boost::date_time::microsec_clock<boost::posix_time::ptime>::local_time());
-    }
-
     size_t count_file_entry(const std::filesystem::path& directory) {
         // non-recursive version, regardless of symbolic link
         return std::distance(std::filesystem::directory_iterator{ directory },
@@ -69,6 +58,17 @@ namespace core
     bool last_write_time_comparator::operator()(const std::filesystem::directory_entry& left,
                                                 const std::filesystem::directory_entry& right) const {
         return left.last_write_time() < right.last_write_time();
+    }
+
+    std::string time_format(std::string_view format,
+        std::tm*(*timing)(const std::time_t*)) {
+        // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        const auto current_time = std::time(nullptr);
+        return fmt::format("{}", std::put_time(timing(&current_time), format.data()));
+    }
+
+    std::string local_date_time() {
+        return fmt::format("{}", boost::date_time::microsec_clock<boost::posix_time::ptime>::local_time());
     }
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
