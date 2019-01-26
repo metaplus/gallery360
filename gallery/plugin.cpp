@@ -486,7 +486,7 @@ namespace unity
         compute_executor = core::make_pool_executor(config::executor_concurrency.value(), "PluginCompute");
         stream_executor = core::make_threaded_executor("PluginSession");
         if (config::database::enable) {
-            database_entity = database::make_ptr(config::database::directory.string());
+            database_entity = database::make_opened(config::database::directory.string());
             database_executor = core::make_threaded_executor("PluginDatabase");
             trace_event = database_entity->produce_callback();
         }
@@ -499,7 +499,7 @@ namespace unity
         stream_executor = nullptr; // join 1-1
         if (config::database::enable) {
             trace_event = nullptr;
-            database_entity->cancel_consume(false);
+            database_entity->wait_consume_cancel(false);
             database_entity = nullptr;
             database_executor = nullptr; // join 1-2
         }
