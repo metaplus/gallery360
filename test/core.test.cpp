@@ -51,6 +51,7 @@ namespace core::test
 
     TEST(Time, TimeFormat) {
         XLOG(INFO) << core::time_format();
+        XLOG(INFO) << core::time_format("%Y%m%d.%H%M%S");
         XLOG(INFO) << core::local_date_time();
     }
 

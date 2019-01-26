@@ -19,8 +19,16 @@ namespace absl::test
         XLOG(INFO) << FormatTime("%Y%m%d.%H%M%S", Now(), z2);
     }
 
-    TEST(String, Append) {
+    TEST(String, Cat) {
         XLOG(INFO) << StrCat("trace.", FormatTime("%Y%m%d.%H%M%S", Now(), FixedTimeZone(8 * 60 * 60)));
     }
 
+    TEST(String, Join) {
+        std::string s1 = "111";
+        std::string_view s2 = "222";
+        auto* s3 = "333";
+        std::initializer_list<const char*> in = { s1.data(), s2.data(), s3 };
+        auto s = absl::StrJoin(in, "-");
+        EXPECT_EQ(s, "111-222-333");
+    }
 }
