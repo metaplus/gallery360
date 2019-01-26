@@ -27,16 +27,7 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="export.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="graphic.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="context.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="database.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="unity\IUnityGraphics.h">
@@ -50,6 +41,18 @@
     </ClInclude>
     <ClInclude Include="unity\IUnityRenderingExtensions.h">
       <Filter>Header Files\unity</Filter>
+    </ClInclude>
+    <ClInclude Include="database.leveldb.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="plugin.context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="plugin.export.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="database.sqlite.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -65,7 +68,10 @@
     <ClCompile Include="plugin.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="database.cpp">
+    <ClCompile Include="database.leveldb.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="database.sqlite.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

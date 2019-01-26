@@ -10,6 +10,6 @@ extern "C" {
 }
 #pragma warning(pop)
 
-#include "multimedia/ffmpeg.h"
+#include "multimedia/media.h"
 #include "multimedia/cursor.h"
 #include "multimedia/context.h"

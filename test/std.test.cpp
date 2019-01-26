@@ -1,6 +1,6 @@
 #include "pch.h"
 
-namespace std_test
+namespace std::test
 {
     TEST(FileSystem, DefaultConstruct) {
         const std::filesystem::path p1;
@@ -71,5 +71,11 @@ namespace std_test
         EXPECT_TRUE(std::get_if<int>(&v) == nullptr);
         EXPECT_TRUE(&std::get<std::monostate>(v) != nullptr);
         EXPECT_TRUE(&std::get<std::monostate>(v) == std::get_if<std::monostate>(&v));
+    }
+
+    TEST(Variant, Get) {
+        std::variant<std::monostate, int> v;
+        auto i = 0;
+        EXPECT_THROW(i = std::get<int>(v), std::bad_variant_access);
     }
 }

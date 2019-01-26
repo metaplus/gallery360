@@ -6,12 +6,11 @@ namespace media::component
     using namespace detail;
     using boost::beast::multi_buffer;
 
-    struct frame_segmentor::impl
+    struct frame_segmentor::impl final
     {
         int64_t consume_count = 0;
         multi_buffer init_buffer;
         multi_buffer current_buffer;
-        std::shared_ptr<io_base> cursor;
         std::optional<io_context> io_context;
         std::optional<format_context> format_context;
         std::optional<codec_context> codec_context;
@@ -37,16 +36,19 @@ namespace media::component
                                       std::back_inserter(remain_frames));
                         }
                     }
-                }
-                while (frame_size == 0 && !packet_empty);
+                } while (frame_size == 0 && !packet_empty);
             }
             return frame;
         }
     };
 
+    void frame_segmentor::impl_deleter::operator()(impl* impl) {
+        static_cast<default_delete&>(*this)(impl);
+    }
+
     frame_segmentor::frame_segmentor(std::list<const_buffer> buffer_list,
                                      unsigned concurrency)
-        : impl_(std::make_shared<impl>()) {
+        : impl_{ new impl{}, impl_deleter{} } {
         parse_context(std::move(buffer_list), concurrency);
     }
 
@@ -57,14 +59,13 @@ namespace media::component
     void frame_segmentor::parse_context(std::list<const_buffer> buffer_list,
                                         unsigned concurrency) {
         if (!impl_) {
-            impl_ = std::make_shared<impl>();
+            impl_ = { new impl{}, impl_deleter{} };
         }
-        impl_->cursor = buffer_list_cursor::create(std::move(buffer_list));
         impl_->codec_context.emplace(
             impl_->format_context.emplace(
-                impl_->io_context.emplace(impl_->cursor)),
-            media::type::video,
-            concurrency);
+                impl_->io_context.emplace(buffer_list_cursor::create(std::move(buffer_list))),
+                source::format{}),
+            media::type::video, concurrency);
     }
 
     bool frame_segmentor::codec_valid() const noexcept {
@@ -79,23 +80,15 @@ namespace media::component
     }
 
     bool frame_segmentor::buffer_available() const {
-        return impl_->cursor->available();
+        return impl_->io_context->available();
     }
 
-    void frame_segmentor::reset_buffer_list(std::list<const_buffer> buffer_list) {
-        [[maybe_unused]] const auto old_cursor = std::exchange(impl_->cursor,
-                                                               buffer_list_cursor::create(std::move(buffer_list)));
-        [[maybe_unused]] const auto old_cursor2 = impl_->io_context
-                                                       ->exchange_cursor(impl_->cursor);
-        assert(old_cursor == old_cursor2);
-    }
-
-    bool frame_segmentor::try_read() {
+    bool frame_segmentor::try_read() const {
         auto packet = impl_->format_context->read(media::type::video);
         return !packet.empty();
     }
 
-    detail::vector<media::frame> frame_segmentor::try_consume() {
+    detail::vector<media::frame> frame_segmentor::try_consume() const {
         if (impl_->codec_context->valid()) {
             return impl_->codec_context
                         ->decode(impl_->format_context

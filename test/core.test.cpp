@@ -1,14 +1,14 @@
 #include "pch.h"
 #include <folly/executors/CPUThreadPoolExecutor.h>
 
-namespace core_test
+namespace core::test
 {
     TEST(File, PathOfDirectory) {
         auto p = core::file_path_of_directory("C:/AppData", ".exe");
         EXPECT_EQ(p.generic_string(), "C:/AppData/AppData.exe");
     }
 
-    #pragma warning(disable:244 267 101)
+#pragma warning(disable:244 267 101)
     TEST(Overload, Base) {
         using variant = std::variant<int, long, double, std::string>;
         variant v{ 1 };
@@ -40,7 +40,7 @@ namespace core_test
             });
             EXPECT_TRUE(process.empty());
             auto& logger = logger_access();
-            EXPECT_EQ(name, logger->name());
+            EXPECT_EQ(name, logger.name());
             EXPECT_EQ(process, name);
         }
         {
@@ -51,6 +51,7 @@ namespace core_test
 
     TEST(Time, TimeFormat) {
         XLOG(INFO) << core::time_format();
+        XLOG(INFO) << core::time_format("%Y%m%d.%H%M%S");
         XLOG(INFO) << core::local_date_time();
     }
 

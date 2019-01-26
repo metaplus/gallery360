@@ -19,4 +19,4 @@
 #include "unity/IUnityGraphics.h"
 #include "unity/IUnityRenderingExtensions.h"
 #pragma warning(pop)
-#include "gallery/export.h"
+#include "gallery/plugin.export.h"

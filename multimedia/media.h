@@ -2,20 +2,6 @@
 
 namespace media
 {
-    struct pixel
-    {
-        using type = AVPixelFormat;
-        struct nv12 : std::integral_constant<type, AV_PIX_FMT_NV12> {};
-        struct nv21 : std::integral_constant<type, AV_PIX_FMT_NV21> {};
-        struct rgb24 : std::integral_constant<type, AV_PIX_FMT_RGB24> {};
-        struct rgba : std::integral_constant<type, AV_PIX_FMT_RGBA> {};
-        struct yuv420 : std::integral_constant<type, AV_PIX_FMT_YUV420P> {};
-        struct yuv422 : std::integral_constant<type, AV_PIX_FMT_YUV422P> {};
-        struct uyvy : std::integral_constant<type, AV_PIX_FMT_UYVY422> {};
-        struct yuyv : std::integral_constant<type, AV_PIX_FMT_YUYV422> {};
-        struct yvyu : std::integral_constant<type, AV_PIX_FMT_YVYU422> {};
-    };
-
     enum class type : int16_t
     {
         audio = AVMEDIA_TYPE_AUDIO,
@@ -26,20 +12,17 @@ namespace media
 
     class frame final
     {
+        using pointer = AVFrame *;
+        using reference = AVFrame &;
+
         struct deleter final
         {
-            void operator()(AVFrame* object) const {
-                if (object != nullptr) {
-                    av_frame_free(&object);
-                }
-            }
+            void operator()(AVFrame* object) const;
         };
+
         std::unique_ptr<AVFrame, deleter> handle_;
 
     public:
-        using pointer = AVFrame * ;
-        using reference = AVFrame & ;
-
         frame();
         explicit frame(std::nullptr_t);
         frame(const frame&) = delete;
@@ -55,23 +38,20 @@ namespace media
 
     class packet final
     {
+        using pointer = AVPacket *;
+        using reference = AVPacket &;
+
         struct deleter final
         {
-            void operator()(AVPacket* object) const {
-                if (object != nullptr) {
-                    av_packet_free(&object);
-                }
-            }
+            void operator()(AVPacket* object) const;
         };
+
         std::unique_ptr<AVPacket, deleter> handle_;
 
     public:
-        using pointer = AVPacket * ;
-        using reference = AVPacket & ;
-
         packet();
         explicit packet(std::nullptr_t);
-        explicit packet(std::basic_string_view<uint8_t> buffer);    // copy by av_malloc from buffer view
+        explicit packet(std::basic_string_view<uint8_t> buffer); // copy by av_malloc from buffer view
         explicit packet(std::string_view buffer);
         packet(const packet&) = delete;
         packet(packet&&) = default;
@@ -89,9 +69,10 @@ namespace media
 
     struct codec final : std::reference_wrapper<AVCodec>
     {
-        using pointer = type * ;
-        using reference = type & ;
+        using pointer = type *;
+        using reference = type &;
         using parameter = std::reference_wrapper<const AVCodecParameters>;
+
         codec();
         explicit codec(reference ref);
         explicit codec(pointer ptr);
@@ -100,8 +81,8 @@ namespace media
 
     struct stream final : std::reference_wrapper<AVStream>
     {
-        using pointer = type * ;
-        using reference = type & ;
+        using pointer = type *;
+        using reference = type &;
         stream();
         explicit stream(reference ref);
         explicit stream(pointer ptr);

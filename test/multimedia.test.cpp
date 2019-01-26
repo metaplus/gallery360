@@ -5,6 +5,7 @@
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <boost/beast/core/ostream.hpp>
+#include <boost/container/small_vector.hpp>
 
 using boost::beast::multi_buffer;
 using boost::beast::flat_buffer;
@@ -66,7 +67,7 @@ auto sequence_size2 = [](auto itbegin, auto itend) {
     return size;
 };
 
-namespace boost_test
+namespace boost::test
 {
     TEST(MultiBuffer, BufferSize) {
         multi_buffer buf_init;
@@ -111,7 +112,7 @@ void set_cpu_executor(int concurrency) {
     folly::setCPUExecutor(executor);
 }
 
-namespace core_test
+namespace core::test
 {
     TEST(BufferOperation, Split2Sequence) {
         multi_buffer buf_int = create_buffer("init");
@@ -125,7 +126,7 @@ namespace core_test
     }
 }
 
-namespace media_test
+namespace media::test
 {
     TEST(FrameSegmentor, Base) {
         auto& buffer_map = create_buffer_map();
@@ -134,22 +135,6 @@ namespace media_test
             frame_segmentor.parse_context(core::split_buffer_sequence(buffer), 8);
             EXPECT_FALSE(frame_segmentor.buffer_available());
             break;
-        }
-    }
-
-    TEST(FrameSegmentor, ReadTwo) {
-        auto& buffer_map = create_buffer_map();
-        auto buffer_list = core::split_buffer_sequence(buffer_map[0]);
-        buffer_list.splice(buffer_list.end(), core::split_buffer_sequence(buffer_map[1]));
-        media::component::frame_segmentor frame_segmentor;
-        auto count1 = 0, count2 = 0;
-        frame_segmentor.parse_context(std::move(buffer_list), 8);
-        while (frame_segmentor.try_read()) {
-            count1 += 1;
-        }
-        frame_segmentor.reset_buffer_list(core::split_buffer_sequence(buffer_map[2]));
-        while (frame_segmentor.try_read()) {
-            count2 += 1;
         }
     }
 
@@ -206,7 +191,7 @@ auto create_buffer_from_path = [](std::string path) {
     return buffer;
 };
 
-namespace media_test
+namespace media::test
 {
     TEST(FrameSegmentor, TryConsumeOnceForLargeFile) {
         auto init_buffer = create_buffer_from_path("D:/Media/dash/full/tile1-576p-5000kbps_dashinit.mp4");
@@ -241,7 +226,7 @@ folly::Future<bool> async_consume(frame_segmentor& segmentor,
                                   pixel_consume& consume,
                                   bool copy = false) {
     if (copy) {
-        return folly::async([segmentor, &consume]() mutable {
+        return folly::async([&segmentor, &consume]() mutable {
             return segmentor.try_consume_once(consume);
         });
     }
@@ -300,7 +285,6 @@ namespace media_test
 }
 
 std::map<int, multi_buffer> create_tile_buffer_map(std::string prefix, int first, int last) {
-
     std::map<int, multi_buffer> map;
     ostream(map[0]) << std::ifstream{ fmt::format("{}init.mp4", prefix), std::ios::binary }.rdbuf();
     auto index = first;
@@ -316,7 +300,7 @@ std::map<int, multi_buffer> create_tile_buffer_map(std::string prefix, int first
     return map;
 }
 
-namespace media_test
+namespace media::test
 {
     TEST(FrameSegmentor, CreateTileBufferMap) {
         auto map = create_tile_buffer_map("F:/Output/NewYork/4x4_1000/dash/NewYork_c3r1_1000kbps_dash", 1, 50);
@@ -435,7 +419,7 @@ protected:
     };
 };
 
-namespace media_test
+namespace media::test
 {
     TEST_F(CommandBase, Resize) {
         media::command::resize("F:/Gpac/NewYork.mp4", { 1920, 1080 });
@@ -562,10 +546,11 @@ namespace media_test
         auto command = command_qp_batch("F:/Gpac/NewYork.mp4",
                                         "F:/Output/",
                                         "D:/Media");
-        command({ 3, 3 }, { 22, 32, 42 });
-        command({ 5, 3 }, { 22, 32, 42 });
-        command({ 4, 3 }, { 22, 32, 42 });
-        command({ 5, 4 }, { 22, 32, 42 });
+        command({ 6, 5 }, { 22, 27, 32, 37, 42 });
+        command({ 3, 3 }, { 22, 27, 32, 37, 42 });
+        command({ 5, 3 }, { 22, 27, 32, 37, 42 });
+        command({ 4, 3 }, { 22, 27, 32, 37, 42 });
+        command({ 5, 4 }, { 22, 27, 32, 37, 42 });
     }
 
     TEST(CommandBatch, AngelFallsVenezuelaQpBatch) {

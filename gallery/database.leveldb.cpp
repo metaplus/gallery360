@@ -1,10 +1,10 @@
 #include "stdafx.h"
-#include "database.h"
+#include "database.leveldb.h"
 #include <boost/process/environment.hpp>
 
 inline namespace plugin
 {
-    void database::cancel_consume(const bool timed) {
+    void database::wait_consume_cancel(const bool timed) {
         active_ = false;
         if (!timed) {
             sink_entry_queue_.enqueue({ "", "" });
@@ -28,7 +28,7 @@ inline namespace plugin
         return database_iterator->path();
     };
 
-    std::shared_ptr<database> database::make_ptr(std::string_view path) {
+    std::shared_ptr<database> database::make_opened(std::string_view path) {
         auto database = std::make_shared<class database>();
         assert(is_directory(std::filesystem::path{ path }.root_directory()));
         core::as_mutable(database->directory_) = std::filesystem::path{ path };

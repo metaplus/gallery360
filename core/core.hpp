@@ -44,7 +44,7 @@ namespace core
 
     // Format template "%Y-%m-%d %H:%M:%S"
     std::string time_format(std::string_view format = "%c",
-                            std::tm*(*timing)(std::time_t const*) = &std::localtime);
+                            std::tm*(*timing)(const std::time_t*) = &std::localtime);
 
     std::string local_date_time();
 

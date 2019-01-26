@@ -25,15 +25,15 @@ struct stream_context final
     struct render_event final
     {
         media::frame* frame = nullptr;
-        std::shared_ptr<folly::ProducerConsumerQueue<media::frame>> queue;
+        std::shared_ptr<moodycamel::ReaderWriterQueue<media::frame>> queue;
         int64_t begin = 0;
         int64_t end = 0;
     } render;
 
     explicit stream_context(int decode_capacity,
-                            int render_capacity = 5) {
+                            int render_capacity = 15) {
         decode.queue = std::make_shared<folly::MPMCQueue<media::frame>>(decode_capacity);
-        render.queue = std::make_shared<folly::ProducerConsumerQueue<media::frame>>(render_capacity);
+        render.queue = std::make_shared<moodycamel::ReaderWriterQueue<media::frame>>(render_capacity);
     }
 
     stream_context() = delete;

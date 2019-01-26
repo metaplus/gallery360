@@ -18,9 +18,10 @@ namespace media
     }
 
     int64_t cursor::seek_sequence(int64_t seek_offset) {
-        auto const size_iter = std::upper_bound(buffer_sizes.crbegin(), buffer_sizes.crend(), seek_offset, std::greater<>{});
+        const auto size_iter = std::upper_bound(buffer_sizes.crbegin(), buffer_sizes.crend(),
+                                                seek_offset, std::greater<>{});
         buffer_iterator = std::prev(buffer_end, std::distance(buffer_sizes.crbegin(), size_iter));
-        auto const partial_sequence_size = size_iter != buffer_sizes.crend() ? *size_iter : 0;
+        const auto partial_sequence_size = size_iter != buffer_sizes.crend() ? *size_iter : 0;
         buffer_offset = std::min(seek_offset - partial_sequence_size, buffer_size());
         sequence_offset = partial_sequence_size + buffer_offset;
         return sequence_offset;
@@ -65,7 +66,8 @@ namespace media
         return seeker != nullptr;
     }
 
-    std::shared_ptr<generic_cursor> generic_cursor::create(read_context&& rfunc, write_context&& wfunc, seek_context&& sfunc) {
+    std::shared_ptr<generic_cursor> generic_cursor::create(
+        read_context&& rfunc, write_context&& wfunc, seek_context&& sfunc) {
         return std::make_shared<generic_cursor>(std::move(rfunc), std::move(wfunc), std::move(sfunc));
     }
 
@@ -249,13 +251,13 @@ namespace media
         return full_size_ - full_offset_;
     }
 
-    std::shared_ptr<buffer_list_cursor>
+    std::unique_ptr<buffer_list_cursor>
     buffer_list_cursor::create(const multi_buffer& buffer) {
-        return std::make_shared<buffer_list_cursor>(core::split_buffer_sequence(buffer));
+        return std::make_unique<buffer_list_cursor>(core::split_buffer_sequence(buffer));
     }
 
-    std::shared_ptr<buffer_list_cursor>
+    std::unique_ptr<buffer_list_cursor>
     buffer_list_cursor::create(std::list<const_buffer>&& buffer_list) {
-        return std::make_shared<buffer_list_cursor>(std::move(buffer_list));
+        return std::make_unique<buffer_list_cursor>(std::move(buffer_list));
     }
 }

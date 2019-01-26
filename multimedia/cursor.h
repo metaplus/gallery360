@@ -65,8 +65,8 @@ namespace media
         int64_t consume_size() const override;
         int64_t remain_size() const override;
 
-        static std::shared_ptr<buffer_list_cursor> create(const detail::multi_buffer& buffer);
-        static std::shared_ptr<buffer_list_cursor> create(std::list<detail::const_buffer>&& buffer_list);
+        static std::unique_ptr<buffer_list_cursor> create(const detail::multi_buffer& buffer);
+        static std::unique_ptr<buffer_list_cursor> create(std::list<detail::const_buffer>&& buffer_list);
     };
 
     struct cursor

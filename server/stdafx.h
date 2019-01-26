@@ -20,13 +20,14 @@
 // TODO: reference additional headers your program requires here
 #include "core/pch.h"
 #include "network/pch.h"
-#include "network/session.server.hpp"
-#include "network/acceptor.hpp"
+#include "network/session.server.h"
+#include "network/acceptor.h"
 
 #pragma comment(lib,"Ws2_32")
 #pragma comment(lib,"Shlwapi")
 #endif
 
+#include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <boost/program_options.hpp>
 

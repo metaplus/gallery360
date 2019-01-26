@@ -1,10 +1,10 @@
 #include "stdafx.h"
-#include "export.h"
-#include "context.h"
 #include "network/component.h"
 #include "multimedia/component.h"
+#include "plugin.export.h"
+#include "plugin.context.h"
 #include "graphic.h"
-#include "database.h"
+#include "database.leveldb.h"
 #include <boost/container/small_vector.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
 #include <boost/date_time/time_clock.hpp>
@@ -52,7 +52,7 @@ inline namespace resource
     std::shared_ptr<folly::ThreadedExecutor> update_executor;
     std::shared_ptr<database> database_entity;
     std::optional<graphic> graphic_entity;
-    std::vector<stream_context*> cached_tile_streams;
+    std::vector<stream_context*> stream_cache;
     folly::Function<void(std::string_view instance, std::string event)> trace_event;
 
     struct index_key final {};
@@ -242,12 +242,12 @@ namespace unity
             tile_stream.texture_array[1] = static_cast<ID3D11Texture2D*>(tex_u);
             tile_stream.texture_array[2] = static_cast<ID3D11Texture2D*>(tex_v);
         }
-        auto [iterator,success] = tile_stream_table.emplace_back(std::move(tile_stream));
+        auto [iterator, success] = tile_stream_table.emplace_back(std::move(tile_stream));
         assert(success && "tile stream emplace failure");
-        if (cached_tile_streams.empty()) {
-            cached_tile_streams.assign(tile_count, nullptr);
+        if (stream_cache.empty()) {
+            stream_cache.assign(tile_count, nullptr);
         }
-        return cached_tile_streams.at(index - 1) = &core::as_mutable(iterator.operator*());
+        return stream_cache.at(index - 1) = &core::as_mutable(iterator.operator*());
     }
 
     auto stream_mpeg_dash = [](stream_context& tile_stream) {
@@ -260,9 +260,8 @@ namespace unity
                     auto buffer_sequence = std::move(future_buffer).get();
                     future_buffer = buffer_streamer();
                     frame_segmentor frame_segmentor{
-                        config::decoder_concurrency.value(),
-                        buffer_sequence.initial,
-                        buffer_sequence.data
+                        core::split_buffer_sequence(buffer_sequence.initial, buffer_sequence.data),
+                        config::decoder_concurrency.value()
                     };
                     assert(frame_segmentor.context_valid());
                     while (frame_segmentor.codec_valid()) {
@@ -331,16 +330,12 @@ namespace unity
     BOOL _nativeDashTilePtrPollUpdate(HANDLE instance, INT64 frame_index, INT64 batch_index) {
         auto& tile_stream = *reinterpret_cast<stream_context*>(instance);
         tile_stream.update.decode_try++;
-        if (!tile_stream.render.queue->isFull()) {
-            media::frame frame{ nullptr };
-            if (tile_stream.decode.queue->read(frame)) {
-                tile_stream.update.decode_success++;
-                auto enqueue_try = 0;
-                while (!tile_stream.render.queue->write(std::move(frame))) {
-                    assert(enqueue_try++ < 10 && "poll_update_frame enqueue_try > 10 times");
-                }
-                return true;
-            }
+        media::frame frame{ nullptr };
+        if (tile_stream.decode.queue->read(frame)) {
+            tile_stream.update.decode_success++;
+            [[maybe_unused]] const auto enqueue_success = tile_stream.render.queue->enqueue(std::move(frame));
+            assert(enqueue_success && "poll_update_frame enqueue render queue failed");
+            return true;
         }
         return false;
     }
@@ -365,16 +360,16 @@ namespace unity
             state::frame_batch->tile_end_iterator,
             [=](decltype(tile_stream_table)::iterator& tile_iterator) {
                 auto& tile_stream = core::as_mutable(*tile_iterator);
-                if (!tile_stream.render.queue->isFull()) {
-                    if (media::frame frame{ nullptr }; tile_stream.decode.queue->read(frame)) {
-                        tile_stream.update.decode_success++;
-                        frame_batch::render_context render_context{
-                            frame_index, batch_index,
-                            *tile_iterator, std::move(frame)
-                        };
-                        return true;
-                    }
+                //if (!tile_stream.render.queue->isFull()) {
+                if (media::frame frame{ nullptr }; tile_stream.decode.queue->read(frame)) {
+                    tile_stream.update.decode_success++;
+                    frame_batch::render_context render_context{
+                        frame_index, batch_index,
+                        *tile_iterator, std::move(frame)
+                    };
+                    return true;
                 }
+                //}
                 return false;
             }
         );
@@ -476,7 +471,7 @@ namespace unity
 
     auto reset_resource = [] {
         tile_stream_table.clear();
-        cached_tile_streams.clear();
+        stream_cache.clear();
         state::stream::available(nullptr);
         state::frame_batch = std::nullopt;
         std::atomic_store(&state::field_of_view, { 0, 0 });
@@ -491,7 +486,7 @@ namespace unity
         compute_executor = core::make_pool_executor(config::executor_concurrency.value(), "PluginCompute");
         stream_executor = core::make_threaded_executor("PluginSession");
         if (config::database::enable) {
-            database_entity = database::make_ptr(config::database::directory.string());
+            database_entity = database::make_opened(config::database::directory.string());
             database_executor = core::make_threaded_executor("PluginDatabase");
             trace_event = database_entity->produce_callback();
         }
@@ -504,7 +499,7 @@ namespace unity
         stream_executor = nullptr; // join 1-1
         if (config::database::enable) {
             trace_event = nullptr;
-            database_entity->cancel_consume(false);
+            database_entity->wait_consume_cancel(false);
             database_entity = nullptr;
             database_executor = nullptr; // join 1-2
         }
@@ -588,13 +583,13 @@ namespace
         const auto stream_index = params->userData / 3;
         const auto planar_index = params->userData % 3;
         if (state::stream::available()) {
-            auto& stream = *cached_tile_streams[stream_index];
+            auto& stream = *stream_cache[stream_index];
             switch (static_cast<UnityRenderingExtEventType>(event_id)) {
                 case kUnityRenderingExtEventUpdateTextureBeginV2: {
                     if (stream.update.texture_state.none()) {
                         assert(planar_index == 0);
                         assert(stream.render.frame == nullptr);
-                        stream.render.frame = stream.render.queue->frontPtr();
+                        stream.render.frame = stream.render.queue->peek();
                         if (!state::stream::available(stream.render.frame)) {
                             return;
                         }
@@ -614,7 +609,7 @@ namespace
                     assert(stream.update.texture_state.test(planar_index));
                     if (stream.update.texture_state.all()) {
                         stream.update.render_finish++;
-                        stream.render.queue->popFront();
+                        stream.render.queue->pop();
                         stream.update.texture_state.reset();
                         stream.render.frame = nullptr;
                         assert(planar_index == 2);

@@ -16,11 +16,12 @@
 
 #pragma warning(disable: 4172)
 
+#include "core/pch.h"
 #include <folly/logging/xlog.h>
 #include <folly/stop_watch.h>
 #include <fstream>
 
-#include "core/pch.h"
+#define GTEST_LANG_CXX11 1
 #include "gtest/gtest.h"
 
 #pragma comment(lib,"Ws2_32")
