@@ -28,7 +28,13 @@ namespace absl::test
         std::string_view s2 = "222";
         auto* s3 = "333";
         std::initializer_list<const char*> in = { s1.data(), s2.data(), s3 };
-        auto s = absl::StrJoin(in, "-");
-        EXPECT_EQ(s, "111-222-333");
+        {
+            auto s = absl::StrJoin(in, "-");
+            EXPECT_EQ(s, "111-222-333");
+        }
+        {
+            auto s = absl::StrJoin({ "1"sv, "3"sv }, "2");
+            EXPECT_EQ(s, "123");
+        }
     }
 }

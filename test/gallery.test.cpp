@@ -3,6 +3,7 @@
 #include "network/component.h"
 #include "multimedia/component.h"
 #include "gallery/pch.h"
+#include "gallery/database.sqlite.h"
 #include <boost/beast.hpp>
 
 using std::chrono::microseconds;

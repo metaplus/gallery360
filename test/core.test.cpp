@@ -8,7 +8,7 @@ namespace core::test
         EXPECT_EQ(p.generic_string(), "C:/AppData/AppData.exe");
     }
 
-    #pragma warning(disable:244 267 101)
+#pragma warning(disable:244 267 101)
     TEST(Overload, Base) {
         using variant = std::variant<int, long, double, std::string>;
         variant v{ 1 };

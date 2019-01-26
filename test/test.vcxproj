@@ -47,6 +47,7 @@
     <ClCompile Include="moodycamel.test.cpp" />
     <ClCompile Include="multimedia.test.cpp" />
     <ClCompile Include="network.test.cpp" />
+    <ClCompile Include="range.test.cpp" />
     <ClCompile Include="re2.test.cpp" />
     <ClCompile Include="spdlog.test.cpp" />
     <ClCompile Include="sqlite.test.cpp" />

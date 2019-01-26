@@ -5,29 +5,44 @@ namespace core
 {
     struct trace_event final
     {
-        int id = 0;
+        int64_t id = 0;
+        std::string date_time;
         std::string instance;
         int instance_id = 0;
         std::string event;
         int event_id = 0;
-        std::unique_ptr<std::string> event_extension;
     };
 }
 
 inline namespace plugin
 {
-    class database final 
+    class database final
     {
         struct impl;
-        struct impl_deleter final
+        enum class command
         {
-            void operator()(impl* impl);
+            execute,
+            complete,
+            stop_immediately,
+            stop_after_complete,
         };
 
         std::shared_ptr<impl> impl_;
+
     public:
+        database() = default;
+        explicit database(std::filesystem::path file_path,
+                          std::string_view infix = "adaptive"sv);
+        database(const database&) = default;
+        database(database&&) noexcept = default;
+        database& operator=(const database&) = default;
+        database& operator=(database&&) noexcept = default;
+        ~database() = default;
+
+        void submit_entry(core::trace_event&& event) const;
+        void submit_command(command command) const;
+        int64_t insert_entry_persistently() const;
 
     private:
-        database(const std::string& file_name, const std::string& table_name);
     };
 }

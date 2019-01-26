@@ -1,6 +1,7 @@
 #include "pch.h"
 #include <boost/asio.hpp>
 #include <boost/circular_buffer.hpp>
+#include <boost/container/static_vector.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/date_time/microsec_time_clock.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
@@ -305,7 +306,8 @@ namespace boost::test
         boost::asio::post(ctx, [&] {
             id1 = std::this_thread::get_id();
             EXPECT_TRUE(ctx.get_executor().running_in_this_thread());
-            boost::asio::dispatch(ctx, [&] {    // as-if boost::asio::defer, no blocking triggered in contest
+            boost::asio::dispatch(ctx, [&] {
+                // as-if boost::asio::defer, no blocking triggered in contest
                 EXPECT_EQ(id1, std::this_thread::get_id());
                 std::this_thread::sleep_for(1ms);
                 boost::asio::dispatch(st, [&] {
@@ -344,5 +346,13 @@ namespace boost::test
         work_guard.reset();
         th1.join();
         th2.join();
+    }
+
+    TEST(Container, StaticVector) {
+        struct bulk
+        {
+            char c[152];
+        };
+        container::static_vector<bulk, 1024> cc;
     }
 }

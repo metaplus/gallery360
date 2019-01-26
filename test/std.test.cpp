@@ -72,4 +72,10 @@ namespace std::test
         EXPECT_TRUE(&std::get<std::monostate>(v) != nullptr);
         EXPECT_TRUE(&std::get<std::monostate>(v) == std::get_if<std::monostate>(&v));
     }
+
+    TEST(Variant, Get) {
+        std::variant<std::monostate, int> v;
+        auto i = 0;
+        EXPECT_THROW(i = std::get<int>(v), std::bad_variant_access);
+    }
 }

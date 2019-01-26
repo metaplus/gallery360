@@ -6,7 +6,7 @@ namespace sqlite_orm::test
 {
     struct User
     {
-        int id;
+        int64_t id;
         std::string firstName;
         std::string lastName;
         int birthDate;

@@ -31,14 +31,11 @@ inline namespace plugin
         }
 
         void wait_consume_cancel(bool timed);
-
         static std::shared_ptr<database> make_opened(std::string_view path);
 
     private:
         static std::unique_ptr<leveldb::DB> open_database(const std::string& path);
-
         void timed_consume_entry();
-
         void block_consume_entry();
     };
 }
