@@ -45,8 +45,9 @@ namespace core
     // Format template "%Y-%m-%d %H:%M:%S"
     std::string time_format(std::string_view format = "%c",
                             std::tm*(*timing)(const std::time_t*) = &std::localtime);
-
+    // Format template "%Y-%m-%d %H:%M:%S.%E*f"
     std::string local_date_time();
+    std::string local_date_time(const std::string& format);
 
     namespace literals
     {
@@ -214,6 +215,9 @@ namespace core
     logger_access console_logger_access(std::string logger_name,
                                         logger_process post_process = nullptr);
     logger_access null_logger_access(std::string logger_name);
+
+    std::shared_ptr<spdlog::logger> make_async_logger(std::string logger_name,
+                                                      spdlog::sink_ptr sink);
 
     struct coordinate
     {

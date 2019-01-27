@@ -1,5 +1,8 @@
 #include "pch.h"
 #include <folly/executors/CPUThreadPoolExecutor.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <absl/numeric/int128_no_intrinsic.inc>
+#include <range/v3/view/iota.hpp>
 
 namespace core::test
 {
@@ -109,5 +112,23 @@ namespace core::test
             folly::setCPUExecutor(executor);
             EXPECT_EQ(dynamic_cast<folly::CPUThreadPoolExecutor&>(*folly::getCPUExecutor()).numThreads(), 5);
         }
+    }
+
+    TEST(Logger, AsyncCreate) {
+        auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("F:/GWorkSet/test.sink.log", true);
+        auto logger1 = core::make_async_logger("test-1", sink);
+        auto logger2 = core::make_async_logger("test-2", sink);
+        auto workload = [](auto logger) {
+            return [&] {
+                for (auto i : ranges::view::ints(0, 500)) {
+                    logger->info("{}", i);
+                }
+            };
+        };
+        std::thread th1{ workload(logger1) };
+        std::thread th2{ workload(logger2) };
+        th1.join();
+        th2.join();
+        spdlog::drop_all();
     }
 }

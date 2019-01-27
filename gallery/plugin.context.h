@@ -64,8 +64,6 @@ struct update_batch final
     };
 };
 
-struct frame_batch;
-
 template <typename T>
 class alternate final
 {

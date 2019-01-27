@@ -14,7 +14,7 @@ namespace net::test
     TEST(DashManager, ParseMpdConfig) {
         core::set_cpu_executor(3);
         {
-            auto manager = dash_manager::create_parsed("http://localhost:33666/Output/NewYork/5x3/NewYork.mpd").get();
+            auto manager = dash_manager{ "http://localhost:33666/Output/NewYork/5x3/NewYork.mpd" }.request_stream_index().get();
             auto spatial_size = manager.frame_size();
             auto grid_size = manager.grid_size();
             EXPECT_EQ(grid_size.col, 5);

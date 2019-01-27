@@ -18,15 +18,13 @@ namespace net::client
                       folly::Promise<response<dynamic_body>>>>;
         using request_sequence = boost::asio::strand<boost::asio::io_context::executor_type>;
         using response_body_parser = response_parser<dynamic_body>;
-        using trace_callback = std::function<void(std::string_view, std::string)>;
-        using trace_callback_wrapper = std::function<void(std::string)>;
 
         const core::logger_access logger_;
+        const std::shared_ptr<spdlog::logger> tracer_;
         request_list request_list_;
         std::optional<response_body_parser> response_parser_;
         mutable bool active_ = true;
         mutable request_sequence request_sequence_;
-        mutable trace_callback_wrapper trace_callback_;
 
     public:
         using pointer = std::unique_ptr<session>;
@@ -62,7 +60,7 @@ namespace net::client
         static pointer create(socket_type&& socket,
                               boost::asio::io_context& context);
 
-        void trace_by(trace_callback callback);
+        void trace_by(spdlog::sink_ptr sink) const;
 
     private:
         void emplace_response_parser();
@@ -84,12 +82,5 @@ namespace net::client
         auto on_send_request(int64_t index);
 
         auto on_recv_response(int64_t index);
-
-        template <typename ...EventArgs>
-        void trace_event(const char* event_format, EventArgs&& ...args) const {
-            if (trace_callback_) {
-                trace_callback_(fmt::format(event_format, std::forward<EventArgs>(args)...));
-            }
-        }
     };
 }

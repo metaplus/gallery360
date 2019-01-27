@@ -171,9 +171,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="command.h" />
-    <ClInclude Include="component.h" />
+    <ClInclude Include="io.segmentor.h" />
     <ClInclude Include="context.h" />
-    <ClInclude Include="cursor.h" />
+    <ClInclude Include="io.cursor.h" />
     <ClInclude Include="media.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="stdafx.h" />
@@ -181,9 +181,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="command.cpp" />
-    <ClCompile Include="component.cpp" />
+    <ClCompile Include="io.segmentor.cpp" />
     <ClCompile Include="context.cpp" />
-    <ClCompile Include="cursor.cpp" />
+    <ClCompile Include="io.cursor.cpp" />
     <ClCompile Include="media.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

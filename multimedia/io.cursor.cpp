@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "cursor.h"
+#include "io.cursor.h"
 
 namespace media
 {

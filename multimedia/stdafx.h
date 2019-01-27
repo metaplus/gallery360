@@ -16,7 +16,6 @@
 // TODO: reference additional headers your program requires here
 #include "core/pch.h"
 #include "multimedia/pch.h"
-#include "multimedia/component.h"
 #include <range/v3/view/iota.hpp>
 #include <boost/container/small_vector.hpp>
 

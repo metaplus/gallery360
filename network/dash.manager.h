@@ -24,19 +24,16 @@ namespace net
     };
 }
 
-namespace net::component
+namespace net
 {
-    using ordinal = std::pair<int, int>;
-
     class dash_manager final
     {
         struct impl;
         std::shared_ptr<impl> impl_;
 
-        dash_manager(std::string&& mpd_url, unsigned concurrency,
-                     std::shared_ptr<folly::ThreadPoolExecutor> executor);
-
     public:
+        explicit dash_manager(std::string mpd_url, unsigned concurrency = std::thread::hardware_concurrency(),
+                              std::shared_ptr<folly::ThreadPoolExecutor> executor = nullptr);
         dash_manager() = delete;
         dash_manager(const dash_manager&) = default;
         dash_manager(dash_manager&&) noexcept = default;
@@ -44,17 +41,14 @@ namespace net::component
         dash_manager& operator=(dash_manager&&) noexcept = default;
         ~dash_manager() = default;
 
-        static folly::Future<dash_manager> create_parsed(
-            std::string mpd_url, unsigned concurrency = std::thread::hardware_concurrency(),
-            std::shared_ptr<folly::ThreadPoolExecutor> executor = nullptr);
-
+        folly::Future<dash_manager> request_stream_index() const;
+        folly::Function<folly::SemiFuture<buffer_sequence>()> tile_streamer(core::coordinate coordinate);
         core::dimension frame_size() const;
         core::dimension tile_size() const;
         core::coordinate grid_size() const;
         int tile_count() const;
-        void trace_by(detail::trace_callback callback) const;
+        void trace_by(spdlog::sink_ptr sink) const;
         void predict_by(detail::predict_callback callback) const;
         bool available() const;
-        folly::Function<folly::SemiFuture<buffer_sequence>()> tile_buffer_streamer(core::coordinate coordinate);
     };
 }

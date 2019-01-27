@@ -127,10 +127,10 @@ using namespace fmt::literals;
 
 #ifdef _WIN32
 #include "core/meta.hpp"
-#include "core/detail.hpp"
-#include "core/type_trait.hpp"
-#include "core/function_trait.hpp"
-#include "core/member_function_trait.hpp"
+#include "core/meta.detail.hpp"
+#include "core/meta.type_trait.hpp"
+#include "core/meta.function_trait.hpp"
+#include "core/meta.member_function_trait.hpp"
 #include "core/core.hpp"
 #include "core/exception.hpp"
 #include "core/guard.hpp"
