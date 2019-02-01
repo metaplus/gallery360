@@ -351,8 +351,8 @@ namespace boost::test
     TEST(Container, StaticVector) {
         struct bulk
         {
-            char c[152];
+            char c[512];
         };
-        container::static_vector<bulk, 1024> cc;
+        EXPECT_NO_THROW((container::static_vector<bulk, 1024>{}));
     }
 }

@@ -17,9 +17,11 @@
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <tinyxml2.h>
 
 #ifdef _WIN32
 #include "network/pch.h"
+#include "network/dash.protocal.h"
 #include "network/session.server.h"
 #include "network/session.client.h"
 #include "network/acceptor.h"

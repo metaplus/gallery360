@@ -161,8 +161,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="acceptor.h" />
+    <ClInclude Include="dash.protocal.h" />
     <ClInclude Include="session.client.h" />
-    <ClInclude Include="component.h" />
+    <ClInclude Include="dash.manager.h" />
     <ClInclude Include="connector.h" />
     <ClInclude Include="net.h" />
     <ClInclude Include="pch.h" />
@@ -173,8 +174,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="acceptor.cpp" />
+    <ClCompile Include="dash.protocal.cpp" />
     <ClCompile Include="session.client.cpp" />
-    <ClCompile Include="component.cpp" />
+    <ClCompile Include="dash.manager.cpp" />
     <ClCompile Include="connector.cpp" />
     <ClCompile Include="net.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_DEBUG;_LIB;%(PreprocessorDefinitions);_NET_PROJECT;_NET_CONFIG_DIR=R"($(ProjectDir))";</PreprocessorDefinitions>

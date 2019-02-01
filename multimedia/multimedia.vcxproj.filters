@@ -27,16 +27,16 @@
     <ClInclude Include="context.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="cursor.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="component.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="command.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="media.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="io.segmentor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="io.cursor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -47,16 +47,16 @@
     <ClCompile Include="context.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="cursor.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="component.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="command.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="media.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="io.segmentor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="io.cursor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -11,5 +11,6 @@ extern "C" {
 #pragma warning(pop)
 
 #include "multimedia/media.h"
-#include "multimedia/cursor.h"
+#include "multimedia/io.cursor.h"
 #include "multimedia/context.h"
+#include "multimedia/io.segmentor.h"

@@ -1,7 +1,7 @@
 #include "stdafx.h"
-#include "component.h"
+#include "io.segmentor.h"
 
-namespace media::component
+namespace media
 {
     using namespace detail;
     using boost::beast::multi_buffer;

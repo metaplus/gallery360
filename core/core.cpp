@@ -5,9 +5,9 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/null_sink.h>
-#include <boost/date_time/microsec_time_clock.hpp>
-#include <boost/date_time/posix_time/ptime.hpp>
-#include <boost/date_time/posix_time/posix_time_io.hpp>
+#include <absl/time/time.h>
+#include <absl/time/clock.h>
+#include <spdlog/async.h>
 
 namespace core
 {
@@ -61,14 +61,22 @@ namespace core
     }
 
     std::string time_format(std::string_view format,
-        std::tm*(*timing)(const std::time_t*)) {
+                            std::tm*(*timing)(const std::time_t*)) {
         // const auto time_tmt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         const auto current_time = std::time(nullptr);
         return fmt::format("{}", std::put_time(timing(&current_time), format.data()));
     }
 
+    const auto time_zone = folly::lazy([] {
+        return absl::FixedTimeZone(8 * 60 * 60);
+    });
+
     std::string local_date_time() {
-        return fmt::format("{}", boost::date_time::microsec_clock<boost::posix_time::ptime>::local_time());
+        return absl::FormatTime(absl::Now(), time_zone());
+    }
+
+    std::string local_date_time(const std::string& format) {
+        return absl::FormatTime(format, absl::Now(), time_zone());
     }
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency,
@@ -129,7 +137,6 @@ namespace core
 
     folly::Function<std::pair<int64_t, logger_access>()>
     console_logger_factory(std::string logger_group, bool null) {
-
         return [null, logger_group = std::move(logger_group), indexer = atomic_index()] {
             const auto logger_index = indexer->fetch_add(1);
             auto logger_name = fmt::format("{}${}", logger_group, logger_index);
@@ -166,9 +173,23 @@ namespace core
     }
 
     logger_access null_logger_access(std::string logger_name) {
-        return [logger = spdlog::create<spdlog::sinks::null_sink_st>(std::move(logger_name))]() -> decltype(auto) {
+        return [logger = spdlog::null_logger_st(std::move(logger_name))]() -> decltype(auto) {
             return logger.operator*();
         };
+    }
+
+    const auto logger_thread_pool = folly::lazy([] {
+        spdlog::init_thread_pool(8192, 1);
+        return spdlog::thread_pool();
+    });
+
+    std::shared_ptr<spdlog::logger> make_async_logger(std::string logger_name,
+                                                      spdlog::sink_ptr sink) {
+        auto logger = std::make_shared<spdlog::async_logger>(
+            std::move(logger_name), std::move(sink),
+            logger_thread_pool(), spdlog::async_overflow_policy::block);
+        spdlog::register_logger(logger);
+        return logger;
     }
 
     size_t hash_value(const coordinate& coordinate) {

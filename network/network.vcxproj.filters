@@ -24,9 +24,6 @@
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="component.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="session.base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -45,6 +42,12 @@
     <ClInclude Include="net.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="dash.manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dash.protocal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -59,13 +62,16 @@
     <ClCompile Include="acceptor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="component.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="session.server.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="session.client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dash.manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dash.protocal.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
