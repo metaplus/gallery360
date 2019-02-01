@@ -1,13 +1,9 @@
 #include "pch.h"
 #include <fmt/format.h>
-#include <folly/futures/Future.h>
-#include <folly/stop_watch.h>
 #include <re2/re2.h>
-#include "network/component.h"
+#include "network/dash.manager.h"
 #include "network/pch.h"
 #include "network/net.h"
-
-using net::component::dash_manager;
 
 namespace net::test
 {

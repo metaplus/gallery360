@@ -173,7 +173,7 @@ namespace core
     }
 
     logger_access null_logger_access(std::string logger_name) {
-        return [logger = spdlog::create<spdlog::sinks::null_sink_st>(std::move(logger_name))]() -> decltype(auto) {
+        return [logger = spdlog::null_logger_st(std::move(logger_name))]() -> decltype(auto) {
             return logger.operator*();
         };
     }

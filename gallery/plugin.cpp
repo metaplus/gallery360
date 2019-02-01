@@ -4,16 +4,16 @@
 #include "plugin.export.h"
 #include "plugin.context.h"
 #include "graphic.h"
+#include <absl/strings/str_join.h>
+#include <boost/container/flat_map.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/logic/tribool.hpp>
-#include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index_container.hpp>
 #include <boost/process/environment.hpp>
-#include <absl/strings/str_join.h>
 #include <spdlog/spdlog.h>
-#include <spdlog/async.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/null_sink.h>
 
@@ -34,7 +34,6 @@ namespace config
     namespace trace
     {
         std::filesystem::path directory;
-        std::shared_ptr<spdlog::logger> logger;
         bool enable = false;
     }
 
@@ -83,6 +82,25 @@ inline namespace resource
         core::dimension tile_scale;
         auto tile_count = 0;
     }
+
+    auto cleanup_callback = [](folly::Func clean_callback = nullptr) {
+        static std::vector<folly::Func> callback_list;
+        if (clean_callback) {
+            callback_list.push_back(std::move(clean_callback));
+            return;
+        }
+        for (auto& callback : callback_list) {
+            callback();
+        }
+        callback_list.clear();
+    };
+}
+
+namespace trace
+{
+    std::shared_ptr<spdlog::logger> plugin_logger;
+    std::shared_ptr<spdlog::logger> update_logger;
+    std::shared_ptr<spdlog::logger> render_logger;
 }
 
 namespace debug
@@ -97,13 +115,11 @@ namespace state
     auto unity_time = 0.f;
     std::atomic<core::coordinate> field_of_view;
 
-    static_assert(std::is_trivially_copyable<core::coordinate>::value);
-
-    struct stream final
+    namespace stream
     {
-        static inline std::atomic<bool> running{ false };
+        std::atomic<bool> running{ false };
 
-        static bool available(std::optional<media::frame*> frame = std::nullopt) {
+        auto available = [](std::optional<media::frame*> frame = std::nullopt) {
             static auto end_of_stream = false;
             if (frame.has_value()) {
                 if (auto& frame_ptr = frame.value(); frame_ptr != nullptr) {
@@ -113,7 +129,7 @@ namespace state
                 }
             }
             return !end_of_stream;
-        }
+        };
     };
 }
 
@@ -258,7 +274,6 @@ namespace unity
             } catch (...) {
                 assert(!"stream_executor catch unexpected exception");
             }
-            assert("session worker trap");
         };
     };
 
@@ -404,22 +419,30 @@ namespace unity
         compute_executor = core::make_pool_executor(config::executor_concurrency.value(), "PluginCompute");
         stream_executor = core::make_threaded_executor("PluginSession");
         if (config::trace::enable) {
-            auto sink_path = config::trace::directory / "plugin.log";
-            auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(sink_path.string());
-            config::trace::logger = core::make_async_logger("plugin", std::move(sink));
-            config::trace::logger->info("event=library.initialize");
+            const auto trace_sink = [](const std::string_view file_name) {
+                auto sink_path = config::trace::directory / file_name;
+                return std::make_shared<spdlog::sinks::basic_file_sink_mt>(sink_path.string());
+            };
+            trace::plugin_logger = core::make_async_logger("plugin", trace_sink("plugin.log"));
+            trace::update_logger = core::make_async_logger("plugin.update", trace_sink("plugin.update.log"));
+            trace::render_logger = core::make_async_logger("plugin.render", trace_sink("plugin.render.log"));
         } else {
-            config::trace::logger = spdlog::create<spdlog::sinks::null_sink_st>("plugin");
+            trace::plugin_logger = spdlog::null_logger_st("plugin");
+            trace::update_logger = spdlog::null_logger_st("plugin.update");
+            trace::render_logger = spdlog::null_logger_st("plugin.render");
         }
+        trace::plugin_logger->info("event=library.initialize");
     }
 
     void _nativeLibraryRelease() {
         state::stream::running = false;
         stream_executor = nullptr; // join 1-1
         if (config::trace::enable) {
-            config::trace::logger->info("event=library.release");
+            trace::plugin_logger->info("event=library.release");
             spdlog::drop_all();
-            config::trace::logger = nullptr;
+            trace::plugin_logger = nullptr;
+            trace::update_logger = nullptr;
+            trace::render_logger = nullptr;
         }
         manager = folly::Future<net::dash_manager>::makeEmpty(); // join 2
         if (compute_executor) {
@@ -429,14 +452,13 @@ namespace unity
         compute_executor = nullptr;
         reset_resource();
         config::trace::enable = false;
+        cleanup_callback();
     }
 
     BOOL _nativeTraceEvent(LPSTR instance, LPSTR event) {
-        if (config::trace::enable) {
-            config::trace::logger->info("instance={}:event={}", instance, event);
-            return true;
-        }
-        return false;
+        if (!config::trace::enable) return false;
+        trace::update_logger->info("instance={}:event={}", instance, event);
+        return true;
     }
 }
 

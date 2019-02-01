@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "core/pch.h"
-#include "network/component.h"
-#include "multimedia/component.h"
+#include "network/dash.manager.h"
+#include "multimedia/io.segmentor.h"
 #include "gallery/pch.h"
 #include "gallery/database.sqlite.h"
 #include <boost/beast.hpp>
@@ -12,11 +12,10 @@ using std::chrono::seconds;
 using std::chrono::steady_clock;
 using boost::asio::const_buffer;
 using boost::beast::multi_buffer;
-using net::component::dash_manager;
-using net::component::ordinal;
-using media::component::frame_segmentor;
-using media::component::pixel_array;
-using media::component::pixel_consume;
+using net::dash_manager;
+using media::frame_segmentor;
+using media::pixel_array;
+using media::pixel_consume;
 
 using frame_consumer = folly::Function<bool()>;
 using frame_indexed_builder = folly::Function<
@@ -97,7 +96,9 @@ auto plugin_routine = [](std::string url) {
                             EXPECT_EQ(cc, c);
                             EXPECT_EQ(rr, r);
                         }
+#ifdef PLUGIN_RENDER_CALLBACK_APPROACH
                         _nativeGraphicGetRenderCallback()(index);
+#endif
                         count++;
                     }
                     return poll_success;
