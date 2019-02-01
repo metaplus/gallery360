@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "session.client.h"
+#include <spdlog/async.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/null_sink.h>
 
 namespace net::client
 {
@@ -15,6 +18,7 @@ namespace net::client
         std::tie(core::as_mutable(index_),
                  core::as_mutable(logger_)) = make_logger();
         core::as_mutable(identity_) = fmt::format("session${}", index_);
+        core::as_mutable(tracer_) = spdlog::create<spdlog::sinks::null_sink_st>(identity_);
 #ifdef NDEBUG
         logger_().set_level(spdlog::level::warn);
 #endif
@@ -47,7 +51,7 @@ namespace net::client
                 return fail_request_then_close(core::bad_response_error{ response_parser_->get().reason().data() },
                                                errc, boost::asio::socket_base::shutdown_receive);
             }
-            trace_event("response=recv:index={}:transfer={}", index, transfer_size);
+            tracer_->info("response=recv:index={}:transfer={}", index, transfer_size);
             request_list_.front().second.setValue(response_parser_->release());
             request_list_.pop_front();
             if (!request_list_.empty()) {
@@ -66,7 +70,7 @@ namespace net::client
                 return fail_request_then_close(core::bad_request_error{ errc.message() },
                                                errc, boost::asio::socket_base::shutdown_send);
             }
-            trace_event("request=send:index={}:transfer={}", index, transfer_size);
+            tracer_->info("request=send:index={}:transfer={}", index, transfer_size);
             http::async_read(socket_, recvbuf_, *response_parser_,
                              boost::asio::bind_executor(request_sequence_, on_recv_response(index)));
         };
@@ -76,15 +80,14 @@ namespace net::client
         assert(request_sequence_.running_in_this_thread());
         emplace_response_parser();
         auto request_index = ++round_index_;
-        trace_event("request=ready:index={}", request_index);
+        tracer_->info("request=ready:index={}", request_index);
         http::async_write(socket_, request_list_.front().first,
                           boost::asio::bind_executor(request_sequence_, on_send_request(request_index)));
     }
 
-    void session<protocal::http>::trace_by(trace_callback callback) {
-        trace_callback_ = [this, callback = std::move(callback)](std::string event) mutable {
-            callback(identity_, std::move(event));
-        };
+    void session<protocal::http>::trace_by(spdlog::sink_ptr sink) const {
+        spdlog::drop(identity_);
+        core::as_mutable(tracer_) = core::make_async_logger(identity_, std::move(sink));
     }
 
     auto session<protocal::http>::send_request(request<empty_body>&& request)

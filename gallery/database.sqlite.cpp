@@ -3,9 +3,6 @@
 #include <absl/time/clock.h>
 #include <absl/time/time.h>
 #include <absl/strings/str_join.h>
-#include <range/v3/view/filter.hpp>
-#include <range/v3/view/transform.hpp>
-#include <range/v3/begin_end.hpp>
 
 using sqlite_orm::make_storage;
 using sqlite_orm::make_table;
@@ -20,12 +17,12 @@ inline namespace plugin
             file_name,
             make_table(
                 table_name,
-                make_column("id", &core::trace_event::id, autoincrement(), primary_key()),
-                make_column("date_time", &core::trace_event::date_time),
-                make_column("instance", &core::trace_event::instance),
-                make_column("instance_id", &core::trace_event::instance_id),
-                make_column("event", &core::trace_event::event),
-                make_column("event_id", &core::trace_event::event_id)));
+                make_column("id", &database::trace_event::id, autoincrement(), primary_key()),
+                make_column("date_time", &database::trace_event::date_time),
+                make_column("instance", &database::trace_event::instance),
+                make_column("instance_id", &database::trace_event::instance_id),
+                make_column("event", &database::trace_event::event),
+                make_column("event_id", &database::trace_event::event_id)));
     };
 
     using database_storage = std::invoke_result<decltype(make_sqlite_storage),
@@ -39,7 +36,7 @@ inline namespace plugin
         std::filesystem::path file_path;
         std::optional<database_storage> sink_storage;
         std::optional<absl::TimeZone> time_zone;
-        moodycamel::BlockingConcurrentQueue<core::trace_event> sink_event_queue;
+        moodycamel::BlockingConcurrentQueue<trace_event> sink_event_queue;
         moodycamel::ReaderWriterQueue<command> command_queue{ 3 };
     };
 
@@ -64,7 +61,7 @@ inline namespace plugin
              .sync_schema(true);
     }
 
-    void database::submit_entry(core::trace_event&& event) const {
+    void database::submit_entry(trace_event&& event) const {
         impl_->sink_event_queue.enqueue(std::move(event));
     }
 
@@ -75,7 +72,7 @@ inline namespace plugin
     int64_t database::insert_entry_persistently() const {
         const auto bulk_size = 64;
         int64_t sink_count = 0;
-        std::vector<core::trace_event> entries(bulk_size);
+        std::vector<trace_event> entries(bulk_size);
         moodycamel::ConsumerToken token{ impl_->sink_event_queue };
         auto* stop_command = impl_->command_queue.peek();
         auto dequeue_size = 0ui64;

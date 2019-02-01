@@ -5,7 +5,7 @@ namespace media
     class frame;
 }
 
-namespace media::component
+namespace media
 {
     namespace detail
     {

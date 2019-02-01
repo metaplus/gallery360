@@ -1,23 +1,22 @@
 #include "stdafx.h"
-#include "network/component.h"
-#include "multimedia/component.h"
+#include "network/dash.manager.h"
+#include "multimedia/io.segmentor.h"
 #include "plugin.export.h"
 #include "plugin.context.h"
 #include "graphic.h"
-#include "database.leveldb.h"
+#include <absl/strings/str_join.h>
+#include <boost/container/flat_map.hpp>
 #include <boost/container/small_vector.hpp>
-#include <boost/date_time/posix_time/ptime.hpp>
-#include <boost/date_time/time_clock.hpp>
 #include <boost/logic/tribool.hpp>
-#include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index_container.hpp>
 #include <boost/process/environment.hpp>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/null_sink.h>
 
-using net::component::dash_manager;
-using net::component::ordinal;
-using media::component::frame_segmentor;
 using boost::beast::multi_buffer;
 using boost::logic::tribool;
 using boost::logic::indeterminate;
@@ -32,7 +31,7 @@ namespace config
 
     std::filesystem::path workset_directory;
 
-    namespace database
+    namespace trace
     {
         std::filesystem::path directory;
         bool enable = false;
@@ -48,12 +47,9 @@ inline namespace resource
 {
     std::shared_ptr<folly::ThreadPoolExecutor> compute_executor;
     std::shared_ptr<folly::ThreadedExecutor> stream_executor;
-    std::shared_ptr<folly::ThreadedExecutor> database_executor;
     std::shared_ptr<folly::ThreadedExecutor> update_executor;
-    std::shared_ptr<database> database_entity;
     std::optional<graphic> graphic_entity;
     std::vector<stream_context*> stream_cache;
-    folly::Function<void(std::string_view instance, std::string event)> trace_event;
 
     struct index_key final {};
     struct coordinate_key final {};
@@ -72,7 +68,7 @@ inline namespace resource
                 boost::multi_index::member<stream_context, decltype(stream_context::coordinate), &stream_context::coordinate>>
         >> tile_stream_table;
 
-    folly::Future<dash_manager> manager = folly::Future<dash_manager>::makeEmpty();
+    folly::Future<net::dash_manager> manager = folly::Future<net::dash_manager>::makeEmpty();
 
     UnityGfxRenderer unity_device = kUnityGfxRendererNull;
     IUnityInterfaces* unity_interface = nullptr;
@@ -86,12 +82,25 @@ inline namespace resource
         core::dimension tile_scale;
         auto tile_count = 0;
     }
+
+    auto cleanup_callback = [](folly::Func clean_callback = nullptr) {
+        static std::vector<folly::Func> callback_list;
+        if (clean_callback) {
+            callback_list.push_back(std::move(clean_callback));
+            return;
+        }
+        for (auto& callback : callback_list) {
+            callback();
+        }
+        callback_list.clear();
+    };
 }
 
 namespace trace
 {
-    std::vector<tribool> initial;
-    std::vector<tribool> release;
+    std::shared_ptr<spdlog::logger> plugin_logger;
+    std::shared_ptr<spdlog::logger> update_logger;
+    std::shared_ptr<spdlog::logger> render_logger;
 }
 
 namespace debug
@@ -101,43 +110,16 @@ namespace debug
     constexpr auto enable_legacy = false;
 }
 
-struct frame_batch_index
-{
-    int64_t frame_index = 0;
-    int64_t batch_index = 0;
-};
-
-struct frame_batch final : frame_batch_index
-{
-    using tile_iterator = std::remove_reference<decltype(tile_stream_table)>::type::iterator;
-
-    boost::container::small_vector<tile_iterator, 32> tile_range;
-    decltype(tile_range)::iterator tile_end_iterator;
-
-    static inline boost::container::small_vector<tile_iterator, 32> tile_range_source;
-
-    struct render_context final : frame_batch_index
-    {
-        const stream_context& tile_stream;
-        media::frame tile_frame{ nullptr };
-    };
-};
-
 namespace state
 {
     auto unity_time = 0.f;
-    std::optional<struct frame_batch> frame_batch;
-    std::unique_ptr<folly::UMPMCQueue<update_batch::tile_render_context, false>> render_tile_queue;
-
-    static_assert(std::is_trivially_copyable<core::coordinate>::value);
-
     std::atomic<core::coordinate> field_of_view;
 
-    struct stream final
+    namespace stream
     {
-        static inline std::atomic<bool> running{ false };
+        std::atomic<bool> running{ false };
 
-        static bool available(std::optional<media::frame*> frame = std::nullopt) {
+        auto available = [](std::optional<media::frame*> frame = std::nullopt) {
             static auto end_of_stream = false;
             if (frame.has_value()) {
                 if (auto& frame_ptr = frame.value(); frame_ptr != nullptr) {
@@ -147,7 +129,7 @@ namespace state
                 }
             }
             return !end_of_stream;
-        }
+        };
     };
 }
 
@@ -178,33 +160,36 @@ auto unmanaged_unicode_string = [](std::string_view string) {
 namespace unity
 {
     LPSTR _nativeDashCreate() {
-        auto url = config::mpd_uri->str();
-        assert(!url.empty());
-        manager = dash_manager::create_parsed(url, config::asio_concurrency.value(), compute_executor)
-            .thenValue([](dash_manager manager) {
-                if (config::database::enable) {
-                    manager.trace_by(database_entity->produce_callback());
-                }
-                manager.predict_by([=](const int tile_col,
-                                       const int tile_row) {
-                    using description::frame_grid;
-                    const auto field_of_view = std::atomic_load(&state::field_of_view);
-                    const auto trim_offset = [](const int tile, const int view, const int frame) {
-                        const auto offset = std::abs(tile - view);
-                        if (offset > frame / 2) {
-                            return frame - offset;
-                        }
-                        return offset;
-                    };
-                    const auto col_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
-                    const auto row_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
-                    assert(col_offset >= 0 && row_offset >= 0);
-                    return col_offset == 0 && row_offset <= 1
-                        || row_offset == 0 && col_offset <= 1;
-                });
-                return manager;
+        auto index_url = config::mpd_uri->str();
+        assert(!index_url.empty());
+        manager = folly::makeFutureWith([&index_url] {
+            net::dash_manager manager{ index_url, config::asio_concurrency.value(), compute_executor };
+            if (config::trace::enable) {
+                assert(is_directory(config::trace::directory));
+                auto sink_path = config::trace::directory / "network.log";
+                auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(sink_path.string());
+                manager.trace_by(std::move(sink));
+            }
+            manager.predict_by([=](const int tile_col,
+                                   const int tile_row) {
+                using description::frame_grid;
+                const auto field_of_view = std::atomic_load(&state::field_of_view);
+                const auto trim_offset = [](const int tile, const int view, const int frame) {
+                    const auto offset = std::abs(tile - view);
+                    if (offset > frame / 2) {
+                        return frame - offset;
+                    }
+                    return offset;
+                };
+                const auto col_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
+                const auto row_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
+                assert(col_offset >= 0 && row_offset >= 0);
+                return col_offset == 0 && row_offset <= 1
+                    || row_offset == 0 && col_offset <= 1;
             });
-        return unmanaged_ansi_string(url);
+            return manager.request_stream_index();
+        });
+        return unmanaged_ansi_string(index_url);
     }
 
     BOOL _nativeDashGraphicInfo(INT& col, INT& row,
@@ -253,13 +238,13 @@ namespace unity
     auto stream_mpeg_dash = [](stream_context& tile_stream) {
         auto& dash_manager = manager.value();
         return [&tile_stream, &dash_manager] {
-            auto buffer_streamer = dash_manager.tile_buffer_streamer(tile_stream.coordinate);
+            auto buffer_streamer = dash_manager.tile_streamer(tile_stream.coordinate);
             auto future_buffer = buffer_streamer();
             try {
                 while (true) {
                     auto buffer_sequence = std::move(future_buffer).get();
                     future_buffer = buffer_streamer();
-                    frame_segmentor frame_segmentor{
+                    media::frame_segmentor frame_segmentor{
                         core::split_buffer_sequence(buffer_sequence.initial, buffer_sequence.data),
                         config::decoder_concurrency.value()
                     };
@@ -289,7 +274,6 @@ namespace unity
             } catch (...) {
                 assert(!"stream_executor catch unexpected exception");
             }
-            assert("session worker trap");
         };
     };
 
@@ -300,9 +284,6 @@ namespace unity
         assert(state::stream::available());
         for (auto& tile_stream : tile_stream_table.get<coordinate_key>()) {
             stream_executor->add(stream_mpeg_dash(core::as_mutable(tile_stream)));
-        }
-        if (config::database::enable) {
-            database_executor->add(database_entity->consume_task(false));
         }
     }
 
@@ -338,50 +319,6 @@ namespace unity
             return true;
         }
         return false;
-    }
-
-    INT _nativeDashTilePollUpdateFrame(INT64 frame_index, INT64 batch_index) {
-        assert(batch_index > 0);
-        if (batch_index == 1) {
-            frame_batch::tile_range_source.reserve(tile_stream_table.size());
-            auto tile_stream_iterator = tile_stream_table.begin();
-            while (tile_stream_iterator != tile_stream_table.end()) {
-                frame_batch::tile_range_source.emplace_back(tile_stream_iterator);
-                tile_stream_iterator.operator++();
-            }
-            assert(frame_batch::tile_range_source.size() == description::tile_count);
-            assert(!state::frame_batch.has_value());
-            state::frame_batch.emplace();
-            state::frame_batch->tile_range = frame_batch::tile_range_source;
-            state::frame_batch->tile_end_iterator = state::frame_batch->tile_range.end();
-        }
-        state::frame_batch->tile_end_iterator = std::remove_if(
-            state::frame_batch->tile_range.begin(),
-            state::frame_batch->tile_end_iterator,
-            [=](decltype(tile_stream_table)::iterator& tile_iterator) {
-                auto& tile_stream = core::as_mutable(*tile_iterator);
-                //if (!tile_stream.render.queue->isFull()) {
-                if (media::frame frame{ nullptr }; tile_stream.decode.queue->read(frame)) {
-                    tile_stream.update.decode_success++;
-                    frame_batch::render_context render_context{
-                        frame_index, batch_index,
-                        *tile_iterator, std::move(frame)
-                    };
-                    return true;
-                }
-                //}
-                return false;
-            }
-        );
-        const auto tile_decode_ready = std::distance(state::frame_batch->tile_end_iterator,
-                                                     state::frame_batch->tile_range.end());
-        if (tile_decode_ready == description::tile_count) {
-            state::frame_batch->tile_range = frame_batch::tile_range_source;
-            state::frame_batch->tile_end_iterator = state::frame_batch->tile_range.end();
-        }
-        state::frame_batch->frame_index = frame_index;
-        state::frame_batch->batch_index = batch_index;
-        return folly::to<int>(tile_decode_ready);
     }
 
     void _nativeDashTileFieldOfView(INT col, INT row) {
@@ -429,13 +366,10 @@ namespace unity
         }
     }
 
-    auto database_date_suffix = [] {
-        auto time = boost::date_time::second_clock<boost::posix_time::ptime>::local_time();
-        auto date = time.date();
-        auto time_of_day = time.time_of_day();
-        return fmt::format("{:02}-{:02}-{:02} {:02}h{:02}m{:02}s",
-                           date.year(), date.month(), date.day(),
-                           time_of_day.hours(), time_of_day.minutes(), time_of_day.seconds());
+    auto trace_log_directory = [](const std::filesystem::path& workset,
+                                  const std::string& name_prefix) {
+        const auto directory = absl::StrJoin({ name_prefix, core::local_date_time("%Y%m%d.%H%M%S") }, ".");
+        return workset / directory;
     };
 
     BOOL _nativeLoadEnvConfig() {
@@ -448,11 +382,11 @@ namespace unity
                     if (std::ifstream reader{ detail_path }; reader >> config::document) {
                         const int mpd_uri_index = config::document["Dash"]["UriIndex"];
                         const std::string mpd_uri = config::document["Dash"]["Uri"][mpd_uri_index];
-                        const std::string database_name = config::document["Database"]["Name"];
-                        if (config::document["Database"]["Enable"].get_to(config::database::enable)) {
-                            config::database::directory = config::workset_directory / fmt::format("{} {}", database_name, database_date_suffix());
-                            const auto result = create_directories(config::database::directory);
-                            assert(result && "database create directory");
+                        const std::string trace_prefix = config::document["TraceEvent"]["NamePrefix"];
+                        if (config::document["TraceEvent"]["Enable"].get_to(config::trace::enable)) {
+                            config::trace::directory = trace_log_directory(config::workset_directory, trace_prefix);
+                            const auto result = create_directories(config::trace::directory);
+                            assert(result && "trace create storage");
                         }
                         config::mpd_uri = folly::Uri{ mpd_uri };
                         config::predict_degrade_factor = config::document["System"]["PredictFactor"];
@@ -460,7 +394,9 @@ namespace unity
                         return true;
                     }
                 } catch (nlohmann::detail::type_error) {
-                    assert(!"_nativeLoadEnvConfig json parse fail");
+                    assert(!"_nativeLoadEnvConfig json catch type_error");
+                } catch (nlohmann::detail::parse_error) {
+                    assert(!"_nativeLoadEnvConfig json catch parse_error");
                 } catch (...) {
                     assert(!"_nativeLoadEnvConfig catch unexpected exception");
                 }
@@ -473,68 +409,58 @@ namespace unity
         tile_stream_table.clear();
         stream_cache.clear();
         state::stream::available(nullptr);
-        state::frame_batch = std::nullopt;
         std::atomic_store(&state::field_of_view, { 0, 0 });
     };
 
     void _nativeLibraryInitialize() {
-        trace::initial.emplace_back(indeterminate);
         reset_resource();
         state::stream::running = true;
-        state::render_tile_queue = std::make_unique<decltype(state::render_tile_queue)::element_type>();
-        manager = folly::Future<dash_manager>::makeEmpty();
+        manager = folly::Future<net::dash_manager>::makeEmpty();
         compute_executor = core::make_pool_executor(config::executor_concurrency.value(), "PluginCompute");
         stream_executor = core::make_threaded_executor("PluginSession");
-        if (config::database::enable) {
-            database_entity = database::make_opened(config::database::directory.string());
-            database_executor = core::make_threaded_executor("PluginDatabase");
-            trace_event = database_entity->produce_callback();
+        if (config::trace::enable) {
+            const auto trace_sink = [](const std::string_view file_name) {
+                auto sink_path = config::trace::directory / file_name;
+                return std::make_shared<spdlog::sinks::basic_file_sink_mt>(sink_path.string());
+            };
+            trace::plugin_logger = core::make_async_logger("plugin", trace_sink("plugin.log"));
+            trace::update_logger = core::make_async_logger("plugin.update", trace_sink("plugin.update.log"));
+            trace::render_logger = core::make_async_logger("plugin.render", trace_sink("plugin.render.log"));
+        } else {
+            trace::plugin_logger = spdlog::null_logger_st("plugin");
+            trace::update_logger = spdlog::null_logger_st("plugin.update");
+            trace::render_logger = spdlog::null_logger_st("plugin.render");
         }
-        trace::initial.back() = true;
+        trace::plugin_logger->info("event=library.initialize");
     }
 
     void _nativeLibraryRelease() {
-        trace::release.emplace_back(indeterminate);
         state::stream::running = false;
         stream_executor = nullptr; // join 1-1
-        if (config::database::enable) {
-            trace_event = nullptr;
-            database_entity->wait_consume_cancel(false);
-            database_entity = nullptr;
-            database_executor = nullptr; // join 1-2
+        if (config::trace::enable) {
+            trace::plugin_logger->info("event=library.release");
+            spdlog::drop_all();
+            trace::plugin_logger = nullptr;
+            trace::update_logger = nullptr;
+            trace::render_logger = nullptr;
         }
-        manager = folly::Future<dash_manager>::makeEmpty(); // join 2
+        manager = folly::Future<net::dash_manager>::makeEmpty(); // join 2
         if (compute_executor) {
             compute_executor->join(); // join 3
             assert(compute_executor.use_count() == 1);
         }
         compute_executor = nullptr;
         reset_resource();
-        trace::release.back() = true;
-        config::database::enable = false;
+        config::trace::enable = false;
+        cleanup_callback();
     }
 
     BOOL _nativeTraceEvent(LPSTR instance, LPSTR event) {
-        if (trace_event) {
-            trace_event(instance, event);
-            return true;
-        }
-        return false;
+        if (!config::trace::enable) return false;
+        trace::update_logger->info("instance={}:event={}", instance, event);
+        return true;
     }
 }
-
-auto dequeue_render_context = [](int count) {
-    std::vector<update_batch::tile_render_context> tile_render_contexts;
-    tile_render_contexts.reserve(count);
-    std::generate_n(
-        std::back_inserter(tile_render_contexts), count,
-        [] {
-            update_batch::tile_render_context context;
-            state::render_tile_queue->dequeue(context);
-            return context;
-        });
-    return tile_render_contexts;
-};
 
 namespace
 {
@@ -554,6 +480,7 @@ namespace
         }
     }
 
+#ifdef PLUGIN_RENDER_CALLBACK_APPROACH
     void __stdcall on_render_event(const int event_id) {
         auto graphic_context = folly::lazy([] {
             return graphic_entity->update_context();
@@ -577,6 +504,7 @@ namespace
             graphic_entity->overwrite_main_texture();
         }
     }
+#endif
 
     void __stdcall on_texture_update_event(int event_id, void* data) {
         const auto params = reinterpret_cast<UnityRenderingExtTextureUpdateParamsV2*>(data);
@@ -639,9 +567,11 @@ namespace unity
         unity_graphics->UnregisterDeviceEventCallback(on_graphics_device_event);
     }
 
+#ifdef PLUGIN_RENDER_CALLBACK_APPROACH
     UnityRenderingEvent _nativeGraphicGetRenderCallback() {
         return on_render_event;
     }
+#endif
 
     UnityRenderingEventAndData _nativeGraphicGetUpdateCallback() {
         return on_texture_update_event;

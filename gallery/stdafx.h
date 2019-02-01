@@ -36,3 +36,6 @@
 
 #pragma comment(lib,"Ws2_32")
 #pragma comment(lib,"Shlwapi")
+#pragma comment(lib,"secur32")
+#pragma comment(lib,"crypt32")
+#pragma comment(lib,"bcrypt")

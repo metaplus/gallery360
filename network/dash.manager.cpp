@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "component.h"
+#include "dash.manager.h"
 #include <boost/circular_buffer.hpp>
 #include <boost/logic/tribool.hpp>
 #include <folly/futures/FutureSplitter.h>
@@ -11,7 +11,7 @@ using net::protocal::dash;
 using ordinal = std::pair<int16_t, int16_t>;
 using http_session_ptr = net::client::session<http>::pointer;
 using io_context_ptr = std::invoke_result_t<decltype(&net::make_asio_pool), unsigned>;
-using net::component::dash_manager;
+using net::dash_manager;
 
 namespace net::protocal
 {
@@ -42,10 +42,8 @@ namespace net
         , data(std::move(that.data)) {}
 }
 
-namespace net::component
+namespace net
 {
-    const auto logger = spdlog::stdout_color_mt("net.dash.manager");
-
     //-- dash_manager
     struct dash_manager::impl final
     {
@@ -54,10 +52,10 @@ namespace net::component
         std::optional<folly::Uri> mpd_uri;
         std::optional<dash::parser> mpd_parser;
         std::optional<client::connector<protocal::tcp>> connector;
-
+        spdlog::sink_ptr logger_sink;
+        std::shared_ptr<spdlog::logger> logger;
         std::shared_ptr<folly::ThreadPoolExecutor> executor;
         int drain_count = 0;
-        detail::trace_callback trace_callback;
         detail::predict_callback predict_callback = [](auto, auto) {
             return folly::Random::randDouble01();
         };
@@ -65,15 +63,12 @@ namespace net::component
         struct deleter final : std::default_delete<impl>
         {
             void operator()(impl* impl) noexcept {
-                logger->info("destructor deleting io_context");
                 static_cast<default_delete&>(*this)(impl);
             }
         };
 
         void mark_drained(dash::video_adaptation_set& video_set) {
-            if (!std::exchange(video_set.context->drain, true)) {
-                logger->warn("video_set drained[col{} row{}]", video_set.col, video_set.row);
-            }
+            if (!std::exchange(video_set.context->drain, true)) { }
             drain_count++;
         }
 
@@ -99,8 +94,7 @@ namespace net::component
 
         folly::SemiFuture<multi_buffer>
         request_send(dash::video_adaptation_set& video_set,
-                     dash::represent& represent,
-                     bool initial = false) {
+                     dash::represent& represent, bool initial = false) {
             const auto replace_suffix = [](std::string path,
                                            std::string&& suffix) {
                 if (path.empty()) {
@@ -138,17 +132,16 @@ namespace net::component
         }
 
         folly::SemiFuture<http_session_ptr> make_http_session() {
-            return connector->establish_session<http>(mpd_uri->host(), folly::to<std::string>(mpd_uri->port()))
+            return connector->establish_session<http>(mpd_uri->host(),
+                                                      folly::to<std::string>(mpd_uri->port()))
                             .deferValue([this](http_session_ptr session) {
-                                if (trace_callback) {
-                                    session->trace_by(trace_callback);
-                                }
+                                session->trace_by(logger_sink);
                                 return session;
                             });
         }
     };
 
-    dash_manager::dash_manager(std::string&& mpd_url, unsigned concurrency,
+    dash_manager::dash_manager(std::string mpd_url, unsigned concurrency,
                                std::shared_ptr<folly::ThreadPoolExecutor> executor)
         : impl_(new impl{}, impl::deleter{}) {
         impl_->io_context = net::make_asio_pool(concurrency);
@@ -157,33 +150,22 @@ namespace net::component
         impl_->executor = std::move(executor);
     }
 
-    folly::Future<dash_manager> dash_manager::create_parsed(
-        std::string mpd_url, unsigned concurrency,
-        std::shared_ptr<folly::ThreadPoolExecutor> executor) {
-        if (!executor) {
-            executor = std::dynamic_pointer_cast<folly::ThreadPoolExecutor>(folly::getCPUExecutor());
-        }
-        logger->info("create_parsed @{} chain start", folly::getCurrentThreadID());
-        dash_manager dash_manager{ std::move(mpd_url), concurrency, executor };
-        logger->info("create_parsed @{} establish session", std::this_thread::get_id());
-        return dash_manager.impl_
-                           ->make_http_session()
-                           .via(executor.get()).thenMulti(
-                               [dash_manager](http_session_ptr session) mutable {
-                                   logger->info("create_parsed @{} send request", std::this_thread::get_id());;
-                                   return (dash_manager.impl_->manager_client = std::move(session))
-                                       ->send_request_for<multi_buffer>(
-                                           net::make_http_request<empty_body>(dash_manager.impl_->mpd_uri->host(),
-                                                                              dash_manager.impl_->mpd_uri->path()));
-                               },
-                               [dash_manager](multi_buffer&& buffer) {
-                                   logger->info("create_parsed @{} parse mpd", std::this_thread::get_id());
-                                   auto mpd_content = buffers_to_string(buffer.data());
-                                   dash_manager.impl_->mpd_parser
-                                               .emplace(std::move(mpd_content),
-                                                        dash_manager.impl_->executor);
-                                   return dash_manager;
-                               });
+    folly::Future<dash_manager> dash_manager::request_stream_index() const {
+        auto self = std::move(*this);
+        return impl_->make_http_session()
+                    .via(impl_->executor.get()).thenMulti(
+                        [self](http_session_ptr session) mutable {
+                            return (self.impl_->manager_client = std::move(session))
+                                ->send_request_for<multi_buffer>(
+                                    net::make_http_request<empty_body>(self.impl_->mpd_uri->host(),
+                                                                       self.impl_->mpd_uri->path()));
+                        },
+                        [self](multi_buffer&& buffer) {
+                            auto mpd_content = buffers_to_string(buffer.data());
+                            self.impl_->mpd_parser
+                                .emplace(std::move(mpd_content), self.impl_->executor);
+                            return self;
+                        });
     }
 
     core::dimension dash_manager::frame_size() const {
@@ -214,8 +196,9 @@ namespace net::component
         return impl_->drain_count == 0;
     }
 
-    void dash_manager::trace_by(detail::trace_callback callback) const {
-        impl_->trace_callback = std::move(callback);
+    void dash_manager::trace_by(spdlog::sink_ptr sink) const {
+        impl_->logger_sink = sink;
+        impl_->logger = core::make_async_logger("dash.manager", sink);
     }
 
     void dash_manager::predict_by(detail::predict_callback callback) const {
@@ -223,7 +206,7 @@ namespace net::component
     }
 
     folly::Function<folly::SemiFuture<buffer_sequence>()>
-    dash_manager::tile_buffer_streamer(core::coordinate coordinate) {
+    dash_manager::tile_streamer(core::coordinate coordinate) {
         auto& video_set = impl_->mpd_parser->video_set(coordinate);
         assert(video_set.col == coordinate.col);
         assert(video_set.row == coordinate.row);

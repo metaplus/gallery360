@@ -152,7 +152,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(VcpkgRoot)lib;$(VcpkgRoot)lib\manual-link;$(GLib);</AdditionalLibraryDirectories>
-      <AdditionalOptions>/ignore:4217,4049 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/ignore:4217,4049 /LTCG %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

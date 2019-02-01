@@ -26,7 +26,6 @@ namespace unity
     BOOL DLL_EXPORT __stdcall _nativeDashAvailable();
     BOOL DLL_EXPORT __stdcall _nativeDashTilePollUpdate(INT col, INT row, INT64 frame_index, INT64 batch_index);
     BOOL DLL_EXPORT __stdcall _nativeDashTilePtrPollUpdate(HANDLE instance, INT64 frame_index, INT64 batch_index);
-    INT DLL_EXPORT __stdcall _nativeDashTilePollUpdateFrame(INT64 frame_index, INT64 batch_index);
     void DLL_EXPORT __stdcall _nativeDashTileFieldOfView(INT col, INT row);
 
     void DLL_EXPORT __stdcall _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp);

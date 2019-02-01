@@ -2,30 +2,6 @@
 
 namespace core
 {
-    class time_guard final
-    {
-    public:
-        time_guard() :
-                     time_mark_(std::chrono::steady_clock::now()) {}
-
-        time_guard(const time_guard&) = delete;
-        time_guard(time_guard&&) noexcept = default;
-        time_guard& operator=(const time_guard&) = delete;
-        time_guard& operator=(time_guard&&) noexcept = default;
-
-        ~time_guard() {
-            //std::cout.setf(std::ios::hex);
-            std::cout
-                << "thread@" << std::this_thread::get_id() << ' '
-                << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now() - time_mark_).count()
-                << " ms\n";
-            //std::cout.unsetf(std::ios::hex);
-        }
-
-    private:
-        std::chrono::steady_clock::time_point time_mark_;
-    };
-
     template <typename Callable>
     class scope_guard final : protected std::decay_t<Callable>
     {
