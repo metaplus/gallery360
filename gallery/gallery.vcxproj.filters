@@ -62,10 +62,10 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="graphic.cpp">
+    <ClCompile Include="plugin.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="plugin.cpp">
+    <ClCompile Include="graphic.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="database.leveldb.cpp">

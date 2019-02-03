@@ -3,9 +3,7 @@
 #include "multimedia/io.segmentor.h"
 #include "plugin.export.h"
 #include "plugin.context.h"
-#include "graphic.h"
 #include <absl/strings/str_join.h>
-#include <boost/container/flat_map.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -48,12 +46,11 @@ inline namespace resource
     std::shared_ptr<folly::ThreadPoolExecutor> compute_executor;
     std::shared_ptr<folly::ThreadedExecutor> stream_executor;
     std::shared_ptr<folly::ThreadedExecutor> update_executor;
-    std::optional<graphic> graphic_entity;
     std::vector<stream_context*> stream_cache;
 
-    struct index_key final {};
-    struct coordinate_key final {};
-    struct sequence final {};
+    struct index_key final { };
+    struct coordinate_key final { };
+    struct sequence final { };
 
     boost::multi_index_container<
         stream_context,
@@ -69,11 +66,6 @@ inline namespace resource
         >> tile_stream_table;
 
     folly::Future<net::dash_manager> manager = folly::Future<net::dash_manager>::makeEmpty();
-
-    UnityGfxRenderer unity_device = kUnityGfxRendererNull;
-    IUnityInterfaces* unity_interface = nullptr;
-    IUnityGraphics* unity_graphics = nullptr;
-    IUnityGraphicsD3D11* unity_graphics_dx11 = nullptr;
 
     namespace description
     {
@@ -105,14 +97,12 @@ namespace trace
 
 namespace debug
 {
-    constexpr auto enable_null_texture = true;
     constexpr auto enable_dump = false;
     constexpr auto enable_legacy = false;
 }
 
 namespace state
 {
-    auto unity_time = 0.f;
     std::atomic<core::coordinate> field_of_view;
 
     namespace stream
@@ -325,31 +315,8 @@ namespace unity
         std::atomic_store(&state::field_of_view, { col, row });
     }
 
-    void _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp) {
-        if constexpr (!debug::enable_null_texture) {
-            assert(tex_y != nullptr);
-            assert(tex_u != nullptr);
-            assert(tex_v != nullptr);
-        }
-        if (temp) {
-            graphic_entity->store_temp_textures(tex_y, tex_u, tex_v);
-        } else {
-            graphic_entity->store_textures(tex_y, tex_u, tex_v);
-        }
-    }
-
-    HANDLE _nativeGraphicCreateTextures(INT width, INT height, CHAR value) {
-        return graphic_entity->make_shader_resource(width, height, value, true)
-                             .shader;
-    }
-
     namespace test
     {
-        void _nativeMockGraphic() {
-            graphic_entity.emplace();
-            assert(graphic_entity);
-        }
-
         void _nativeConfigConcurrency(UINT codec, UINT net) {
             config::decoder_concurrency.alter(UINT{ codec });
             config::asio_concurrency.alter(UINT{ net });
@@ -464,22 +431,6 @@ namespace unity
 
 namespace
 {
-    void __stdcall on_graphics_device_event(UnityGfxDeviceEventType eventType) {
-        if (eventType == kUnityGfxDeviceEventInitialize) {
-            assert(unity_graphics->GetRenderer() == kUnityGfxRendererD3D11);
-            state::unity_time = 0;
-            graphic_entity.emplace();
-            unity_device = kUnityGfxRendererD3D11;
-        }
-        if (graphic_entity) {
-            graphic_entity->process_event(eventType, unity_interface);
-        }
-        if (eventType == kUnityGfxDeviceEventShutdown) {
-            unity_device = kUnityGfxRendererNull;
-            graphic_entity.reset();
-        }
-    }
-
 #ifdef PLUGIN_RENDER_CALLBACK_APPROACH
     void __stdcall on_render_event(const int event_id) {
         auto graphic_context = folly::lazy([] {
@@ -553,20 +504,6 @@ namespace
 
 namespace unity
 {
-    void UnityPluginLoad(IUnityInterfaces* unityInterfaces) {
-        unity_interface = unityInterfaces;
-        unity_graphics = unity_interface->Get<IUnityGraphics>();
-        unity_graphics_dx11 = unity_interface->Get<IUnityGraphicsD3D11>();
-        assert(unity_graphics);
-        assert(unity_graphics_dx11);
-        unity_graphics->RegisterDeviceEventCallback(on_graphics_device_event);
-        on_graphics_device_event(kUnityGfxDeviceEventInitialize);
-    }
-
-    void UnityPluginUnload() {
-        unity_graphics->UnregisterDeviceEventCallback(on_graphics_device_event);
-    }
-
 #ifdef PLUGIN_RENDER_CALLBACK_APPROACH
     UnityRenderingEvent _nativeGraphicGetRenderCallback() {
         return on_render_event;

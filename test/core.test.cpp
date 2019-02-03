@@ -32,6 +32,9 @@ namespace core::test
         EXPECT_EQ(r2, 1);
         auto r3 = std::visit(overload, variant{ std::string{ "123" } });
         EXPECT_EQ(r3, std::string{ "123" }.size());
+        variant v2{ std::string{ "123" } };
+        auto r4 = core::visit(v2, overload);
+        EXPECT_EQ(r4, std::string{ "123" }.size());
     }
 
     TEST(Logger, ConsoleLoggerAccess) {

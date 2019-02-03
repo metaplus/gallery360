@@ -23,8 +23,6 @@
 #include "multimedia/pch.h"
 #pragma warning(pop)
 
-#include <d3d11.h>
-#include <leveldb/db.h>
 #include <boost/circular_buffer.hpp>
 #include <range/v3/view/iota.hpp>
 #include <blockingconcurrentqueue.h>
@@ -32,7 +30,6 @@
 #include <fstream>
 
 #include "gallery/pch.h"
-#include "unity/IUnityGraphicsD3D11.h"
 
 #pragma comment(lib,"Ws2_32")
 #pragma comment(lib,"Shlwapi")

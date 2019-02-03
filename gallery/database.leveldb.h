@@ -1,4 +1,5 @@
 #pragma once
+#include <leveldb/db.h>
 
 inline namespace plugin
 {

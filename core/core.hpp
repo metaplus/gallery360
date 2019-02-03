@@ -3,9 +3,12 @@
 namespace core
 {
     template <typename BufferSequence, typename ...TailSequence>
-    std::list<boost::asio::const_buffer>
+    typename std::enable_if<
+        boost::asio::is_const_buffer_sequence<
+            decltype(std::declval<BufferSequence>().data())>::value,
+        std::list<boost::asio::const_buffer>
+    >::type
     split_buffer_sequence(BufferSequence&& sequence, TailSequence&& ...tails) {
-        static_assert(boost::asio::is_const_buffer_sequence<decltype(sequence.data())>::value);
         std::list<boost::asio::const_buffer> buffer_list;
         auto sequence_data = std::forward<BufferSequence>(sequence).data();
         std::transform(boost::asio::buffer_sequence_begin(sequence_data),
@@ -30,16 +33,24 @@ namespace core
     }
 
     template <typename Deleter, typename T, typename ...Args>
-    std::shared_ptr<T>& access(std::shared_ptr<T>& ptr,
-                               std::default_delete<T>&& deleter,
-                               Args&&... args) {
-        static_assert(std::is_base_of<std::default_delete<T>, Deleter>::value);
+    typename std::enable_if<
+        std::is_base_of<std::default_delete<T>, Deleter>::value,
+        std::shared_ptr<T>&>::type
+    access(std::shared_ptr<T>& ptr, Deleter&& deleter, Args&&... args) {
         if (!ptr) {
-            ptr = std::shared_ptr<T>(
+            ptr = std::shared_ptr<T>{
                 new T{ std::forward<Args>(args)... },
-                std::move(dynamic_cast<Deleter&&>(deleter)));
+                std::forward<Deleter>(deleter)
+            };
         }
         return ptr;
+    }
+
+    template <typename T, typename ...Args>
+    std::optional<T>& access(std::optional<T>& option, Args&&... args) {
+        return option
+                   ? option
+                   : option.emplace(std::forward<Args>(args)...);
     }
 
     // Format template "%Y-%m-%d %H:%M:%S"
@@ -84,8 +95,13 @@ namespace core
     std::pair<size_t, bool> make_empty_directory(const std::filesystem::path& directory);
 
     template <typename EntryPredicate>
-    std::vector<std::filesystem::path> filter_directory_entry(const std::filesystem::path& directory,
-                                                              const EntryPredicate& predicate) {
+    typename std::enable_if<
+        std::is_invocable_r<bool, EntryPredicate,
+                            std::filesystem::directory_entry>::value,
+        std::vector<std::filesystem::path>
+    >::type
+    filter_directory_entry(const std::filesystem::path& directory,
+                           const EntryPredicate& predicate) {
 #ifdef __linux__
         return std::accumulate(
 #else
@@ -112,12 +128,15 @@ namespace core
 
     struct last_write_time_comparator final
     {
-        bool operator()(const std::filesystem::path& left, const std::filesystem::path& right) const;
-        bool operator()(const std::filesystem::directory_entry& left, const std::filesystem::directory_entry& right) const;
+        bool operator()(const std::filesystem::path& left,
+                        const std::filesystem::path& right) const;
+        bool operator()(const std::filesystem::directory_entry& left,
+                        const std::filesystem::directory_entry& right) const;
     };
 
     template <typename T>
-    std::reference_wrapper<T> make_null_reference_wrapper() noexcept {
+    std::reference_wrapper<std::decay_t<T>>
+    make_null_reference_wrapper() noexcept {
         static void* null_pointer = nullptr;
         return std::reference_wrapper<T>{
             *reinterpret_cast<std::add_pointer_t<std::decay_t<T>>&>(null_pointer)
@@ -127,11 +146,8 @@ namespace core
     inline namespace tag //  tag dispatching usage, clarify semantics
     {
         inline constexpr struct use_future_tag final {} use_future;
-
         inline constexpr struct as_stacktrace_tag final {} as_stacktrace;
-
         inline constexpr struct as_view_tag final {} as_view;
-
         inline constexpr struct defer_execute_tag final {} defer_execute;
     }
 
@@ -147,8 +163,9 @@ namespace core
     }
 
     template <typename T>
-    [[nodiscard]] constexpr std::remove_const_t<T>& as_mutable(T& object) noexcept {
-        return const_cast<std::remove_const_t<T>&>(object);
+    [[nodiscard]] constexpr typename std::remove_const<T>::type&
+    as_mutable(T& object) noexcept {
+        return const_cast<typename std::remove_const<T>::type&>(object);
     }
 
     template <typename T>
@@ -166,7 +183,8 @@ namespace core
     }
 
     template <typename Enum>
-    constexpr std::underlying_type_t<Enum> underlying(const Enum& enumeration) noexcept {
+    constexpr typename std::underlying_type<Enum>::type
+    underlying(const Enum& enumeration) noexcept {
         static_assert(std::is_enum<Enum>::value);
         return static_cast<std::underlying_type_t<Enum>>(enumeration);
     }
@@ -185,11 +203,10 @@ namespace core
     template <typename ...Types>
     overload(Types ...) -> overload<Types...>;
 
-    template <typename Variant, typename ...Callable>
-    auto visit(Variant&& variant, Callable&& ...callable) {
-        static_assert(meta::is_variant<std::decay_t<Variant>>::value);
-        return std::visit(overload{ std::forward<Callable>(callable)... },
-                          std::forward<Variant>(variant));
+    template <typename ...Args, typename ...Callables>
+    auto visit(std::variant<Args...>& variant, Callables&& ...callable) {
+        return std::visit(overload{ std::forward<Callables>(callable)... },
+                          std::move(variant));
     }
 
     std::shared_ptr<folly::ThreadPoolExecutor> set_cpu_executor(int concurrency, int queue_size,

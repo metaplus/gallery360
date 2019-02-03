@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <d3d11.h>
 
 inline namespace plugin
 {

@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "multimedia/pch.h"
 #include "graphic.h"
+#include "unity/IUnityGraphicsD3D11.h"
 
 inline namespace plugin
 {
@@ -302,5 +303,83 @@ inline namespace plugin
         update_index_ = 0;
         device_ = nullptr;
         alphas_.fill(nullptr);
+    }
+}
+
+namespace debug
+{
+    constexpr auto enable_null_texture = true;
+}
+
+inline namespace resource
+{
+    std::optional<graphic> graphic_entity;
+    auto unity_time = 0.f;
+    UnityGfxRenderer unity_device = kUnityGfxRendererNull;
+    IUnityInterfaces* unity_interface = nullptr;
+    IUnityGraphics* unity_graphics = nullptr;
+    IUnityGraphicsD3D11* unity_graphics_dx11 = nullptr;
+}
+
+namespace
+{
+    void __stdcall on_graphics_device_event(UnityGfxDeviceEventType eventType) {
+        if (eventType == kUnityGfxDeviceEventInitialize) {
+            assert(unity_graphics->GetRenderer() == kUnityGfxRendererD3D11);
+            unity_time = 0;
+            graphic_entity.emplace();
+            unity_device = kUnityGfxRendererD3D11;
+        }
+        if (graphic_entity) {
+            graphic_entity->process_event(eventType, unity_interface);
+        }
+        if (eventType == kUnityGfxDeviceEventShutdown) {
+            unity_device = kUnityGfxRendererNull;
+            graphic_entity.reset();
+        }
+    }
+
+    void UnityPluginLoad(IUnityInterfaces* unityInterfaces) {
+        unity_interface = unityInterfaces;
+        unity_graphics = unity_interface->Get<IUnityGraphics>();
+        unity_graphics_dx11 = unity_interface->Get<IUnityGraphicsD3D11>();
+        assert(unity_graphics);
+        assert(unity_graphics_dx11);
+        unity_graphics->RegisterDeviceEventCallback(on_graphics_device_event);
+        on_graphics_device_event(kUnityGfxDeviceEventInitialize);
+    }
+
+    void UnityPluginUnload() {
+        unity_graphics->UnregisterDeviceEventCallback(on_graphics_device_event);
+    }
+}
+
+namespace unity
+{
+    void _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp) {
+        if constexpr (!debug::enable_null_texture) {
+            assert(tex_y != nullptr);
+            assert(tex_u != nullptr);
+            assert(tex_v != nullptr);
+        }
+        if (temp) {
+            graphic_entity->store_temp_textures(tex_y, tex_u, tex_v);
+        }
+        else {
+            graphic_entity->store_textures(tex_y, tex_u, tex_v);
+        }
+    }
+
+    HANDLE _nativeGraphicCreateTextures(INT width, INT height, CHAR value) {
+        return graphic_entity->make_shader_resource(width, height, value, true)
+            .shader;
+    }
+
+    namespace test
+    {
+        void _nativeMockGraphic() {
+            graphic_entity.emplace();
+            assert(graphic_entity);
+        }
     }
 }
