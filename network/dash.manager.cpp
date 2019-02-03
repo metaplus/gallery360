@@ -213,8 +213,7 @@ namespace net
         core::access(video_set.context)->http_session = impl_->make_http_session();
         return [this, &video_set] {
             if (video_set.context->drain) {
-                return folly::makeSemiFuture<buffer_sequence>(
-                    core::stream_drained_error{ __FUNCTION__ });
+                return folly::makeSemiFuture<buffer_sequence>(core::stream_drained_error{});
             }
             auto& represent = impl_->predict_represent(video_set);
             auto initial_segment = impl_->request_initial_if_null(video_set, represent);

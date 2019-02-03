@@ -100,7 +100,7 @@ namespace media
         if (RE2::FullMatch(filename.data(), mpd_regex, &col, &row)) {
             return std::make_pair(col, row);
         }
-        core::throw_unreachable(__FUNCTION__);
+        core::not_reachable_error::throw_directly();
     };
 
     auto tile_mpd_path_map = [](filter_param filter) {

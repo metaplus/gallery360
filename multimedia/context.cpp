@@ -71,7 +71,7 @@ namespace media
 
     format_context::format_context(io_context& io, sink::format oformat)
         : io_handle_{ io } {
-        core::throw_unimplemented("format_context::constructor");
+        core::not_implemented_error::throw_directly();
     }
 
     format_context::format_context(source::path ipath)
@@ -88,7 +88,7 @@ namespace media
 
     format_context::format_context(sink::path opath)
         : io_handle_{ core::make_null_reference_wrapper<io_context>() } {
-        core::throw_unimplemented("format_context::constructor");
+        core::not_implemented_error::throw_directly();
     }
 
     format_context::pointer format_context::operator->() const {

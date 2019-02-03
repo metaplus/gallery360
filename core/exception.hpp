@@ -2,140 +2,72 @@
 
 namespace core
 {
+    using errinfo_stacktrace = boost::error_info<struct stacktrace_tag, boost::stacktrace::stacktrace>;
+    using errinfo_code = boost::error_info<struct code_tag, boost::system::error_code>;
+    using errinfo_message = boost::error_info<struct message_tag, std::string>;
+
+    template <typename Exception, typename ...Infos>
+    [[noreturn]] typename std::enable_if<meta::is_exception<Exception>::value>::type
+    throw_with_infos(Exception exception, Infos ... info) {
+        boost::throw_exception(
+            (boost::enable_error_info(exception) << ... << info));
+    }
+
     template <typename Exception>
     [[noreturn]] typename std::enable_if<meta::is_exception<Exception>::value>::type
-    throw_with_stacktrace(const Exception& exp) {
-        using stacktrace_info = boost::error_info<as_stacktrace_tag, boost::stacktrace::stacktrace>;
-        throw boost::enable_error_info(exp)
-            << stacktrace_info{ boost::stacktrace::stacktrace() };
+    throw_with_stacktrace(Exception exception) {
+        throw_with_infos(
+            exception,
+            boost::errinfo_type_info_name{ boost::typeindex::type_id<Exception>().pretty_name() },
+            errinfo_stacktrace{ boost::stacktrace::stacktrace{} });
     }
 
-    namespace detail
+    template <typename Exception = void>
+    struct exception_base : virtual std::exception, virtual boost::exception
     {
-        template <typename Exception>
-        typename std::enable_if<meta::is_exception<Exception>::value, const char*>::type
-        message_otherwise_typename(char const* cstr, const Exception*) {
-            static thread_local std::unordered_set<std::string> local_type_name;
-            if (!std::string_view{ cstr }.empty()) return cstr;
-            auto const [iterator, success] = local_type_name.emplace(boost::typeindex::type_id<Exception>().pretty_name());
-            boost::ignore_unused(success);
-            return iterator->c_str();
+        [[noreturn]] static void throw_directly() {
+            boost::throw_exception(Exception{});
         }
-    }
 
-    struct aborted_error : std::runtime_error
-    {
-        using runtime_error::runtime_error;
-        using runtime_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(runtime_error::what(), this);
+        [[noreturn]] static void throw_with_message(std::string_view message) {
+            if (message.empty()) {
+                throw_directly();
+            }
+            throw_with_infos(errinfo_message{ std::string{ message } });
         }
-    };
 
-    struct null_pointer_error : std::runtime_error
-    {
-        using runtime_error::runtime_error;
-        using runtime_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(runtime_error::what(), this);
+        [[noreturn]] static void throw_with_function(std::string_view function) {
+            if (function.empty()) {
+                throw_directly();
+            }
+            throw_with_infos(
+                boost::errinfo_type_info_name{ boost::typeindex::type_id<Exception>().pretty_name() },
+                boost::errinfo_api_function{ function.data() });
         }
-    };
 
-    struct dangling_pointer_error : std::runtime_error
-    {
-        using runtime_error::runtime_error;
-        using runtime_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(runtime_error::what(), this);
+        template <typename ...Infos>
+        [[noreturn]] static void throw_with_infos(Infos ...info) {
+            if constexpr (sizeof...(Infos) > 0) {
+                core::throw_with_infos(Exception{}, info...);
+            }
+            throw_directly();
         }
     };
 
-    struct not_implemented_error : std::logic_error
-    {
-        using logic_error::logic_error;
-        using logic_error::operator=;
+    template <>
+    struct exception_base<void> {};
 
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(logic_error::what(), this);
-        }
-    };
-
-    struct already_exist_error : std::logic_error
-    {
-        using logic_error::logic_error;
-        using logic_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(logic_error::what(), this);
-        }
-    };
-
-    struct unreachable_execution_error : std::logic_error
-    {
-        using logic_error::logic_error;
-        using logic_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(logic_error::what(), this);
-        }
-    };
-
-    struct stream_drained_error : std::runtime_error
-    {
-        using runtime_error::runtime_error;
-        using runtime_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(runtime_error::what(), this);
-        }
-    };
-
-    struct bad_request_error : std::runtime_error
-    {
-        using runtime_error::runtime_error;
-        using runtime_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(runtime_error::what(), this);
-        }
-    };
-
-    struct bad_response_error : std::runtime_error
-    {
-        using runtime_error::runtime_error;
-        using runtime_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(runtime_error::what(), this);
-        }
-    };
-
-    struct session_closed_error : std::runtime_error
-    {
-        using runtime_error::runtime_error;
-        using runtime_error::operator=;
-
-        const char* what() const noexcept override {
-            return detail::message_otherwise_typename(runtime_error::what(), this);
-        }
-    };
-
-    [[noreturn]] inline void throw_unimplemented(std::string message = ""s) {
-        throw not_implemented_error{ message };
-    }
-
-    [[noreturn]] inline void throw_unreachable(std::string message = ""s) {
-        throw unreachable_execution_error{ message };
-    }
-
-    [[noreturn]] inline void throw_drained(std::string message = ""s) {
-        throw stream_drained_error{ message };
-    }
-
-    [[noreturn]] inline void throw_bad_request(std::string message = ""s) {
-        throw bad_request_error{ message };
-    }
+    struct aborted_error : virtual exception_base<aborted_error> {};
+    struct pointer_error : virtual exception_base<> {};
+    struct null_pointer_error : virtual exception_base<null_pointer_error>, pointer_error {};
+    struct dangling_pointer_error : virtual exception_base<dangling_pointer_error>, pointer_error {};
+    struct duplicate_error : virtual exception_base<duplicate_error> {};
+    struct not_valid_error : virtual exception_base<not_valid_error> {};
+    struct not_implemented_error : virtual exception_base<not_implemented_error> {};
+    struct not_reachable_error : virtual exception_base<not_reachable_error> {};
+    struct session_error : virtual exception_base<> {};
+    struct stream_drained_error : virtual exception_base<stream_drained_error>, session_error {};
+    struct bad_request_error : virtual exception_base<bad_request_error>, session_error {};
+    struct bad_response_error : virtual exception_base<bad_response_error>, session_error {};
+    struct session_closed_error : virtual exception_base<session_closed_error>, session_error {};
 }

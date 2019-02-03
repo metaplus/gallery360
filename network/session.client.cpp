@@ -43,13 +43,17 @@ namespace net::client
             logger_().info("on_recv_response errc {} transfer {}", errc, transfer_size);
             if (errc) {
                 logger_().error("on_recv_response failure");
-                return fail_request_then_close(core::bad_response_error{ errc.message() },
-                                               errc, boost::asio::socket_base::shutdown_receive);
+                return fail_request_then_close(
+                    core::bad_response_error{} << core::errinfo_code{ errc },
+                    errc, boost::asio::socket_base::shutdown_receive);
             }
             if (response_parser_->get().result() != http::status::ok) {
                 logger_().error("on_recv_response bad response");
-                return fail_request_then_close(core::bad_response_error{ response_parser_->get().reason().data() },
-                                               errc, boost::asio::socket_base::shutdown_receive);
+                return fail_request_then_close(
+                    core::bad_response_error{} << core::errinfo_message{
+                        response_parser_->get().reason().to_string()
+                    },
+                    errc, boost::asio::socket_base::shutdown_receive);
             }
             tracer_->info("response=recv:index={}:transfer={}", index, transfer_size);
             request_list_.front().second.setValue(response_parser_->release());
@@ -67,8 +71,9 @@ namespace net::client
             logger_().info("on_send_request errc {} transfer {}", errc, transfer_size);
             if (errc) {
                 logger_().error("on_send_request failure");
-                return fail_request_then_close(core::bad_request_error{ errc.message() },
-                                               errc, boost::asio::socket_base::shutdown_send);
+                return fail_request_then_close(
+                    core::bad_request_error{} << core::errinfo_code{ errc },
+                    errc, boost::asio::socket_base::shutdown_send);
             }
             tracer_->info("request=send:index={}:transfer={}", index, transfer_size);
             http::async_read(socket_, recvbuf_, *response_parser_,
@@ -104,7 +109,7 @@ namespace net::client
                         send_front_request();
                     }
                 } else {
-                    response.setException(core::session_closed_error{ "send_request inactive" });
+                    response.setException(core::session_closed_error{});
                 }
             });
         return std::move(future);

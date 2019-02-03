@@ -58,7 +58,7 @@ inline namespace plugin
                     while (--stride_step && sink_entry_queue_.try_dequeue_until(entry, batch_end_time)) {
                         auto& [instance, event] = entry;
                         if (instance.empty()) {
-                            core::throw_drained();
+                            core::stream_drained_error::throw_directly();
                         }
                         database->Put(leveldb::WriteOptions{}, instance.data(), event);
                     }

@@ -5,15 +5,15 @@ namespace core
     namespace detail
     {
         [[noreturn]] inline void verify_one(std::nullptr_t) {
-            throw_with_stacktrace(null_pointer_error{ "null pointer" });
+            throw_with_stacktrace(null_pointer_error{});
         }
 
         template <typename Pointee>
         void verify_one(Pointee* const& ptr) {
             if (!ptr)
-                throw_with_stacktrace(
-                    dangling_pointer_error{
-                        "dangling pointer, pointer type: " +
+                throw_with_stacktrace(dangling_pointer_error{}
+                    << boost::errinfo_type_info_name{
+                        "dangling pointer of type: " +
                         boost::typeindex::type_id<Pointee>().pretty_name()
                     });
         }
@@ -60,7 +60,7 @@ namespace core
                 } else {
                     static_assert(!std::is_null_pointer<native_type>::value);
                     static_assert(!std::is_floating_point<native_type>::value);
-                    throw_unreachable(__FUNCTION__);
+                    not_reachable_error::throw_directly();
                 }
             }
         }

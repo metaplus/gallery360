@@ -98,7 +98,7 @@ namespace media
     }
 
     int random_access_cursor::write(uint8_t* buffer, int size) {
-        throw core::not_implemented_error{ __FUNCSIG__ };
+        core::not_implemented_error::throw_directly();
     }
 
     int64_t random_access_cursor::seek(int64_t seek_offset, int whence) {
@@ -113,7 +113,9 @@ namespace media
                 break;
             case AVSEEK_SIZE: fmt::print("AVSEEK_SIZE OFFSET {}\n", seek_offset);
                 return sequence_size();
-            default: throw core::unreachable_execution_error{ __FUNCSIG__ };
+            default:
+                core::not_reachable_error::throw_directly();
+
         }
         return seek_sequence(seek_offset);
     }
@@ -143,15 +145,15 @@ namespace media
     }
 
     bool io_base::available() const {
-        core::throw_unimplemented(__FUNCSIG__);
+        core::not_implemented_error::throw_directly();
     }
 
     int64_t io_base::consume_size() const {
-        core::throw_unimplemented(__FUNCSIG__);
+        core::not_implemented_error::throw_directly();
     }
 
     int64_t io_base::remain_size() const {
-        core::throw_unimplemented(__FUNCSIG__);
+        core::not_implemented_error::throw_directly();
     }
 
     //-- buffer_list_cursor
@@ -191,7 +193,7 @@ namespace media
     }
 
     int buffer_list_cursor::write(uint8_t* buffer, int size) {
-        throw core::not_implemented_error{ __FUNCSIG__ };
+        core::not_implemented_error::throw_directly();
     }
 
     int64_t buffer_list_cursor::seek(int64_t seek_offset, int whence) {
@@ -206,7 +208,8 @@ namespace media
                 break;
             case AVSEEK_SIZE:
                 return -1; //TODO: return -1 for streaming
-            default: throw core::unreachable_execution_error{ __FUNCSIG__ };
+            default: 
+                core::not_reachable_error::throw_directly();
         }
         if (seek_offset >= full_size_) {
             buffer_iterator_ = buffer_list_.end();

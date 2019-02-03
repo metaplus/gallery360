@@ -143,14 +143,6 @@ namespace core
         };
     }
 
-    inline namespace tag //  tag dispatching usage, clarify semantics
-    {
-        inline constexpr struct use_future_tag final {} use_future;
-        inline constexpr struct as_stacktrace_tag final {} as_stacktrace;
-        inline constexpr struct as_view_tag final {} as_view;
-        inline constexpr struct defer_execute_tag final {} defer_execute;
-    }
-
     template <typename Handle>
     decltype(auto) get_pointer(Handle&& handle,
                                std::enable_if_t<meta::has_operator_dereference<Handle>::value>* = nullptr) {

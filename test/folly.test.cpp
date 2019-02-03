@@ -402,7 +402,6 @@ namespace folly::test
     TEST(Future, Variant) {
         set_cpu_executor(1);
         auto* executor = folly::getCPUExecutor().get();
-        ///EXPECT_NE(executor, nullptr);
         using variant = std::variant<
             folly::SemiFuture<int>,
             folly::Future<int>>;
@@ -587,20 +586,20 @@ namespace folly::test
         static_assert(std::is_base_of<std::exception, core::bad_request_error>::value);
         static_assert(std::is_base_of<std::exception, core::not_implemented_error>::value);
         auto sf = folly::makeSemiFutureWith([] {
-            throw core::bad_request_error{ "123" };
+            throw core::bad_request_error{};
             return 1;
         });
         EXPECT_TRUE(sf.hasException());
         EXPECT_FALSE(sf.hasValue());
         EXPECT_THROW(sf.value(), core::bad_request_error);
         sf = std::move(sf).deferError([](auto&&) {
-            throw core::not_implemented_error{ "123" };
+            throw core::not_implemented_error{};
             return 2;
         });
         EXPECT_THROW(sf.value(), folly::FutureNotReady);
         EXPECT_THROW(std::move(sf).get(), core::not_implemented_error);
         auto [p1, sf1] = folly::makePromiseContract<int>();
-        p1.setException(core::bad_request_error{ "123" });
+        p1.setException(core::bad_request_error{});
         EXPECT_TRUE(sf1.hasException());
         sf1 = std::move(sf1).deferError([](auto&&) {
             return 2;

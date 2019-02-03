@@ -94,7 +94,7 @@ namespace media
                         ->decode(impl_->format_context
                                       ->read(media::type::video));
         }
-        throw core::stream_drained_error{ __FUNCTION__ };
+        core::stream_drained_error::throw_directly();
     }
 
     auto frame_consume(const pixel_consume& consume) {

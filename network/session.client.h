@@ -48,12 +48,12 @@ namespace net::client
             return send_request(std::move(req)).deferValue(
                 [](response<dynamic_body>&& response) -> Target {
                     if (response.result() != boost::beast::http::status::ok) {
-                        core::throw_bad_request("send_request_for");
+                        core::bad_request_error::throw_with_function("send_request_for");
                     }
                     if constexpr (std::is_same<multi_buffer, Target>::value) {
                         return std::move(response).body();
                     }
-                    core::throw_unreachable("send_request_for");
+                    core::not_reachable_error::throw_with_function("send_request_for");
                 });
         }
 
