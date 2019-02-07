@@ -1,13 +1,13 @@
 #include "stdafx.h"
 #include "core.hpp"
-#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
-#include <folly/executors/CPUThreadPoolExecutor.h>
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/sinks/null_sink.h>
-#include <absl/time/time.h>
 #include <absl/time/clock.h>
+#include <absl/time/time.h>
+#include <folly/executors/CPUThreadPoolExecutor.h>
+#include <folly/executors/task_queue/UnboundedBlockingQueue.h>
+#include <spdlog/spdlog.h>
 #include <spdlog/async.h>
+#include <spdlog/sinks/null_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace core
 {

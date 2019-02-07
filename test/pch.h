@@ -14,7 +14,7 @@
 
 #include <SDKDDKVer.h>
 
-#pragma warning(disable: 4172)
+#pragma warning(disable: 4172 4146)
 
 #include "core/pch.h"
 #include <folly/logging/xlog.h>
@@ -24,8 +24,8 @@
 #define GTEST_LANG_CXX11 1
 #include "gtest/gtest.h"
 
-#pragma comment(lib,"Ws2_32")
-#pragma comment(lib,"Shlwapi")
+#pragma comment(lib,"ws2_32")
+#pragma comment(lib,"shlwapi")
 #pragma comment(lib,"secur32")
 #pragma comment(lib,"crypt32")
 #pragma comment(lib,"bcrypt")

@@ -5,9 +5,9 @@
       "Port": 33666,
       "Directories": {
         "Root": {
+          "Linux": "/root/Media",
           "Win": "D:/Media",
-          "WSL": "/mnt/d/Media",
-          "Linux": "/mnt/d/Media"
+          "WSL": "/mnt/d/Media"
         },
         "Log": null
       }

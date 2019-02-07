@@ -83,6 +83,8 @@ namespace net
         return request;
     }
 
+    struct config_error : core::exception_base<config_error> {};
+
     void add_config_path(std::filesystem::path&& path);
     const std::filesystem::path& config_path(bool json = true) noexcept;
     std::string config_xml_entry(std::vector<std::string> entry_path);

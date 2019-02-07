@@ -35,7 +35,6 @@ namespace net
                 logger().info("config directory {}", config_dir->generic_string());
                 config_path_array[false] = *config_dir / "config.xml";
                 config_path_array[true] = *config_dir / "config.json";
-                assert(std::filesystem::is_regular_file(config_path_array[true]));
                 return config_path_array;
             });
         return config_path()[folly::to<size_t>(json)];
@@ -64,7 +63,16 @@ namespace net
                 nlohmann::json config_json;
                 std::ifstream config_stream{ config_path().string().data() };
                 assert(config_stream.good());
-                config_stream >> config_json;
+                try {
+                    if (!config_stream.is_open()) {
+                        config_error::throw_with_message(
+                            "invalid config file stream at {}", config_path());
+                    }
+                    config_stream >> config_json;
+                } catch (nlohmann::detail::parse_error e) {
+                    config_error::throw_with_message(
+                        "invalid json config at {} with detail {}", config_path(), e.what());
+                }
                 return config_json;
             });
         auto& entry = config_json()[entry_path.front()];

@@ -5,6 +5,8 @@
 #include "gallery/pch.h"
 #include "gallery/database.sqlite.h"
 #include <boost/beast.hpp>
+#include <boost/container/flat_map.hpp>
+#include <objbase.h>
 
 using std::chrono::microseconds;
 using std::chrono::milliseconds;
@@ -127,7 +129,7 @@ auto plugin_routine = [](std::string url) {
 
 namespace gallery::test
 {
-    TEST(Gallery, PluginPollProfile) {
+    TEST(Plugin, PollLoopProfile) {
         auto profile_codec_concurrency = plugin_routine("http://localhost:8900/Output/NewYork/5x3/NewYork.mpd");
         if constexpr (tuning::profile) {
             profile_codec_concurrency(8); // fps 154
@@ -139,6 +141,11 @@ namespace gallery::test
             profile_codec_concurrency(1); // fps 154
         }
     }
+
+    TEST(Plugin, PollMockLoop) {
+        
+    }
+
 
     TEST(Gallery, Concurrency) {
         unsigned codec = 0, net = 0, executor = 0;

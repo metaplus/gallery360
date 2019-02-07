@@ -49,28 +49,16 @@
 #endif
 
 using namespace std::literals;
-//using namespace boost::hana::literals;
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 #ifdef _WIN32
 #pragma warning(push)
-#pragma warning(disable:4267 4250)
-#endif
-//#include <folly/AtomicHashMap.h>
-//#include <folly/AtomicBitSet.h>
-//#include <folly/AtomicLinkedList.h>
-//#include <folly/AtomicUnorderedMap.h>
-//#include <folly/ConcurrentSkipList.h>
-//#include <folly/concurrency/ConcurrentHashMap.h>
-#ifdef _WIN32
 #pragma warning(disable:4244)
 #endif
 #include <folly/container/Foreach.h>
 #ifdef _WIN32
 #pragma warning(pop)
 #endif
-//#include <folly/concurrency/DynamicBoundedQueue.h>
-//#include <folly/concurrency/UnboundedQueue.h>
 #include <folly/container/Array.h>
 #include <folly/container/Iterator.h>
 #include <folly/executors/Async.h>
@@ -79,17 +67,14 @@ using namespace std::literals;
 #include <folly/executors/ThreadedExecutor.h>
 #include <folly/executors/ThreadPoolExecutor.h>
 #include <folly/Function.h>
+#include <folly/functional/Partial.h>
 #include <folly/futures/Barrier.h>
 #include <folly/futures/Future.h>
 #include <folly/futures/FutureSplitter.h>
 #include <folly/Lazy.h>
 #include <folly/MoveWrapper.h>
-//#include <folly/MPMCQueue.h>
-//#include <folly/PriorityMPMCQueue.h>
-//#include <folly/ProducerConsumerQueue.h>
 #include <folly/Random.h>
-//#include <folly/Synchronized.h>
-//#include <folly/SynchronizedPtr.h>
+#include <folly/Singleton.h>
 #include <folly/Uri.h>
 
 #include <boost/asio/buffer.hpp>
@@ -113,7 +98,6 @@ using namespace std::literals;
 #include <boost/multi_index_container_fwd.hpp>
 #include <boost/stacktrace.hpp>
 #include <boost/type_index.hpp>
-//#include <boost/hana.hpp>
 
 #include <nlohmann/json.hpp>
 

@@ -18,19 +18,19 @@ namespace app
         core::logger_access logger_;
 
     public:
-        struct session_emplace_error final : std::runtime_error
-        {
-            using runtime_error::runtime_error;
-            using runtime_error::operator=;
-        };
+        struct server_error : virtual core::exception_base<> {};
+        struct server_directory_error : virtual core::exception_base<server_directory_error>,
+                                        virtual server_error {};
+        struct session_map_error : virtual core::exception_base<session_map_error>,
+                                   virtual core::session_error, virtual server_error {};
 
         server()
             : port_{ net::config_entry<uint16_t>("Net.Server.Port") }
 #ifdef _WIN32
             , directory_{ net::config_entry<std::string>("Net.Server.Directories.Root.Win") }
-#elif defined __linux__ && defined _SERVER_WSL
+#elif defined __linux__ && _SERVER_WSL
             , directory_{ net::config_entry<std::string>("Net.Server.Directories.Root.WSL") }
-#elif defined __linux__ && !defined _SERVER_WSL
+#elif defined __linux__ && !_SERVER_WSL
             , directory_{ net::config_entry<std::string>("Net.Server.Directories.Root.Linux") }
 #else
 #error unrecognized platform
@@ -39,7 +39,12 @@ namespace app
             , acceptor_{ port_, *asio_pool_ }
             , signals_{ *asio_pool_, SIGINT, SIGTERM }
             , logger_{ core::console_logger_access("server") } {
-            logger_().info("root directory {}", directory_);
+            if (std::filesystem::is_directory(directory_)) {
+                logger_().info("root directory {}", directory_);
+            } else {
+                logger_().error("invalid root directory {}", directory_);
+                server_directory_error::throw_directly();
+            }
             signals_.async_wait([this](boost::system::error_code error,
                                        int signal_count) {
                 cancel_accept_.post();
@@ -69,7 +74,7 @@ namespace app
                                      if (!success) {
                                          logger_().error("endpoint duplicate");
                                          cancel_accept_.post();
-                                         throw session_emplace_error{ "session_map_ emplace fail" };
+                                         session_map_error::throw_with_message("emplace fail");
                                      }
                                      return folly::collectAllSemiFuture(
                                          iterator->second->process_requests(),

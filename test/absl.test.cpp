@@ -8,6 +8,10 @@
 #include <absl/time/clock.h>
 #include <absl/time/time.h>
 
+#pragma comment(lib, "absl_based")
+#pragma comment(lib, "absl_typesd")
+#pragma comment(lib, "absl_stringsd")
+
 namespace absl::test
 {
     TEST(Time, TimeZone) {
@@ -36,5 +40,43 @@ namespace absl::test
             auto s = absl::StrJoin({ "1"sv, "3"sv }, "2");
             EXPECT_EQ(s, "123");
         }
+    }
+
+    TEST(String, Split) {
+        std::filesystem::path p{ R"(C:\GWorkset\Data\trace.20190202.011131\analyze\fov.csv)" };
+        ASSERT_TRUE(is_regular_file(p));
+        std::ifstream in{ p };
+        ASSERT_TRUE(in.is_open());
+        std::vector<std::string> labels;
+        std::vector<std::map<std::string_view, std::string>> contents;
+        for (std::string line; std::getline(in, line, '\n') && !line.empty();) {
+            if (labels.empty()) {
+                labels = absl::StrSplit(line, ',');
+                EXPECT_EQ(labels.at(0), "id");
+                EXPECT_EQ(labels.at(1), "time");
+                EXPECT_EQ(labels.at(2), "y");
+                EXPECT_EQ(labels.at(3), "x");
+                EXPECT_EQ(labels.at(4), "col");
+                EXPECT_EQ(labels.at(5), "row");
+                continue;
+            }
+            auto label_value_pair = [
+                    &labels, values = std::vector<std::string>{ absl::StrSplit(line, ',') }
+                ](int index) mutable
+            -> decltype(contents)::value_type::value_type {
+                return { labels.at(index), std::move(values.at(index)) };
+            };
+            contents.emplace_back(
+                decltype(contents)::value_type{
+                    label_value_pair(0),
+                    label_value_pair(1),
+                    label_value_pair(2),
+                    label_value_pair(3),
+                    label_value_pair(4),
+                    label_value_pair(5),
+                }
+            );
+        }
+        XLOGF(INFO, "csv vector size {} capacity {}", contents.size(), contents.capacity());
     }
 }

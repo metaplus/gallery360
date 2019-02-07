@@ -10,6 +10,9 @@
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/process/environment.hpp>
 #include <boost/process/system.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/classification.hpp>
+#include <folly/functional/Partial.h>
 
 namespace boost::test
 {
