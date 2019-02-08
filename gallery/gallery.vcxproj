@@ -170,8 +170,6 @@
     <ClInclude Include="unity\IUnityRenderingExtensions.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="database.leveldb.cpp" />
-    <ClCompile Include="database.sqlite.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="graphic.cpp" />
     <ClCompile Include="plugin.cpp" />

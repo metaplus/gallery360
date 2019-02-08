@@ -1,9 +1,13 @@
 #pragma once
-#include "graphic.h"
+#include "core/spatial.hpp"
+#include "multimedia/media.h"
+#include <folly/MPMCQueue.h>
+#include <readerwriterqueue.h>
+#include <bitset>
+#include <optional>
 
 struct stream_context final
 {
-    graphic::texture_array texture_array = {};
     core::dimension offset;
     int index = 0;
     core::coordinate coordinate;
@@ -46,23 +50,6 @@ struct stream_context final
 
 static_assert(!std::is_copy_constructible<stream_context>::value);
 static_assert(std::is_move_constructible<stream_context>::value);
-
-struct update_batch final
-{
-    struct tile_offset
-    {
-        int width_offset = 0;
-        int height_offset = 0;
-    };
-
-    struct tile_render_context final : tile_offset
-    {
-        media::frame frame{ nullptr };
-        graphic::texture_array* texture_array = nullptr;
-        int64_t frame_index = 0;
-        int64_t batch_index = 0;
-    };
-};
 
 template <typename T>
 class alternate final

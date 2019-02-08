@@ -1,6 +1,6 @@
 #pragma once
 
-namespace core::meta
+namespace meta
 {
     template <typename Return, typename... Args>
     struct function_trait final

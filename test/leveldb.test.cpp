@@ -1,7 +1,10 @@
 #include "pch.h"
 #include <leveldb/db.h>
+#include <folly/Lazy.h>
 #include <boost/process/environment.hpp>
 #include <re2/re2.h>
+#include <any>
+#include <execution>
 
 namespace leveldb::test
 {

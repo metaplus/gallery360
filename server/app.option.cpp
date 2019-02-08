@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "app.h"
 #include <boost/container/flat_map.hpp>
+#include <boost/program_options.hpp>
 
 auto logger = core::console_logger_access("app.options");
 

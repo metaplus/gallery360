@@ -166,7 +166,6 @@
     <ClInclude Include="dash.manager.h" />
     <ClInclude Include="connector.h" />
     <ClInclude Include="net.h" />
-    <ClInclude Include="pch.h" />
     <ClInclude Include="session.server.h" />
     <ClInclude Include="session.base.h" />
     <ClInclude Include="stdafx.h" />

@@ -173,17 +173,18 @@
     <ClInclude Include="concurrency\barrier.hpp" />
     <ClInclude Include="concurrency\latch.hpp" />
     <ClInclude Include="concurrency\synchronize.hpp" />
-    <ClInclude Include="core.hpp" />
-    <ClInclude Include="meta.detail.hpp" />
+    <ClInclude Include="core.h" />
     <ClInclude Include="exception.hpp" />
-    <ClInclude Include="meta.function_trait.hpp" />
     <ClInclude Include="guard.hpp" />
-    <ClInclude Include="meta.member_function_trait.hpp" />
-    <ClInclude Include="meta.hpp" />
-    <ClInclude Include="pch.h" />
+    <ClInclude Include="config.h" />
+    <ClInclude Include="meta\exception_trait.hpp" />
+    <ClInclude Include="meta\function_trait.hpp" />
+    <ClInclude Include="meta\member_function_trait.hpp" />
+    <ClInclude Include="meta\meta.hpp" />
+    <ClInclude Include="meta\type_trait.hpp" />
+    <ClInclude Include="spatial.hpp" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
-    <ClInclude Include="meta.type_trait.hpp" />
     <ClInclude Include="verify.hpp" />
   </ItemGroup>
   <ItemGroup>

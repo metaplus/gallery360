@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "media.h"
+#include "core/core.h"
+#include "core/verify.hpp"
 
 void media::frame::deleter::operator()(AVFrame* object) const {
     if (object != nullptr) {
@@ -61,14 +63,6 @@ std::basic_string_view<uint8_t> media::packet::buffer() const {
         folly::to<size_t>(handle_->size)
     };
 }
-
-#ifdef MULTIMEDIA_USE_MSGPACK
-std::string media::packet::serialize() const {
-    msgpack::sbuffer sbuf(handle_->size + sizeof(chunk));
-    msgpack::pack(sbuf, chunk{ *this });
-    return std::string{ sbuf.data(),sbuf.size() };
-}
-#endif // MULTIMEDIA_USE_MSGPACK
 
 media::packet::pointer media::packet::operator->() const {
     return handle_.get();

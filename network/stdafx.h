@@ -12,25 +12,5 @@
 #include "targetver.h"
 
 // TODO: reference additional headers your program requires here
-#include "core/pch.h"
+#include "core/config.h"
 #endif
-
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <tinyxml2.h>
-
-#ifdef _WIN32
-#include "network/pch.h"
-#include "network/dash.protocal.h"
-#include "network/session.server.h"
-#include "network/session.client.h"
-#include "network/acceptor.h"
-#include "network/connector.h"
-#endif
-
-static_assert(
-    std::conjunction<
-        std::is_same<boost::asio::ip::tcp::socket, boost::asio::basic_stream_socket<boost::asio::ip::tcp>>,
-        std::is_same<boost::asio::ip::udp::socket, boost::asio::basic_datagram_socket<boost::asio::ip::udp>>,
-        std::is_same<boost::asio::ip::icmp::socket, boost::asio::basic_raw_socket<boost::asio::ip::icmp>>
-    >::value);

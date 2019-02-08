@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "net.h"
+#include <fmt/ostream.h>
+#include <folly/Lazy.h>
+#include <tinyxml2.h>
 #include <fstream>
 
 namespace net

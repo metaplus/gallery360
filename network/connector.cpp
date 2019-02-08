@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "connector.h"
+#include <boost/asio/bind_executor.hpp>
+#include <boost/asio/connect.hpp>
+#include <fmt/ostream.h>
 
 namespace net::client
 {

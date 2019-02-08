@@ -1,8 +1,14 @@
 #include "stdafx.h"
 #include "dash.manager.h"
+#include "dash.protocal.h"
+#include "connector.h"
+#include <boost/beast/core/buffers_to_string.hpp>
 #include <boost/circular_buffer.hpp>
 #include <boost/logic/tribool.hpp>
+#include <fmt/ostream.h>
 #include <folly/futures/FutureSplitter.h>
+#include <folly/Random.h>
+#include <folly/Uri.h>
 
 using boost::logic::tribool;
 using boost::logic::indeterminate;

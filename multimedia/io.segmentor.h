@@ -1,4 +1,8 @@
 #pragma once
+#include <folly/Function.h>
+#include <folly/futures/Future.h>
+#include <boost/asio/buffer.hpp>
+#include <boost/container/small_vector.hpp>
 
 namespace media
 {
@@ -35,8 +39,7 @@ namespace media
         frame_segmentor& operator=(frame_segmentor&&) noexcept = default;
         ~frame_segmentor() = default;
 
-        explicit frame_segmentor(std::list<detail::const_buffer> buffer_list,
-                                 unsigned concurrency = std::thread::hardware_concurrency());
+        explicit frame_segmentor(std::list<detail::const_buffer> buffer_list, unsigned concurrency);
 
         explicit operator bool() const;
 

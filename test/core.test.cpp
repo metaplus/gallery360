@@ -1,5 +1,6 @@
 #include "pch.h"
 #include <folly/executors/CPUThreadPoolExecutor.h>
+#include <folly/executors/GlobalExecutor.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <absl/numeric/int128_no_intrinsic.inc>
 #include <range/v3/view/iota.hpp>

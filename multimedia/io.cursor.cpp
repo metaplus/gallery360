@@ -1,5 +1,14 @@
 #include "stdafx.h"
 #include "io.cursor.h"
+#include "core/core.h"
+#include "core/exception.hpp"
+#include <numeric>
+#pragma warning(disable: 4819)
+extern "C" {
+#include <libavutil/error.h>
+#include <libavutil/common.h>
+#include <libavformat/avio.h>
+}
 
 namespace media
 {

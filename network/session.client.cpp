@@ -1,8 +1,11 @@
 #include "stdafx.h"
 #include "session.client.h"
-#include <spdlog/async.h>
-#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/spdlog.h>
 #include <spdlog/sinks/null_sink.h>
+#include <boost/asio/bind_executor.hpp>
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/http/write.hpp>
+#include <fmt/ostream.h>
 
 namespace net::client
 {

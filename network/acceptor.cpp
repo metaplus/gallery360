@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "acceptor.h"
+#include <fmt/ostream.h>
 
 namespace net::server
 {

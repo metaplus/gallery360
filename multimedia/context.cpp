@@ -1,5 +1,10 @@
 #include "stdafx.h"
 #include "context.h"
+#include "core/core.h"
+#include "core/verify.hpp"
+extern "C" {
+#include <libavutil/opt.h>
+}
 
 namespace media
 {

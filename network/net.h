@@ -1,8 +1,23 @@
 #pragma once
+#include "core/core.h"
+#include "core/exception.hpp"
+#include <folly/String.h>
+#include <boost/beast/http/dynamic_body.hpp>
+#include <boost/beast/http/file_body.hpp>
+#include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/buffer_body.hpp>
+#include <boost/beast/http/parser.hpp>
+#include <boost/beast/core/flat_buffer.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/udp.hpp> 
+#include <boost/container/small_vector.hpp>
+#include <boost/container_hash/hash.hpp>
+#include <nlohmann/json.hpp>
 
 namespace net
 {
-    using namespace core::literals;
+    using core::literals::operator ""_kbyte;
 
     inline constexpr size_t default_max_chunk_size = 128_kbyte;
     inline constexpr size_t default_max_chunk_quantity = 1024;
@@ -132,7 +147,7 @@ struct std::hash<boost::asio::ip::basic_endpoint<Protocal>> final
     using result_type = size_t;
 
     [[nodiscard]] size_t operator()(const argument_type& endpoint) const {
-        size_t seed = 0;
+        size_t seed = 0x790C3D1E;
         if (auto&& address = endpoint.address(); address.is_v4()) {
             boost::hash_combine(seed, address.to_v4().to_uint());
         } else if (address.is_v6()) {

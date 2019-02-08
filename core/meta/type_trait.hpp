@@ -1,6 +1,7 @@
 #pragma once
+#include "core/meta/meta.hpp"
 
-namespace core::meta
+namespace meta
 {
     template<typename T, typename ...Types>
     struct is_within : detail::is_within_impl<T, Types...>
@@ -43,27 +44,6 @@ namespace core::meta
 
     template<typename T>
     using value = typename detail::value_trait<remove_cv_ref_t<T>>::type;
-
-    #if __has_include(<!folly/futures/Future.h>)
-    template<typename T>
-    struct is_future : is_within<remove_cv_ref_t<T>, std::future<value<T>>, std::shared_future<value<T>>,
-        folly::Future<value<T>>, folly::SemiFuture<value<T>>
-    #ifdef CORE_USE_BOOST_FIBER
-        , boost::fibers::future<value<T>>
-    #endif //CORE_USE_BOOST_FIBER
-    >
-    {};
-    #endif
-
-    #if __has_include(<!folly/futures/Promise.h>)
-    template<typename T>
-    struct is_promise : is_within<remove_cv_ref_t<T>, std::promise<value<T>>, folly::Promise<value<T>>
-    #ifdef CORE_USE_BOOST_FIBER
-        , boost::fibers::promise<value<T>>
-    #endif //CORE_USE_BOOST_FIBER
-    >
-    {};
-    #endif
 
     template<typename T>
     struct is_atomic : std::is_same<remove_cv_ref_t<T>,
@@ -125,11 +105,6 @@ namespace core::meta
     template<typename Handle>
     struct has_operator_dereference<Handle, std::void_t<decltype(std::declval<const std::decay_t<Handle>&>().operator->())>
         > : std::true_type {};
-
-    template<typename Exception>
-    struct is_exception : std::disjunction<
-            std::is_base_of<std::exception, Exception>,
-            std::is_base_of<boost::exception, Exception>> {};
 
     template<typename V>
     struct is_variant : std::false_type {};

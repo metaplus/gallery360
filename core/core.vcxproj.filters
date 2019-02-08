@@ -30,9 +30,6 @@
     <ClInclude Include="verify.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="exception.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -51,22 +48,28 @@
     <ClInclude Include="guard.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pch.h">
+    <ClInclude Include="core.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="meta.hpp">
+    <ClInclude Include="spatial.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="meta\exception_trait.hpp">
       <Filter>Header Files\meta</Filter>
     </ClInclude>
-    <ClInclude Include="meta.detail.hpp">
+    <ClInclude Include="meta\function_trait.hpp">
       <Filter>Header Files\meta</Filter>
     </ClInclude>
-    <ClInclude Include="meta.function_trait.hpp">
+    <ClInclude Include="meta\member_function_trait.hpp">
       <Filter>Header Files\meta</Filter>
     </ClInclude>
-    <ClInclude Include="meta.member_function_trait.hpp">
+    <ClInclude Include="meta\type_trait.hpp">
       <Filter>Header Files\meta</Filter>
     </ClInclude>
-    <ClInclude Include="meta.type_trait.hpp">
+    <ClInclude Include="meta\meta.hpp">
       <Filter>Header Files\meta</Filter>
     </ClInclude>
   </ItemGroup>

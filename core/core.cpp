@@ -1,13 +1,19 @@
 #include "stdafx.h"
-#include "core.hpp"
+#include "core.h"
+#include "spatial.hpp"
 #include <absl/time/clock.h>
 #include <absl/time/time.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
+#include <folly/executors/GlobalExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
+#include <folly/Lazy.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <boost/container_hash/hash.hpp>
+#include <fmt/ostream.h>
+#include <execution>
 
 namespace core
 {

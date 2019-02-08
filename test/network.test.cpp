@@ -2,7 +2,6 @@
 #include <fmt/format.h>
 #include <re2/re2.h>
 #include "network/dash.manager.h"
-#include "network/pch.h"
 #include "network/net.h"
 
 namespace net::test

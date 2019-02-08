@@ -1,4 +1,5 @@
 #pragma once
+#include "network/session.server.h"
 
 namespace net::server
 {

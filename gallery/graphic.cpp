@@ -1,7 +1,10 @@
 ﻿#include "stdafx.h"
-#include "multimedia/pch.h"
 #include "graphic.h"
 #include "unity/IUnityGraphicsD3D11.h"
+#include <folly/Conv.h>
+#pragma warning(disable: 4267)
+#include <folly/container/Foreach.h>
+#include <range/v3/view/iota.hpp>
 
 inline namespace plugin
 {

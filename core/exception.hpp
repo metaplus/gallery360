@@ -1,4 +1,9 @@
 #pragma once
+#include <boost/exception/all.hpp>
+#include <boost/stacktrace.hpp>
+#include <boost/system/error_code.hpp>
+#include <boost/type_index.hpp>
+#include "core/meta/exception_trait.hpp"
 
 namespace core
 {
@@ -42,7 +47,7 @@ namespace core
             throw_with_message(fmt::format(format, std::forward<Args>(args)...));
         }
 
-        [[noreturn]] static void throw_with_function(std::string_view function) {
+        [[noreturn]] static void throw_in_function(std::string_view function) {
             if (function.empty()) {
                 throw_directly();
             }

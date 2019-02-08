@@ -1,10 +1,10 @@
 #include "pch.h"
-#include "core/pch.h"
 #include "network/dash.manager.h"
 #include "multimedia/io.segmentor.h"
 #include "gallery/pch.h"
 #include "gallery/database.sqlite.h"
-#include <boost/beast.hpp>
+#include <folly/MoveWrapper.h>
+#include <boost/beast/core/multi_buffer.hpp>
 #include <boost/container/flat_map.hpp>
 #include <objbase.h>
 
@@ -116,11 +116,10 @@ auto plugin_routine = [](std::string url) {
             }
         }
         const auto t1 = watch.elapsed();
-        using core::literals::operator<<;
         XLOG(INFO) << "-- profile parting line\n"
             << "concurrency " << codec_concurrency << "\n"
             << "iteration " << iteration << "\n"
-            << "time " << t1 << "\n"
+            << "time " << t1.count() << "\n"
             << "fps " << iteration / t1.count() << "\n";
         _nativeLibraryRelease();
         EXPECT_GE(iteration, 3714);

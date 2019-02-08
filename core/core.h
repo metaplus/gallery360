@@ -1,4 +1,15 @@
 #pragma once
+#include <folly/executors/ThreadedExecutor.h>
+#include <folly/executors/ThreadPoolExecutor.h>
+#include <folly/futures/Promise.h>
+#include <boost/asio/buffer.hpp>
+#include <spdlog/logger.h>
+#include <ctime>
+#include <filesystem>
+#include <optional>
+#include <type_traits>
+#include <variant>
+#include "core/meta/type_trait.hpp"
 
 namespace core
 {
@@ -70,23 +81,6 @@ namespace core
 
         constexpr size_t operator""_mbyte(const integer_literal n) {
             return n * 1024 * 1024;
-        }
-
-        template <typename Represent, typename Period>
-        std::ostream& operator<<(std::ostream& os, const std::chrono::duration<Represent, Period>& dura) {
-            using namespace std::chrono;
-            return
-                dura < 1us
-                    ? os << duration_cast<duration<double, std::nano>>(dura).count() << "ns"
-                    : dura < 1ms
-                          ? os << duration_cast<duration<double, std::micro>>(dura).count() << "us"
-                          : dura < 1s
-                                ? os << duration_cast<duration<double, std::milli>>(dura).count() << "ms"
-                                : dura < 1min
-                                      ? os << duration_cast<duration<double>>(dura).count() << "s"
-                                      : dura < 1h
-                                            ? os << duration_cast<duration<double, std::ratio<60>>>(dura).count() << "min"
-                                            : os << duration_cast<duration<double, std::ratio<3600>>>(dura).count() << "h";
         }
     }
 
@@ -227,24 +221,4 @@ namespace core
 
     std::shared_ptr<spdlog::logger> make_async_logger(std::string logger_name,
                                                       spdlog::sink_ptr sink);
-
-    struct coordinate
-    {
-        int col = 0;
-        int row = 0;
-
-        bool operator<(const coordinate& that) const;
-        bool operator==(const coordinate& that) const;
-    };
-
-    size_t hash_value(const coordinate& coordinate);
-
-    struct dimension
-    {
-        int width = 0;
-        int height = 0;
-
-        bool operator<(const dimension& that) const;
-        bool operator==(const dimension& that) const;
-    };
 }

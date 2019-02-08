@@ -18,18 +18,15 @@
 
 
 // TODO: reference additional headers your program requires here
-#include "core/pch.h"
-#include "network/pch.h"
-#include "network/session.server.h"
-#include "network/acceptor.h"
+#include "core/config.h"
 
-#pragma comment(lib,"Ws2_32")
-#pragma comment(lib,"Shlwapi")
+#pragma comment(lib,"ws2_32")
+#pragma comment(lib,"shlwapi")
 #endif
 
+#include <fmt/ostream.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include <boost/program_options.hpp>
 
 #ifdef _WIN32
 #include "server/app.h"

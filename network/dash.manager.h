@@ -1,4 +1,9 @@
 #pragma once
+#include "core/spatial.hpp"
+#include <folly/futures/Future.h>
+#include <folly/executors/ThreadPoolExecutor.h>
+#include <boost/beast/core/multi_buffer.hpp>
+#include <spdlog/common.h>
 
 namespace net
 {

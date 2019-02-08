@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "io.segmentor.h"
+#include "context.h"
+#include "core/exception.hpp"
+#include <folly/executors/Async.h>
+#include <optional>
 
 namespace media
 {

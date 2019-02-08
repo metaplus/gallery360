@@ -1,8 +1,13 @@
 #include "stdafx.h"
-#include "network/dash.manager.h"
-#include "multimedia/io.segmentor.h"
 #include "plugin.export.h"
 #include "plugin.context.h"
+#include "network/dash.manager.h"
+#include "multimedia/media.h"
+#include "multimedia/io.segmentor.h"
+#include "core/core.h"
+#include "core/exception.hpp"
+#include <folly/Uri.h>
+#include <folly/executors/ThreadedExecutor.h>
 #include <absl/strings/str_join.h>
 #include <boost/container/small_vector.hpp>
 #include <boost/logic/tribool.hpp>
@@ -14,10 +19,16 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/null_sink.h>
+#include <nlohmann/json.hpp>
+#include <filesystem>
+#include <fstream>
 
 using boost::beast::multi_buffer;
 using boost::logic::tribool;
 using boost::logic::indeterminate;
+#pragma warning(disable: 4455)
+using std::literals::operator ""ms;
+using std::literals::operator ""s;
 
 namespace config
 {
@@ -212,11 +223,6 @@ namespace unity
         tile_stream.index = index;
         tile_stream.coordinate = { col, row };
         tile_stream.offset = { col * tile_scale.width, row * tile_scale.height };
-        if (tex_y && tex_u && tex_v) {
-            tile_stream.texture_array[0] = static_cast<ID3D11Texture2D*>(tex_y);
-            tile_stream.texture_array[1] = static_cast<ID3D11Texture2D*>(tex_u);
-            tile_stream.texture_array[2] = static_cast<ID3D11Texture2D*>(tex_v);
-        }
         auto [iterator, success] = tile_stream_table.emplace_back(std::move(tile_stream));
         assert(success && "tile stream emplace failure");
         if (stream_cache.empty()) {
@@ -280,8 +286,6 @@ namespace unity
     BOOL _nativeDashAvailable() {
         return state::stream::available();
     }
-
-    static_assert(std::is_move_constructible<update_batch::tile_render_context>::value);
 
     BOOL _nativeDashTilePollUpdate(const INT col, const INT row,
                                    const INT64 frame_index, const INT64 batch_index) {
