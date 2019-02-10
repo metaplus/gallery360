@@ -11,6 +11,17 @@
         },
         "Log": null
       }
+    },
+    "Bandwidth": {
+      "Fluctuate": true,
+      "Period": {
+        "Span": 5,
+        "Offset": 0
+      },
+      "Limit": {
+        "Download": 5120,
+        "Upload": 5120
+      }
     }
   }
 }

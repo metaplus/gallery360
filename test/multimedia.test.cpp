@@ -259,9 +259,9 @@ frame_builder create_async_frame_builder(media::pixel_consume& consume) {
     };
 }
 
-namespace media_test
+namespace media::test
 {
-    TEST(Media, Frame) {
+    TEST(Frame, Empty) {
         media::frame f;
         EXPECT_TRUE(f.empty());
         EXPECT_FALSE(f.operator->() == nullptr);
@@ -330,7 +330,7 @@ namespace media::test
                     4
                 };
                 auto width = 0, height = 0;
-                while (segmentor.codec_valid()) {
+                while (segmentor.codec_available()) {
                     auto frames = segmentor.try_consume();
                     count += std::size(frames);
                     for (auto& frame : frames) {

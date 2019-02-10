@@ -72,7 +72,7 @@ namespace media
             media::type::video, concurrency);
     }
 
-    bool frame_segmentor::codec_valid() const noexcept {
+    bool frame_segmentor::codec_available() const noexcept {
         return impl_->codec_context->valid();
     }
 
@@ -92,13 +92,21 @@ namespace media
         return !packet.empty();
     }
 
-    detail::vector<media::frame> frame_segmentor::try_consume() const {
+    vector<frame> frame_segmentor::try_consume(bool drop_packet) const {
         if (impl_->codec_context->valid()) {
+            auto packet = impl_->format_context
+                               ->read(type::video);
+            if (drop_packet) {
+                vector<frame> fake_frames;
+                if (!packet.empty()) {
+                    fake_frames.push_back(frame{ nullptr });
+                }
+                return fake_frames;
+            }
             return impl_->codec_context
-                        ->decode(impl_->format_context
-                                      ->read(media::type::video));
+                        ->decode(std::move(packet));
         }
-        core::stream_drained_error::throw_directly();
+        core::stream_drained_error::throw_in_function(__FUNCTION__);
     }
 
     auto frame_consume(const pixel_consume& consume) {

@@ -1,4 +1,5 @@
 #pragma once
+#include <boost/asio/completion_condition.hpp>
 
 namespace net::detail
 {

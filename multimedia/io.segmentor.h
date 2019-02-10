@@ -44,11 +44,11 @@ namespace media
         explicit operator bool() const;
 
         void parse_context(std::list<detail::const_buffer> buffer_list, unsigned concurrency);
-        bool codec_valid() const noexcept;
+        bool codec_available() const noexcept;
         bool context_valid() const noexcept;
         bool buffer_available() const;
         bool try_read() const;
-        detail::vector<media::frame> try_consume() const;
+        detail::vector<media::frame> try_consume(bool drop_packet = false) const;
         bool try_consume_once(const pixel_consume& pixel_consume) const;
         media::frame try_consume_once() const;
         folly::Future<folly::Function<void()>> defer_consume_once(const pixel_consume& pixel_consume) const;

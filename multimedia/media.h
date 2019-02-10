@@ -78,6 +78,11 @@ namespace media
         void unreference() const;
     };
 
+    static_assert(std::is_nothrow_move_constructible<frame>::value);
+    static_assert(std::is_nothrow_move_constructible<packet>::value);
+    static_assert(std::is_nothrow_move_assignable<frame>::value);
+    static_assert(std::is_nothrow_move_assignable<packet>::value);
+
     struct codec final : std::reference_wrapper<AVCodec>
     {
         using pointer = type *;

@@ -9,9 +9,12 @@
 #include <boost/date_time/posix_time/posix_time_io.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
 #include <boost/date_time/posix_time/time_parsers.hpp>
+#include <boost/exception_ptr.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/process/environment.hpp>
+#include <boost/process/search_path.hpp>
+#include <boost/process/spawn.hpp>
 #include <boost/process/system.hpp>
 #include <folly/functional/Partial.h>
 
@@ -358,5 +361,42 @@ namespace boost::test
             char c[512];
         };
         EXPECT_NO_THROW((container::static_vector<bulk, 1024>{}));
+    }
+
+    TEST(Exception, ExceptionPtr) {
+        static_assert(sizeof boost::exception_ptr == 16);
+        static_assert(sizeof std::exception_ptr == 16);
+        static_assert(std::is_copy_constructible<boost::exception_ptr>::value);
+        static_assert(std::is_copy_constructible<std::exception_ptr>::value);
+        static_assert(std::is_copy_assignable<boost::exception_ptr>::value);
+        static_assert(std::is_copy_assignable<std::exception_ptr>::value);
+        static_assert(std::is_nothrow_move_constructible<boost::exception_ptr>::value);
+        static_assert(std::is_nothrow_move_constructible<std::exception_ptr>::value);
+        static_assert(std::is_nothrow_move_assignable<boost::exception_ptr>::value);
+        static_assert(std::is_nothrow_move_assignable<std::exception_ptr>::value);
+    }
+
+    TEST(Process, Schedule) {
+        auto ls = boost::process::search_path("ls");
+        EXPECT_FALSE(ls.empty());
+        EXPECT_TRUE(is_regular_file(ls));
+        auto r = boost::process::system(ls);
+        EXPECT_EQ(0, r);
+        folly::stop_watch<milliseconds> watch;
+        auto tm = std::chrono::steady_clock::now() + 2s;
+        XLOG(WARN) << "sleep 2 secs";
+        std::thread t{
+            [=] {
+                std::this_thread::sleep_until(tm);
+                auto r = boost::process::system(ls);
+                EXPECT_EQ(0, r);
+                XLOG(INFO) << "sub-process complete";
+            }
+        };
+        std::this_thread::sleep_until(tm - 1s);
+        XLOG(INFO) << "main-process alive";
+        EXPECT_GE(watch.elapsed(), 1s);
+        t.join();
+        EXPECT_GE(watch.elapsed(), 2s);
     }
 }

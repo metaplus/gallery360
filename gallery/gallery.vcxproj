@@ -157,6 +157,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="database.sqlite.h" />
+    <ClInclude Include="plugin.config.h" />
     <ClInclude Include="plugin.context.h" />
     <ClInclude Include="database.leveldb.h" />
     <ClInclude Include="plugin.export.h" />

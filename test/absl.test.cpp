@@ -8,9 +8,9 @@
 #include <absl/time/clock.h>
 #include <absl/time/time.h>
 
-#pragma comment(lib, "absl_based")
-#pragma comment(lib, "absl_typesd")
-#pragma comment(lib, "absl_stringsd")
+//#pragma comment(lib, "absl_based")
+//#pragma comment(lib, "absl_typesd")
+//#pragma comment(lib, "absl_stringsd")
 
 namespace absl::test
 {
@@ -24,6 +24,10 @@ namespace absl::test
     }
 
     TEST(String, Cat) {
+        const std::string s = "123";
+        const auto s2 = StrCat(s, "abc");
+        EXPECT_EQ("123"s, s);
+        EXPECT_EQ("123abc"s, s2);
         XLOG(INFO) << StrCat("trace.", FormatTime("%Y%m%d.%H%M%S", Now(), FixedTimeZone(8 * 60 * 60)));
     }
 

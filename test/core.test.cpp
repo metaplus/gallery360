@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "core/meta/function_trait.hpp"
+#include "core/meta/member_function_trait.hpp"
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/GlobalExecutor.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -60,6 +62,7 @@ namespace core::test
         XLOG(INFO) << core::time_format();
         XLOG(INFO) << core::time_format("%Y%m%d.%H%M%S");
         XLOG(INFO) << core::local_date_time();
+        fmt::print(std::cerr, "time {}\n", 20ms);
     }
 
     TEST(Executor, JoinThreadPoolExecutor) {

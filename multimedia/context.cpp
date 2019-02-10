@@ -2,6 +2,7 @@
 #include "context.h"
 #include "core/core.h"
 #include "core/verify.hpp"
+
 extern "C" {
 #include <libavutil/opt.h>
 }
@@ -133,7 +134,8 @@ namespace media
     packet format_context::read(type media_type) const {
         packet packet;
         auto read_result = 0;
-        while ((read_result = av_read_frame(format_handle_.get(), core::get_pointer(packet))) == 0
+        while ((read_result = av_read_frame(
+                format_handle_.get(), core::get_pointer(packet))) == 0
             && media_type != type::unknown
             && !core::underlying_same(
                 media_type, format_handle_

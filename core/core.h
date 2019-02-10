@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <variant>
 #include "core/meta/type_trait.hpp"
+#include "core/meta/meta.hpp"
 
 namespace core
 {
@@ -150,14 +151,16 @@ namespace core
 
     template <typename T>
     [[nodiscard]] constexpr typename std::remove_const<T>::type&
-    as_mutable(T& object) noexcept {
-        return const_cast<typename std::remove_const<T>::type&>(object);
+    as_mutable(T& reference) noexcept {
+        return const_cast<typename std::remove_const<T>::type&>(reference);
     }
 
-    template <typename T>
-    [[nodiscard]] constexpr T& as_mutable(const T* ptr) noexcept {
-        assert(ptr != nullptr);
-        return const_cast<T&>(*ptr);
+    template <bool ReturnReference = true, typename T>
+    [[nodiscard]] constexpr typename std::conditional<ReturnReference, T&, T*>::type
+    as_mutable(const T* pointer) noexcept {
+        assert(pointer != nullptr);
+        return const_cast<typename
+            std::conditional<ReturnReference, T&, T*>::type>(pointer);
     }
 
     template <typename T>
@@ -209,8 +212,8 @@ namespace core
     std::shared_ptr<folly::ThreadPoolExecutor> make_pool_executor(int concurrency,
                                                                   std::string_view pool_name = "CorePool");
 
-    using logger_access = meta::access_functor<spdlog::logger, true>::type;
-    using logger_process = meta::process_functor<spdlog::logger>::type;
+    using logger_access = meta::accessor<spdlog::logger, true>::type;
+    using logger_process = meta::processor<spdlog::logger>::type;
 
     folly::Function<std::pair<int64_t, logger_access>()>
     console_logger_factory(std::string logger_group, bool null = false);

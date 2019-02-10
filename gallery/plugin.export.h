@@ -2,19 +2,20 @@
 
 namespace unity
 {
-    // Exported c-linkage interface invoked as c# function for Unity extension. Familiar C# CamelCase naming style.
+    //  Exported c-linkage interface invoked as c# function for Unity extensions. 
+    //  Familiar C# CamelCase naming style.
     extern "C" {
 
-    BOOL DLL_EXPORT __stdcall _nativeLoadEnvConfig();
+    BOOL DLL_EXPORT __stdcall _nativeLibraryConfigLoad(LPCSTR mpd_url);
     void DLL_EXPORT __stdcall _nativeLibraryInitialize();
     void DLL_EXPORT __stdcall _nativeLibraryRelease();
-    BOOL DLL_EXPORT __stdcall _nativeTraceEvent(LPSTR instance, LPSTR event);
+    BOOL DLL_EXPORT __stdcall _nativeLibraryTraceEvent(LPCSTR instance, LPCSTR event);
 
     namespace test
     {
-        void DLL_EXPORT __stdcall _nativeMockGraphic();
-        void DLL_EXPORT __stdcall _nativeConfigConcurrency(UINT codec, UINT net = 8);
-        void DLL_EXPORT __stdcall _nativeConcurrencyValue(UINT& codec, UINT& net, UINT& executor);
+        void DLL_EXPORT __stdcall _nativeTestGraphicCreate();
+        void DLL_EXPORT __stdcall _nativeTestConcurrencyStore(UINT codec, UINT net = 8);
+        void DLL_EXPORT __stdcall _nativeTestConcurrencyLoad(UINT& codec, UINT& net, UINT& executor);
         LPSTR DLL_EXPORT __stdcall _nativeTestString();
     }
 

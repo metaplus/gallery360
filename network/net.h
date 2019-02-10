@@ -1,7 +1,7 @@
 #pragma once
 #include "core/core.h"
 #include "core/exception.hpp"
-#include <folly/String.h>
+#include <absl/strings/str_split.h>
 #include <boost/beast/http/dynamic_body.hpp>
 #include <boost/beast/http/file_body.hpp>
 #include <boost/beast/http/empty_body.hpp>
@@ -10,7 +10,7 @@
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ip/udp.hpp> 
+#include <boost/asio/ip/udp.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/container_hash/hash.hpp>
 #include <nlohmann/json.hpp>
@@ -105,10 +105,10 @@ namespace net
     std::string config_xml_entry(std::vector<std::string> entry_path);
     nlohmann::json::reference config_json_entry(std::vector<std::string> entry_path);
 
-    template <typename T>
+    template <typename T = std::string>
     T config_entry(std::string_view entry_name) {
-        std::vector<std::string> entry_path;
-        folly::split('.', entry_name, entry_path);
+        const std::vector<std::string> entry_path =
+            absl::StrSplit(entry_name, '.', absl::SkipWhitespace{});
         return config_json_entry(entry_path).get<T>();
     }
 

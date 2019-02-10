@@ -1,15 +1,18 @@
 #include "pch.h"
 #include "core/exception.hpp"
 #include <folly/dynamic.h>
-#include <folly/MoveWrapper.h>
 #include <folly/executors/Async.h>
-#include <folly/executors/GlobalExecutor.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
+#include <folly/executors/GlobalExecutor.h>
 #include <folly/executors/task_queue/UnboundedBlockingQueue.h>
 #include <folly/futures/FutureSplitter.h>
-#include <folly/Random.h>
 #include <folly/json.h>
+#include <folly/MoveWrapper.h>
+#include <folly/Random.h>
+#include <folly/Singleton.h>
 #include <folly/stop_watch.h>
+#include <folly/synchronization/AtomicNotification.h>
+#include <folly/synchronization/ParkingLot.h>
 #include <boost/beast/core/ostream.hpp>
 #include <boost/beast/core/multi_buffer.hpp>
 
@@ -816,5 +819,126 @@ namespace folly::test
         f = [x = std::vector<int>{ 20 }, y = std::vector<int>{ 20 }] {};
         EXPECT_TRUE(f.operator bool());
         EXPECT_TRUE(f.hasAllocatedMemory());
+    }
+
+    TEST(Singleton, Vivify) {
+        std::string* p = nullptr;
+        bool destruct = false;
+        auto vault = folly::SingletonVault::singleton();
+        EXPECT_EQ(vault->registeredSingletonCount(), 3);
+        EXPECT_EQ(vault->livingSingletonCount(), 0);
+        {
+            folly::Singleton<std::string> s{
+                [&p, &destruct] {
+                    XLOG(INFO) << "construt singleton";
+                    destruct = false;
+                    return p = new std::string{ "123" };
+                },
+                [&destruct](std::string* p) {
+                    XLOG(INFO) << "destruct singleton";
+                    destruct = true;
+                    delete p;
+                }
+            };
+            EXPECT_EQ(vault->registeredSingletonCount(), 4);
+            EXPECT_EQ(vault->livingSingletonCount(), 0);
+            EXPECT_TRUE(p == nullptr);
+            s.vivify();
+            EXPECT_TRUE(p != nullptr);
+            EXPECT_EQ(vault->registeredSingletonCount(), 4);
+            EXPECT_EQ(vault->livingSingletonCount(), 1);
+            p = nullptr;
+            s.vivify();
+            EXPECT_TRUE(p == nullptr);
+            EXPECT_EQ("123"s, s.try_get().operator*());
+            EXPECT_FALSE(destruct);
+        }
+        EXPECT_EQ(vault->registeredSingletonCount(), 4);
+        EXPECT_EQ(vault->livingSingletonCount(), 1);
+        EXPECT_FALSE(destruct);
+        vault->destroyInstances();
+        EXPECT_EQ(vault->registeredSingletonCount(), 4);
+        EXPECT_EQ(vault->livingSingletonCount(), 0);
+        EXPECT_TRUE(destruct);
+        EXPECT_DEATH(folly::Singleton<std::string>{}, "");
+        vault->reenableInstances();
+        EXPECT_EQ("123"s, folly::Singleton<std::string>::try_get().operator*());
+        EXPECT_FALSE(destruct);
+        EXPECT_EQ(vault->registeredSingletonCount(), 4);
+        EXPECT_EQ(vault->livingSingletonCount(), 1);
+    }
+
+    class WaitableMutex : public std::mutex
+    {
+        using Lot = ParkingLot<std::function<bool(void)>>;
+        static Lot lot;
+
+    public:
+        void unlock() {
+            bool unparked = false;
+            lot.unpark(uint64_t(this), [&](std::function<bool(void)> wfunc) {
+                if (wfunc()) {
+                    unparked = true;
+                    return UnparkControl::RemoveBreak;
+                } else {
+                    return UnparkControl::RemoveContinue;
+                }
+            });
+            if (!unparked) {
+                std::mutex::unlock();
+            }
+            // Otherwise, we pass mutex directly to waiter without needing to unlock.
+        }
+
+        template <typename Wait>
+        void wait(Wait wfunc) {
+            lot.park(
+                uint64_t(this),
+                wfunc,
+                [&]() { return !wfunc(); },
+                [&]() { std::mutex::unlock(); });
+        }
+    };
+
+    WaitableMutex::Lot WaitableMutex::lot;
+
+    TEST(ParkingLot, Mutex) {
+        std::atomic<bool> go{ false };
+        WaitableMutex mu;
+        std::thread t([&]() {
+            std::lock_guard<WaitableMutex> g(mu);
+            mu.wait([&]() { return go == true; });
+        });
+        sleep(1);
+        {
+            std::lock_guard<WaitableMutex> g(mu);
+            go = true;
+        }
+        t.join();
+    }
+
+    template <typename Integer>
+    void run_atomic_wait_basic() {
+        auto&& atomic = std::atomic<Integer>{ 0 };
+        auto&& one = std::thread{
+            [&]() {
+                while (true) {
+                    atomic_wait(&atomic, Integer{ 0 });
+                    if (atomic.load() == 1) {
+                        break;
+                    }
+                }
+            }
+        };
+        atomic.store(1);
+        atomic_notify_one(&atomic);
+        one.join();
+    }
+
+    TEST(AtomicNotification, Wait) {
+        run_atomic_wait_basic<std::uint8_t>();
+        run_atomic_wait_basic<std::uint32_t>();
+        run_atomic_wait_basic<std::uint16_t>();
+        run_atomic_wait_basic<std::uint64_t>();
     }
 }

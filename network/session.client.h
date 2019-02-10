@@ -2,6 +2,7 @@
 #include "network/net.h"
 #include "network/session.base.h"
 #include <boost/asio/strand.hpp>
+#include <spdlog/common.h>
 
 namespace net::client
 {

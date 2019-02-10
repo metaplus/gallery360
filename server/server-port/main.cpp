@@ -2,16 +2,17 @@
 #define __cplusplus 201703L
 #endif
 
-#include "core/pch.h"
-#include "core/meta.hpp"
-#include "core/meta.detail.hpp"
-#include "core/meta.type_trait.hpp"
-#include "core/core.hpp"
+#include <numeric>
+#include <atomic>
+
+#include "core/config.h"
+#include "core/meta/type_trait.hpp"
+#include "core/meta/meta.hpp"
+#include "core/core.h"
 #include "core/exception.hpp"
 #include "core/guard.hpp"
 #include "core/core.cpp"
 
-#include "network/pch.h"
 #include "network/net.h"
 #include "network/session.base.h"
 #include "network/session.server.h"
@@ -23,7 +24,7 @@
 #include "server/server.hpp"
 #include "server/app.h"
 #include "server/app.cpp"
-#include "server/option.cpp"
+#include "server/app.option.cpp"
 
 int main(int argc, char* argv[])
 {

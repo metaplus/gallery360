@@ -13,7 +13,9 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <boost/container_hash/hash.hpp>
 #include <fmt/ostream.h>
+#ifndef __linux__
 #include <execution>
+#endif
 
 namespace core
 {

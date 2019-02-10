@@ -21,6 +21,7 @@
 #include <folly/logging/xlog.h>
 #include <folly/stop_watch.h>
 #include <fmt/core.h>
+#include <fmt/chrono.h>
 #include <fmt/ostream.h>
 #include <fstream>
 
