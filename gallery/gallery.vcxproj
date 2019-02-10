@@ -157,6 +157,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="database.sqlite.h" />
+    <ClInclude Include="plugin.config.h" />
     <ClInclude Include="plugin.context.h" />
     <ClInclude Include="database.leveldb.h" />
     <ClInclude Include="plugin.export.h" />
@@ -170,8 +171,6 @@
     <ClInclude Include="unity\IUnityRenderingExtensions.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="database.leveldb.cpp" />
-    <ClCompile Include="database.sqlite.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="graphic.cpp" />
     <ClCompile Include="plugin.cpp" />

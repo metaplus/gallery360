@@ -1,4 +1,15 @@
 #pragma once
+#define __STDC_CONSTANT_MACROS
+#pragma warning(push)
+#pragma warning(disable:4819)
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+}
+#pragma warning(pop)
+
+#include <memory>
+#include <string_view>
 
 namespace media
 {
@@ -66,6 +77,11 @@ namespace media
         std::basic_string_view<uint8_t> buffer() const;
         void unreference() const;
     };
+
+    static_assert(std::is_nothrow_move_constructible<frame>::value);
+    static_assert(std::is_nothrow_move_constructible<packet>::value);
+    static_assert(std::is_nothrow_move_assignable<frame>::value);
+    static_assert(std::is_nothrow_move_assignable<packet>::value);
 
     struct codec final : std::reference_wrapper<AVCodec>
     {

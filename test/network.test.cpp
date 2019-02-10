@@ -2,7 +2,6 @@
 #include <fmt/format.h>
 #include <re2/re2.h>
 #include "network/dash.manager.h"
-#include "network/pch.h"
 #include "network/net.h"
 
 namespace net::test
@@ -49,5 +48,13 @@ namespace net::test
             EXPECT_EQ(33666, port);
             EXPECT_EQ(dir, "D:/Media");
         }
+    }
+
+    TEST(Config, Entry) {
+        EXPECT_EQ(true, net::config_entry<bool>("Net.Bandwidth.Fluctuate"));
+        EXPECT_EQ(5, net::config_entry<int>("Net.Bandwidth.Period.Span"));
+        EXPECT_EQ(0, net::config_entry<int>("Net.Bandwidth.Period.Offset"));
+        EXPECT_EQ(5120, net::config_entry<int>("Net.Bandwidth.Limit.Download"));
+        EXPECT_EQ(5120, net::config_entry<int>("Net.Bandwidth.Limit.Upload"));
     }
 }

@@ -1,4 +1,8 @@
 #pragma once
+#include <folly/Function.h>
+#include <folly/futures/Future.h>
+#include <boost/asio/buffer.hpp>
+#include <boost/container/small_vector.hpp>
 
 namespace media
 {
@@ -35,17 +39,16 @@ namespace media
         frame_segmentor& operator=(frame_segmentor&&) noexcept = default;
         ~frame_segmentor() = default;
 
-        explicit frame_segmentor(std::list<detail::const_buffer> buffer_list,
-                                 unsigned concurrency = std::thread::hardware_concurrency());
+        explicit frame_segmentor(std::list<detail::const_buffer> buffer_list, unsigned concurrency);
 
         explicit operator bool() const;
 
         void parse_context(std::list<detail::const_buffer> buffer_list, unsigned concurrency);
-        bool codec_valid() const noexcept;
+        bool codec_available() const noexcept;
         bool context_valid() const noexcept;
         bool buffer_available() const;
         bool try_read() const;
-        detail::vector<media::frame> try_consume() const;
+        detail::vector<media::frame> try_consume(bool drop_packet = false) const;
         bool try_consume_once(const pixel_consume& pixel_consume) const;
         media::frame try_consume_once() const;
         folly::Future<folly::Function<void()>> defer_consume_once(const pixel_consume& pixel_consume) const;

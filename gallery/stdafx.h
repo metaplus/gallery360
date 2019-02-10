@@ -17,22 +17,11 @@
 
 
 // TODO: reference additional headers your program requires here
-#pragma warning(push)
-#pragma warning(disable:4267)
-#include "core/pch.h"
-#include "multimedia/pch.h"
-#pragma warning(pop)
-
-#include <boost/circular_buffer.hpp>
-#include <range/v3/view/iota.hpp>
-#include <blockingconcurrentqueue.h>
-#include <readerwriterqueue.h>
-#include <fstream>
-
+#include "core/config.h"
 #include "gallery/pch.h"
 
-#pragma comment(lib,"Ws2_32")
-#pragma comment(lib,"Shlwapi")
+#pragma comment(lib,"ws2_32")
+#pragma comment(lib,"shlwapi")
 #pragma comment(lib,"secur32")
 #pragma comment(lib,"crypt32")
 #pragma comment(lib,"bcrypt")

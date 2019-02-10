@@ -67,6 +67,7 @@ namespace nlohmann::test
         }
         {
             auto h = false;
+            EXPECT_THROW(j.at("happy2"), nlohmann::detail::out_of_range);
             EXPECT_NO_THROW(j["happy2"]);
             EXPECT_THROW(j["happy2"].get_to(h), nlohmann::detail::type_error);
             EXPECT_TRUE(j.value("happy", false));

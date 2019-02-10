@@ -1,7 +1,10 @@
 ﻿#include "stdafx.h"
-#include "multimedia/pch.h"
 #include "graphic.h"
 #include "unity/IUnityGraphicsD3D11.h"
+#include <folly/Conv.h>
+#pragma warning(disable: 4267)
+#include <folly/container/Foreach.h>
+#include <range/v3/view/iota.hpp>
 
 inline namespace plugin
 {
@@ -338,7 +341,10 @@ namespace
             graphic_entity.reset();
         }
     }
+}
 
+namespace unity
+{
     void UnityPluginLoad(IUnityInterfaces* unityInterfaces) {
         unity_interface = unityInterfaces;
         unity_graphics = unity_interface->Get<IUnityGraphics>();
@@ -352,10 +358,7 @@ namespace
     void UnityPluginUnload() {
         unity_graphics->UnregisterDeviceEventCallback(on_graphics_device_event);
     }
-}
 
-namespace unity
-{
     void _nativeGraphicSetTextures(HANDLE tex_y, HANDLE tex_u, HANDLE tex_v, BOOL temp) {
         if constexpr (!debug::enable_null_texture) {
             assert(tex_y != nullptr);
@@ -377,7 +380,7 @@ namespace unity
 
     namespace test
     {
-        void _nativeMockGraphic() {
+        void _nativeTestGraphicCreate() {
             graphic_entity.emplace();
             assert(graphic_entity);
         }

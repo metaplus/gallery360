@@ -1,85 +1,91 @@
 #pragma once
-#include "graphic.h"
+#include "core/spatial.hpp"
+#include "multimedia/media.h"
+#include <folly/MPMCQueue.h>
+#include <readerwriterqueue.h>
+#include <bitset>
 
-struct stream_context final
+inline namespace plugin
 {
-    graphic::texture_array texture_array = {};
-    core::dimension offset;
-    int index = 0;
-    core::coordinate coordinate;
-
-    struct decode_event final
+    struct stream_base
     {
-        std::shared_ptr<folly::MPMCQueue<media::frame>> queue;
-        int64_t count = 0;
-    } decode;
+        int index = 0;
+        core::coordinate coordinate;
+        core::dimension offset;
+    };
 
-    struct update_event final
+    struct stream_options final : stream_base
     {
-        int64_t decode_try = 0;
-        int64_t decode_success = 0;
-        int64_t render_finish = 0;
-        std::bitset<3> texture_state{ 0 };
-    } update;
+        size_t decode_capacity = 30;
+        size_t render_capacity = 15;
 
-    struct render_event final
+        stream_options& with_index(int index) {
+            this->index = index;
+            return *this;
+        }
+
+        stream_options& with_coordinate(int col, int row) {
+            this->coordinate = { col, row };
+            return *this;
+        }
+
+        stream_options& with_offset(int width, int height) {
+            this->offset = { width, height };
+            return *this;
+        }
+
+        stream_options& with_capacity(size_t decode, size_t render) {
+            this->decode_capacity = decode;
+            this->render_capacity = render;
+            return *this;
+        }
+    };
+
+    struct stream_context final : stream_base
     {
-        media::frame* frame = nullptr;
-        std::shared_ptr<moodycamel::ReaderWriterQueue<media::frame>> queue;
-        int64_t begin = 0;
-        int64_t end = 0;
-    } render;
+        using decode_frame = std::variant<media::frame, std::exception_ptr>;
+        struct decode_event final
+        {
+            folly::MPMCQueue<decode_frame> queue;
+            int64_t count = 0;
 
-    explicit stream_context(int decode_capacity,
-                            int render_capacity = 15) {
-        decode.queue = std::make_shared<folly::MPMCQueue<media::frame>>(decode_capacity);
-        render.queue = std::make_shared<moodycamel::ReaderWriterQueue<media::frame>>(render_capacity);
-    }
+            explicit decode_event(const size_t capacity)
+                : queue{ capacity } {}
+        } decode;
 
-    stream_context() = delete;
-    stream_context(const stream_context&) = delete;
-    stream_context(stream_context&&) = default;
-    stream_context& operator=(const stream_context&) = delete;
-    stream_context& operator=(stream_context&&) = default;
-    ~stream_context() = default;
-};
+        using update_frame = media::frame;
+        struct update_event final
+        {
+            int64_t decode_try = 0;
+            int64_t decode_success = 0;
+            int64_t render_finish = 0;
+            std::bitset<3> texture_state{ 0 };
+        } update;
+
+        struct render_event final
+        {
+            media::frame* frame = nullptr;
+            moodycamel::ReaderWriterQueue<media::frame> queue;
+            int64_t begin = 0;
+            int64_t end = 0;
+
+            explicit render_event(const size_t capacity)
+                : queue{ capacity } {}
+        } render;
+
+        explicit stream_context(stream_options options)
+            : stream_base{ options.index, options.coordinate, options.offset }
+            , decode{ { options.decode_capacity } }
+            , render{ options.render_capacity } { }
+
+        stream_context() = delete;
+        stream_context(const stream_context&) = delete;
+        stream_context(stream_context&&) = delete;
+        stream_context& operator=(const stream_context&) = delete;
+        stream_context& operator=(stream_context&&) = delete;
+        ~stream_context() = default;
+    };
+}
 
 static_assert(!std::is_copy_constructible<stream_context>::value);
-static_assert(std::is_move_constructible<stream_context>::value);
-
-struct update_batch final
-{
-    struct tile_offset
-    {
-        int width_offset = 0;
-        int height_offset = 0;
-    };
-
-    struct tile_render_context final : tile_offset
-    {
-        media::frame frame{ nullptr };
-        graphic::texture_array* texture_array = nullptr;
-        int64_t frame_index = 0;
-        int64_t batch_index = 0;
-    };
-};
-
-template <typename T>
-class alternate final
-{
-    T value_ = 0;
-    mutable std::optional<T> alternate_;
-
-public:
-    constexpr explicit alternate(T&& value)
-        : value_(std::forward<T>(value)) {}
-
-    constexpr T value() const {
-        return alternate_.value_or(value_);
-    }
-
-    std::optional<T> alter(const T& alter) const {
-        return std::exchange(alternate_,
-                             std::make_optional(alter));
-    }
-};
+static_assert(!std::is_move_constructible<stream_context>::value);

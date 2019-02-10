@@ -1,6 +1,7 @@
 #pragma once
+#include <boost/asio/completion_condition.hpp>
 
-namespace detail
+namespace net::detail
 {
     template <typename Socket, typename Buffer>
     class session_base;

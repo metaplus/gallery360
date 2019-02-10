@@ -1,9 +1,11 @@
 #pragma once
+#include "core/meta/type_trait.hpp"
+#include <folly/Function.h>
 
-namespace core::meta
+namespace meta
 {
     template <typename Callable>
-    struct invoke final
+    struct invoke_expression final
     {
         template <typename ...Types>
         constexpr static std::decay_t<std::invoke_result_t<Callable, Types...>> by(Types ...args) {
@@ -24,7 +26,7 @@ namespace core::meta
         using factor_type = decltype(Factor);
         using value_type = std::common_type_t<decltype(Values)...>;
         static_assert(std::is_invocable_r_v<value_type, BinaryCallable, value_type, factor_type>);
-        return std::integer_sequence<value_type, invoke<BinaryCallable>::by(Values, Factor)...>{};
+        return std::integer_sequence<value_type, invoke_expression<BinaryCallable>::by(Values, Factor)...>{};
     }
 
     template <auto Factor, auto... Values>
@@ -95,27 +97,21 @@ namespace core::meta
         return { static_cast<std::common_type_t<Types...>>(args)... };
     }
 
+    template <typename T, bool Const = false, bool Copyable = false>
+    struct accessor final : type_base<folly::Function<T&()>> {};
     template <typename T>
-    struct type_base
-    {
-        using type = T;
-    };
+    struct accessor<T, true, false> final : type_base<folly::Function<T&() const>> {};
+    template <typename T>
+    struct accessor<T, false, true> final : type_base<std::function<T&()>> {};
+    template <typename T>
+    struct accessor<T, true, true> final : type_base<std::function<T&() const>> {};
 
     template <typename T, bool Const = false, bool Copyable = false>
-    struct access_functor final : type_base<folly::Function<T&()>> {};
+    struct processor final : type_base<folly::Function<void(T&)>> {};
     template <typename T>
-    struct access_functor<T, true, false> final : type_base<folly::Function<T&() const>> {};
+    struct processor<T, true, false> final : type_base<folly::Function<void(T&) const>> {};
     template <typename T>
-    struct access_functor<T, false, true> final : type_base<std::function<T&()>> {};
+    struct processor<T, false, true> final : type_base<std::function<void(T&)>> {};
     template <typename T>
-    struct access_functor<T, true, true> final : type_base<std::function<T&() const>> {};
-
-    template <typename T, bool Const = false, bool Copyable = false>
-    struct process_functor final : type_base<folly::Function<void(T&)>> {};
-    template <typename T>
-    struct process_functor<T, true, false> final : type_base<folly::Function<void(T&) const>> {};
-    template <typename T>
-    struct process_functor<T, false, true> final : type_base<std::function<void(T&)>> {};
-    template <typename T>
-    struct process_functor<T, true, true> final : type_base<std::function<void(T&) const>> {};
+    struct processor<T, true, true> final : type_base<std::function<void(T&) const>> {};
 }

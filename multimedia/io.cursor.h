@@ -1,4 +1,8 @@
 #pragma once
+#include <cstdint>
+#include <folly/Function.h>
+#include <boost/asio/buffer.hpp>
+#include <boost/beast/core/multi_buffer.hpp>
 
 namespace media
 {

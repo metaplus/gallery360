@@ -1,7 +1,11 @@
 #include "stdafx.h"
 #include "dash.protocal.h"
+#include <folly/String.h>
 #include <boost/container/flat_map.hpp>
 #include <re2/re2.h>
+#include <tinyxml2.h>
+#include <execution>
+#include <numeric>
 
 namespace net::protocal
 {

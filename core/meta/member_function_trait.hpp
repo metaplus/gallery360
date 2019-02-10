@@ -1,12 +1,11 @@
 #pragma once
 
-namespace core::meta
+namespace meta
 {
     template <typename Return, typename Object, bool HasConst, typename... Args>
     struct member_function_trait final
     {
         explicit constexpr member_function_trait(Return (Object::*)(Args ...) const) {}
-
         explicit constexpr member_function_trait(Return (Object::*)(Args ...)) {}
 
         using return_type = Return;
@@ -37,8 +36,8 @@ namespace core::meta
         using object_type = typename trait::template object_type;
         using args_tuple = typename trait::template args_tuple;
 #endif
-        template <size_t Index>
-        using nth_arg = std::tuple_element_t<Index, args_tuple>;
+        template <std::size_t Index>
+        using nth_arg = typename std::tuple_element<Index, args_tuple>::type;
 
         static constexpr bool has_args = trait::template has_args;
         static constexpr bool has_const = trait::template has_const;

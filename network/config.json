@@ -5,11 +5,22 @@
       "Port": 33666,
       "Directories": {
         "Root": {
+          "Linux": "/root/Media",
           "Win": "D:/Media",
-          "WSL": "/mnt/d/Media",
-          "Linux": "/mnt/d/Media"
+          "WSL": "/mnt/d/Media"
         },
         "Log": null
+      }
+    },
+    "Bandwidth": {
+      "Fluctuate": true,
+      "Period": {
+        "Span": 5,
+        "Offset": 0
+      },
+      "Limit": {
+        "Download": 5120,
+        "Upload": 5120
       }
     }
   }

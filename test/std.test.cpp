@@ -78,4 +78,8 @@ namespace std::test
         auto i = 0;
         EXPECT_THROW(i = std::get<int>(v), std::bad_variant_access);
     }
+
+    TEST(StringView, Null) {
+        EXPECT_DEATH(std::string_view{ nullptr },"");
+    }
 }

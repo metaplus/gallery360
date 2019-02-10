@@ -1,4 +1,8 @@
 #pragma once
+#include "media.h"
+#include "io.cursor.h"
+#include <boost/container/small_vector.hpp>
+#include <memory>
 
 namespace media
 {
@@ -96,8 +100,8 @@ namespace media
         mutable bool flushed_ = false;
 
     public:
-        codec_context(codec codec, stream stream, unsigned threads = std::thread::hardware_concurrency());
-        codec_context(format_context& format, media::type type, unsigned threads = std::thread::hardware_concurrency());
+        codec_context(codec codec, stream stream, unsigned threads);
+        codec_context(format_context& format, media::type type, unsigned threads);
 
         codec_context() = default;
         codec_context(codec_context const&) = default;

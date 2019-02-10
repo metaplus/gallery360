@@ -1,8 +1,23 @@
 #pragma once
+#include "core/core.h"
+#include "core/exception.hpp"
+#include <absl/strings/str_split.h>
+#include <boost/beast/http/dynamic_body.hpp>
+#include <boost/beast/http/file_body.hpp>
+#include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/buffer_body.hpp>
+#include <boost/beast/http/parser.hpp>
+#include <boost/beast/core/flat_buffer.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/udp.hpp>
+#include <boost/container/small_vector.hpp>
+#include <boost/container_hash/hash.hpp>
+#include <nlohmann/json.hpp>
 
 namespace net
 {
-    using namespace core::literals;
+    using core::literals::operator ""_kbyte;
 
     inline constexpr size_t default_max_chunk_size = 128_kbyte;
     inline constexpr size_t default_max_chunk_quantity = 1024;
@@ -83,15 +98,17 @@ namespace net
         return request;
     }
 
+    struct config_error : core::exception_base<config_error> {};
+
     void add_config_path(std::filesystem::path&& path);
     const std::filesystem::path& config_path(bool json = true) noexcept;
     std::string config_xml_entry(std::vector<std::string> entry_path);
     nlohmann::json::reference config_json_entry(std::vector<std::string> entry_path);
 
-    template <typename T>
+    template <typename T = std::string>
     T config_entry(std::string_view entry_name) {
-        std::vector<std::string> entry_path;
-        folly::split('.', entry_name, entry_path);
+        const std::vector<std::string> entry_path =
+            absl::StrSplit(entry_name, '.', absl::SkipWhitespace{});
         return config_json_entry(entry_path).get<T>();
     }
 
@@ -130,7 +147,7 @@ struct std::hash<boost::asio::ip::basic_endpoint<Protocal>> final
     using result_type = size_t;
 
     [[nodiscard]] size_t operator()(const argument_type& endpoint) const {
-        size_t seed = 0;
+        size_t seed = 0x790C3D1E;
         if (auto&& address = endpoint.address(); address.is_v4()) {
             boost::hash_combine(seed, address.to_v4().to_uint());
         } else if (address.is_v6()) {

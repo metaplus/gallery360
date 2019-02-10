@@ -1,5 +1,10 @@
 #include "stdafx.h"
 #include "command.h"
+#include "media.h"
+#include "context.h"
+#include "core/core.h"
+#include "core/exception.hpp"
+#include "core/verify.hpp"
 #include <boost/process/args.hpp>
 #include <boost/process/exe.hpp>
 #include <boost/process/search_path.hpp>
@@ -7,11 +12,17 @@
 #include <boost/range/adaptor/indexed.hpp>
 #include <tinyxml2.h>
 #include <re2/re2.h>
+#include <fmt/format.h>
+#include <folly/Lazy.h>
+#include <folly/String.h>
+#include <range/v3/view/iota.hpp>
+#include <numeric>
 
 using boost::process::system;
 using boost::process::exe;
 using boost::process::args;
 using boost::adaptors::indexed;
+using namespace std::literals;
 
 auto ffmpeg_path = [] {
     return boost::process::search_path("ffmpeg");

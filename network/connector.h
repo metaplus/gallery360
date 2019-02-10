@@ -1,4 +1,7 @@
 #pragma once
+#include "network/net.h"
+#include "network/session.client.h"
+#include <boost/asio/strand.hpp>
 
 namespace net::client
 {

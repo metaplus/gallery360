@@ -1,5 +1,9 @@
 ﻿#pragma once
+#include "multimedia/media.h"
 #include <d3d11.h>
+#include <boost/circular_buffer.hpp>
+#include <array>
+#include <optional>
 
 inline namespace plugin
 {
@@ -74,5 +78,22 @@ inline namespace plugin
         static void map_texture_data(ID3D11DeviceContext& context,
                                      ID3D11Texture2D* texture,
                                      void* data, size_t size);
+    };
+
+    struct update_batch final
+    {
+        struct tile_offset
+        {
+            int width_offset = 0;
+            int height_offset = 0;
+        };
+
+        struct tile_render_context final : tile_offset
+        {
+            media::frame frame{ nullptr };
+            graphic::texture_array* texture_array = nullptr;
+            int64_t frame_index = 0;
+            int64_t batch_index = 0;
+        };
     };
 }

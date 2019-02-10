@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "session.server.h"
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/http/write.hpp>
+#include <fmt/ostream.h>
 
 namespace net::server
 {
@@ -97,13 +100,13 @@ namespace net::server
             std::string_view shutdown_name;
             switch (shutdown_type) {
                 case boost::asio::socket_base::shutdown_receive:
-                    shutdown_name = "shutdown_receive"sv;
+                    shutdown_name = "shutdown_receive";
                     break;
                 case boost::asio::socket_base::shutdown_send:
-                    shutdown_name = "shutdown_send"sv;
+                    shutdown_name = "shutdown_send";
                     break;
                 case boost::asio::socket_base::shutdown_both:
-                    shutdown_name = "shutdown_both"sv;
+                    shutdown_name = "shutdown_both";
                     break;
             }
             assert(!std::empty(shutdown_name));

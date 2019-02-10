@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "app.h"
 #include <boost/container/flat_map.hpp>
+#include <boost/program_options.hpp>
+#include <folly/Lazy.h>
 
 auto logger = core::console_logger_access("app.options");
 
@@ -17,27 +19,34 @@ struct option_detail final
     boost::program_options::value_semantic* semantic = nullptr;
 };
 
-const boost::container::flat_map<std::string, option_detail> option_details{
-    {
-        "help,h", {
-            "help screen"
+const auto option_details = folly::lazy([] {
+    return boost::container::flat_map<std::string, option_detail>{
+        {
+            "help,h", {
+                "help screen"
+            }
+        },
+        {
+            "config,c", {
+                "directory of config file",
+                boost::program_options::value<std::string>()->notifier(
+                    logged_wrapper(
+                        "config directory",
+                        [](std::string config) {
+                            net::add_config_path(config);
+                        }))
+            }
+        },
+        {
+            "limit,l", {
+                "bandwidth limit capability"
+            }
         }
-    },
-    {
-        "config,c", {
-            "directory of config file",
-            boost::program_options::value<std::string>()->notifier(
-                logged_wrapper(
-                    "config directory",
-                    [](std::string config) {
-                        net::add_config_path(config);
-                    }))
-        }
-    }
-};
+    };
+});
 
 auto iterate_option_details = [](auto process) {
-    for (auto& [option, detail] : option_details) {
+    for (auto& [option, detail] : option_details()) {
         process(option, detail);
     }
 };
@@ -61,6 +70,10 @@ namespace app
         if (options.count("help")) {
             fmt::print("{}", description);
             std::exit(EXIT_SUCCESS);
+        }
+        if (options.count("limit")) {
+            logger().warn("enable bandwidth limit");
+            config::enable_element(config::bandwidth_limit, true);
         }
     }
 }
