@@ -2,6 +2,10 @@
 #include "network/session.server.h"
 #include "network/acceptor.h"
 #include <folly/executors/SerialExecutor.h>
+#ifdef signal_set
+#undef signal_set
+#pragma message("macro conflict: signal_set")
+#endif
 #include <boost/asio/signal_set.hpp>
 
 namespace app
