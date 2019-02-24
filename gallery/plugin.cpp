@@ -265,7 +265,6 @@ namespace unity
             } catch (...) {
                 assert(!"stream_executor catch unexpected exception");
             }
-
         };
     };
 
@@ -352,7 +351,7 @@ namespace unity
     auto config_from_template(const char* mpd_url) {
         const auto valid_url = mpd_url && std::string_view{ mpd_url }.size();
         if (valid_url) {
-            configs().trace.enable = false;
+            configs().trace.enable = true;
             configs().trace.directory = make_log_directory(configs().workset_directory, "TraceTest");
             configs().system.decode.capacity = 30;
             configs().system.decode.enable = false;

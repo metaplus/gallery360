@@ -14,7 +14,7 @@
 
 #include <SDKDDKVer.h>
 
-#pragma warning(disable: 4172 4146 4455)
+#pragma warning(disable: 4172 4146 4455 4244)
 
 #include "core/config.h"
 #include "core/core.h"
