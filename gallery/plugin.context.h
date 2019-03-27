@@ -2,7 +2,7 @@
 #include "core/spatial.hpp"
 #include "multimedia/media.h"
 #include <folly/MPMCQueue.h>
-#include <readerwriterqueue.h>
+#include <readerwriterqueue/readerwriterqueue.h>
 #include <bitset>
 
 inline namespace plugin

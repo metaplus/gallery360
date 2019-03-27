@@ -1,9 +1,6 @@
-#if _WIN32 && __cplusplus < 201703L
-#define __cplusplus 201703L
-#endif
-
 #include <numeric>
 #include <atomic>
+#include <list>
 
 #include "core/config.h"
 #include "core/meta/type_trait.hpp"
@@ -21,8 +18,8 @@
 #include "network/acceptor.cpp"
 #include "network/session.server.cpp"
 
-#include "server/server.hpp"
 #include "server/app.h"
+#include "server/server.hpp"
 #include "server/app.cpp"
 #include "server/app.option.cpp"
 

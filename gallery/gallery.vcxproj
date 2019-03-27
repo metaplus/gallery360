@@ -163,6 +163,7 @@
     <ClInclude Include="plugin.export.h" />
     <ClInclude Include="graphic.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="plugin.util.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="unity\IUnityGraphics.h" />

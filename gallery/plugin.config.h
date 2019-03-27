@@ -15,12 +15,22 @@ inline namespace plugin
         std::filesystem::path workset_directory;
         std::filesystem::path document_path;
         nlohmann::json document;
+        int uri_index = 0;
+
+        struct adaptation
+        {
+            bool enable = true;
+            int algorithm_index = 0;
+            int constant_qp = 22;
+        } adaptation;
+
         struct trace
         {
             std::filesystem::path directory;
             std::string prefix;
             bool enable = false;
         } trace;
+
         struct system
         {
             double predict_degrade_factor = 1;
@@ -72,10 +82,14 @@ inline namespace plugin
     inline void from_json(const nlohmann::json& json, config& config) {
         json.at("TraceEvent").at("NamePrefix").get_to(config.trace.prefix);
         json.at("TraceEvent").at("Enable").get_to(config.trace.enable);
-        const int mpd_uri_index = json.at("Dash").at("UriIndex");
-        const std::string mpd_uri = json.at("Dash").at("Uri").at(mpd_uri_index);
-        config.mpd_uri = folly::Uri{ mpd_uri };
-        config.system.predict_degrade_factor = json.at("System").at("PredictFactor");
-        config.system.decode.capacity = json.at("System").at("DecodeCapacity");
+        json.at("Dash").at("UriIndex").get_to(config.uri_index);
+        json.at("Dash").at("Adaptation").at("Enable").get_to(config.adaptation.enable);
+        json.at("Dash").at("Adaptation").at("AlgorithmIndex").get_to(config.adaptation.algorithm_index);
+        json.at("Dash").at("Adaptation").at("ConstantQP").get_to(config.adaptation.constant_qp);
+        config.mpd_uri = folly::Uri{
+            json.at("Dash").at("Uri").at(config.uri_index).get<std::string>()
+        };
+        json.at("System").at("PredictFactor").get_to(config.system.predict_degrade_factor);
+        json.at("System").at("DecodeCapacity").get_to(config.system.decode.capacity);
     }
 }

@@ -13,6 +13,7 @@ namespace net
         using boost::beast::multi_buffer;
         using trace_callback = std::function<void(std::string_view, std::string)>;
         using predict_callback = std::function<double(int, int)>;
+        using select_callback = std::function<int(int, int)>;
     }
 
     struct buffer_sequence final
@@ -54,6 +55,7 @@ namespace net
         int tile_count() const;
         void trace_by(spdlog::sink_ptr sink) const;
         void predict_by(detail::predict_callback callback) const;
+        void select_by(detail::select_callback callback) const;
         bool available() const;
     };
 }

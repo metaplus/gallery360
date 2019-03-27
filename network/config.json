@@ -15,12 +15,18 @@
     "Bandwidth": {
       "Fluctuate": true,
       "Period": {
-        "Span": 5,
+        "Span": 20,
         "Offset": 0
       },
       "Limit": {
-        "Download": 5120,
-        "Upload": 5120
+        "Download": {
+          "Min": 10000,
+          "Max": 30000
+        },
+        "Upload": {
+          "Min": 10000,
+          "Max": 30000
+        }
       }
     }
   }

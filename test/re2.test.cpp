@@ -5,7 +5,7 @@ using namespace std::literals;
 
 namespace re2::test
 {
-    TEST(Re2, Submatch) {
+    TEST(Match, FullMatch) {
         int i;
         std::string s;
         EXPECT_TRUE(RE2::FullMatch("ruby:1234", "(\\w+):(\\d+)", &s, &i));
@@ -18,6 +18,18 @@ namespace re2::test
         EXPECT_EQ(i, 1234);
         EXPECT_FALSE(RE2::FullMatch("ruby:123456789123", "(\\w+):(\\d+)", &s, &i)); // integer overflow
         EXPECT_TRUE(RE2::FullMatch("TraceDb 2018-12-22 22h29m44s", "TraceDb \\d{4}-\\d{2}-\\d{2} \\d{2}h\\d{2}m\\d{2}s"));
+    }
+
+    TEST(Match, PartialMatch) {
+        auto s = "NewYork_c5r4_qp42_dash11.m4s";
+        auto qp = 0;
+        std::string index;
+        EXPECT_TRUE(RE2::PartialMatch(s, "_qp(\\d{2})_dash(\\w+)\\.", &qp, &index));
+        EXPECT_EQ(qp, 42);
+        EXPECT_EQ(index, "11");
+        qp = 0;
+        EXPECT_TRUE(RE2::PartialMatch(s, "_qp(\\d{2})_", &qp));
+        EXPECT_EQ(qp, 42);
     }
 
     TEST(Re2, PreCompiled) {
@@ -33,7 +45,7 @@ namespace re2::test
 
     TEST(Re2, Option) {
         RE2 re("(ab", RE2::Quiet); // don't write to stderr for parser failure
-        EXPECT_FALSE(re.ok());     // can check re.error() for details
+        EXPECT_FALSE(re.ok()); // can check re.error() for details
     }
 
     TEST(Re2, Replace) {

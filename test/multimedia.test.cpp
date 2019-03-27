@@ -249,7 +249,7 @@ folly::Future<bool> async_consume(media::frame_segmentor& segmentor,
 frame_builder create_async_frame_builder(media::pixel_consume& consume) {
     return [&consume](std::list<const_buffer> buffer_list) -> frame_consumer {
         auto segmentor = folly::makeMoveWrapper(
-            media::frame_segmentor{ std::move(buffer_list),4 });
+            media::frame_segmentor{ std::move(buffer_list), 4 });
         auto decode = folly::makeMoveWrapper(async_consume(*segmentor, consume, true));
         return [segmentor, decode, &consume]() mutable {
             const auto result = std::move(*decode).get();

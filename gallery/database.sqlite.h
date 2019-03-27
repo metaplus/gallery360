@@ -4,7 +4,7 @@
 #include <absl/time/time.h>
 #include <absl/strings/str_join.h>
 #include <blockingconcurrentqueue.h>
-#include <readerwriterqueue.h>
+#include <readerwriterqueue/readerwriterqueue.h>
 #include <optional>
 #include <filesystem>
 

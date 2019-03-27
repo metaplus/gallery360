@@ -2,6 +2,7 @@
 #include "plugin.export.h"
 #include "plugin.config.h"
 #include "plugin.context.h"
+#include "plugin.util.h"
 #include "network/dash.manager.h"
 #include "multimedia/media.h"
 #include "multimedia/io.segmentor.h"
@@ -9,7 +10,6 @@
 #include "core/exception.hpp"
 #include <folly/Uri.h>
 #include <folly/executors/ThreadedExecutor.h>
-#include <absl/strings/str_join.h>
 #include <boost/container/small_vector.hpp>
 #include <boost/logic/tribool.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -64,18 +64,6 @@ inline namespace resource
         core::dimension tile_scale;
         auto tile_count = 0;
     }
-
-    auto cleanup_callback = [](folly::Func callback = nullptr) {
-        static std::vector<folly::Func> callback_list;
-        if (callback) {
-            callback_list.push_back(std::move(callback));
-            return;
-        }
-        for (auto& cleanup : callback_list) {
-            cleanup();
-        }
-        callback_list.clear();
-    };
 }
 
 namespace trace
@@ -125,20 +113,28 @@ auto tile_coordinate = [](int index) constexpr {
     return std::make_pair(x, y);
 };
 
-template <bool IsAnsiStandard = true>
-auto* unmanaged_string(std::string_view string) {
-    if constexpr (IsAnsiStandard) {
-        // allocate ansi string
-        assert(string.size());
-        auto* allocate = reinterpret_cast<LPSTR>(CoTaskMemAlloc(string.size() + 1));
-        *std::copy(string.begin(), string.end(), allocate) = '\0';
-        return allocate;
-    } else {
-        // allocate unicode string
-        return SysAllocStringByteLen(string.data(),
-                                     folly::to<UINT>(string.length()));
-    }
-};
+auto rate_adaptation_algorithms = folly::lazy([] {
+    std::vector<std::function<double(int, int)>> rate_adaptation_list;
+    rate_adaptation_list.push_back([=](const int tile_col,
+                                       const int tile_row) {
+        using description::frame_grid;
+        const auto field_of_view = std::atomic_load(&state::field_of_view);
+        const auto trim_offset = [](const int tile, const int view, const int frame) {
+            const auto offset = std::abs(tile - view);
+            if (offset > frame / 2) {
+                return frame - offset;
+            }
+            return offset;
+        };
+        const auto col_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
+        const auto row_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
+        assert(col_offset >= 0 && row_offset >= 0);
+        /*    return col_offset == 0 && row_offset <= 1
+                || row_offset == 0 && col_offset <= 1;*/
+        return 1.;
+    });
+    return rate_adaptation_list;
+});
 
 namespace unity
 {
@@ -159,27 +155,18 @@ namespace unity
                 sink = std::make_shared<spdlog::sinks::null_sink_st>();
             }
             manager.trace_by(std::move(sink));
-            manager.predict_by([=](const int tile_col,
-                                   const int tile_row) {
-                using description::frame_grid;
-                const auto field_of_view = std::atomic_load(&state::field_of_view);
-                const auto trim_offset = [](const int tile, const int view, const int frame) {
-                    const auto offset = std::abs(tile - view);
-                    if (offset > frame / 2) {
-                        return frame - offset;
-                    }
-                    return offset;
-                };
-                const auto col_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
-                const auto row_offset = trim_offset(tile_col, field_of_view.col, frame_grid.col);
-                assert(col_offset >= 0 && row_offset >= 0);
-                /*    return col_offset == 0 && row_offset <= 1
-                        || row_offset == 0 && col_offset <= 1;*/
-                return 1.;
-            });
+            if (configs().adaptation.enable) {
+                manager.predict_by(
+                    rate_adaptation_algorithms().at(configs().adaptation.algorithm_index));
+            } else {
+                const auto qp = configs().adaptation.constant_qp;
+                manager.select_by([=](int, int) {
+                    return qp;
+                });
+            }
             return manager.request_stream_index();
         });
-        return unmanaged_string(index_url);
+        return util::unmanaged_string(index_url);
     }
 
     BOOL _nativeDashGraphicInfo(INT& col, INT& row,
@@ -335,24 +322,15 @@ namespace unity
         }
 
         LPSTR _nativeTestString() {
-            return unmanaged_string("Hello World Test"s);
+            return util::unmanaged_string("Hello World Test"s);
         }
     }
-
-    auto make_log_directory(const std::filesystem::path& workset,
-                            const std::string& name_prefix) {
-        const auto directory = workset / absl::StrJoin(
-            { name_prefix, core::local_date_time("%Y%m%d.%H%M%S") }, ".");
-        const auto result = create_directories(directory);
-        assert(result && "trace create storage");
-        return directory;
-    };
 
     auto config_from_template(const char* mpd_url) {
         const auto valid_url = mpd_url && std::string_view{ mpd_url }.size();
         if (valid_url) {
             configs().trace.enable = true;
-            configs().trace.directory = make_log_directory(configs().workset_directory, "TraceTest");
+            configs().trace.directory = util::make_log_directory(configs().workset_directory, "TraceTest");
             configs().system.decode.capacity = 30;
             configs().system.decode.enable = false;
             configs().mpd_uri = folly::Uri{ mpd_url }; // exception: std::invalid_argument
@@ -373,7 +351,7 @@ namespace unity
             if (std::ifstream reader{ configs().document_path }; reader >> configs().document) {
                 // exception: nlohmann::detail::out_of_range,  nlohmann::detail::type_error
                 if (configs().document.get_to(configs()); configs().trace.enable) {
-                    configs().trace.directory = make_log_directory(
+                    configs().trace.directory = util::make_log_directory(
                         configs().workset_directory, configs().trace.prefix);
                 }
                 return true;
@@ -429,7 +407,7 @@ namespace unity
         }
         compute_executor = nullptr;
         reset_resource();
-        cleanup_callback();
+        util::cleanup_callback();
     }
 
     BOOL _nativeLibraryTraceEvent(LPCSTR instance, LPCSTR event) {

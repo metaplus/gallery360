@@ -11,9 +11,10 @@ namespace app
         const auto logger = core::console_logger_access("app");
         logger().info("application run");
         try {
-            app::server{}.establish_sessions(
-                core::make_pool_executor(std::thread::hardware_concurrency(),
-                                         "ServerWorker"));
+            app::server{}
+                .parse_bandwidth_limit()
+                .establish_sessions(core::make_pool_executor(
+                    std::thread::hardware_concurrency(), "ServerWorker"));
         } catch (...) {
             logger().error("catch exception \n{}", boost::current_exception_diagnostic_information());
         }
@@ -26,8 +27,10 @@ namespace app
             { config::bandwidth_limit, { boost::indeterminate, "Net.Bandwidth.Fluctuate" } },
             { config::bandwidth_limit_period_span, { boost::indeterminate, "Net.Bandwidth.Period.Span" } },
             { config::bandwidth_limit_period_offset, { boost::indeterminate, "Net.Bandwidth.Period.Offset" } },
-            { config::bandwidth_download_rate, { boost::indeterminate, "Net.Bandwidth.Limit.Download" } },
-            { config::bandwidth_upload_rate, { boost::indeterminate, "Net.Bandwidth.Limit.Upload" } },
+            { config::bandwidth_download_rate_max, { boost::indeterminate, "Net.Bandwidth.Limit.Download.Max" } },
+            { config::bandwidth_download_rate_min, { boost::indeterminate, "Net.Bandwidth.Limit.Download.Min" } },
+            { config::bandwidth_upload_rate_max, { boost::indeterminate, "Net.Bandwidth.Limit.Upload.Max" } },
+            { config::bandwidth_upload_rate_min, { boost::indeterminate, "Net.Bandwidth.Limit.Upload.Min" } },
         };
     });
 
@@ -40,14 +43,9 @@ namespace app
                 return net::config_entry<bool>(entry_name);
             }
             return false;
-        case bandwidth_limit_period_span:
-        case bandwidth_limit_period_offset:
-        case bandwidth_download_rate:
-        case bandwidth_upload_rate:
+        default:
             if (!enabled) return false;
             return net::config_entry<int>(entry_name);
-        default:
-            core::not_implemented_error::throw_directly();
         }
     }
 

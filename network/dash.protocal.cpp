@@ -69,7 +69,7 @@ namespace net::protocal
                         const auto format = [](const char* str) {
                             static const RE2 media_regex{ "\\$Number\\$" };
                             std::string media_url_pattern{ str };
-                            auto replace_success = RE2::Replace(&media_url_pattern, media_regex, "{}");
+                            const auto replace_success = RE2::Replace(&media_url_pattern, media_regex, "{}");
                             assert(replace_success);
                             return media_url_pattern;
                         };
@@ -78,6 +78,8 @@ namespace net::protocal
                         represent.bandwidth = folly::to<int>(element->Attribute("bandwidth"));
                         represent.media = format(element->FirstChildElement("SegmentTemplate")->Attribute("media"));
                         represent.initial = element->FirstChildElement("SegmentTemplate")->Attribute("initialization");
+                        static const RE2 qp_regex{ "_qp(\\d{2})_" };
+                        RE2::PartialMatch(represent.initial, qp_regex, &represent.qp);
                         return represent;
                     });
                 return adaptation_set;

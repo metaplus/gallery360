@@ -1,11 +1,10 @@
 #pragma once
-#include "network/net.h"
 #include "core/spatial.hpp"
+#include "network/net.h"
 #include <folly/futures/FutureSplitter.h>
 
 namespace net::protocal
 {
-
     struct dash final : http
     {
         int64_t last_tile_index = 1;
@@ -14,6 +13,7 @@ namespace net::protocal
         {
             int id = 0;
             int bandwidth = 0;
+            int qp = 0;
             std::string media;
             std::string initial;
             std::optional<
@@ -46,7 +46,7 @@ namespace net::protocal
 
         public:
             explicit parser(std::string_view xml_text,
-                std::shared_ptr<folly::ThreadPoolExecutor> executor);
+                            std::shared_ptr<folly::ThreadPoolExecutor> executor);
             parser(const parser&) = default;
             parser(parser&&) = default;
             parser& operator=(const parser&) = default;

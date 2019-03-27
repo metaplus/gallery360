@@ -62,8 +62,12 @@ namespace net
         std::shared_ptr<spdlog::logger> logger;
         std::shared_ptr<folly::ThreadPoolExecutor> executor;
         int drain_count = 0;
-        detail::predict_callback predict_callback = [](auto, auto) {
-            return folly::Random::randDouble01();
+        std::variant<detail::predict_callback,
+                     detail::select_callback> adaptation_callback{
+            std::in_place_type<detail::predict_callback>,
+            [](int, int) {
+                return folly::Random::randDouble01();
+            }
         };
 
         struct deleter final : std::default_delete<impl>
@@ -79,14 +83,27 @@ namespace net
         }
 
         dash::represent& predict_represent(dash::video_adaptation_set& video_set) {
-            const auto predict_index = [this, &video_set]() {
-                const auto represent_size = std::size(video_set.represents);
-                const auto probability = std::invoke(predict_callback, video_set.col, video_set.row);;
-                const auto predict_index = represent_size * (1 - probability);
-                return std::min(static_cast<size_t>(predict_index),
-                                represent_size - 1);
-            };
-            const auto represent_index = predict_index();
+            size_t represent_index = 0;
+            if (auto* predict = std::get_if<detail::predict_callback>(&adaptation_callback); predict != nullptr) {
+                const auto predict_index = [=, &video_set]() {
+                    const auto represent_size = std::size(video_set.represents);
+                    const auto probability = std::invoke(*predict, video_set.col, video_set.row);
+                    const auto predict_index = represent_size * (1 - probability);
+                    return std::min(static_cast<size_t>(predict_index), represent_size - 1);
+                };
+                represent_index = predict_index();
+            } else {
+                auto* select = std::get_if<detail::select_callback>(&adaptation_callback);
+                const auto select_qp = std::invoke(*select, video_set.col, video_set.row);
+                const auto iterator = std::find_if(
+                    video_set.represents.begin(), video_set.represents.end(),
+                    [select_qp](const dash::represent& represent) {
+                        assert(represent.qp != 0);
+                        return represent.qp == select_qp;
+                    });
+                represent_index = folly::to<int>(
+                    std::distance(video_set.represents.begin(), iterator));
+            }
             auto& represent = video_set.represents.at(represent_index);
             video_set.context->trace.push_back(represent_index);
             video_set.context->trace_index++;
@@ -208,7 +225,13 @@ namespace net
     }
 
     void dash_manager::predict_by(detail::predict_callback callback) const {
-        impl_->predict_callback = std::move(callback);
+        impl_->adaptation_callback
+             .emplace<detail::predict_callback>(std::move(callback));
+    }
+
+    void dash_manager::select_by(detail::select_callback callback) const {
+        impl_->adaptation_callback
+             .emplace<detail::select_callback>(std::move(callback));
     }
 
     folly::Function<folly::SemiFuture<buffer_sequence>()>

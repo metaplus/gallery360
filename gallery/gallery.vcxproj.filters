@@ -57,6 +57,9 @@
     <ClInclude Include="plugin.config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="plugin.util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
