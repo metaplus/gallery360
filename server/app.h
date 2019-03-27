@@ -10,8 +10,10 @@ namespace app
     {
         enum element
         {
-            bandwidth_download_rate,
-            bandwidth_upload_rate,
+            bandwidth_download_rate_max,
+            bandwidth_download_rate_min,
+            bandwidth_upload_rate_max,
+            bandwidth_upload_rate_min,
             bandwidth_limit,
             bandwidth_limit_period_span,
             bandwidth_limit_period_offset,

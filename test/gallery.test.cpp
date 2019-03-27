@@ -12,6 +12,9 @@
 #include <range/v3/view/cartesian_product.hpp>
 #include <range/v3/view/iota.hpp>
 #include <range/v3/action/remove_if.hpp>
+#include <boost/process/environment.hpp>
+#include <re2/re2.h>
+#include <numeric>
 
 using std::chrono::microseconds;
 using std::chrono::milliseconds;
@@ -96,7 +99,7 @@ auto plugin_routine = [](std::string url) {
         auto update_time = std::chrono::steady_clock::now() + 10ms;
         while (available) {
             std::this_thread::sleep_until(update_time);
-            update_time += 20ms;
+            update_time += 11ms;
             stream_cache |= ranges::action::remove_if(
                 [&](void* tile_stream) {
                     const auto poll_success =
@@ -107,7 +110,7 @@ auto plugin_routine = [](std::string url) {
                     return poll_success;
                 });
             if (stream_cache.empty()) {
-                if (++counters.frame % 100 == 0 || counters.frame > 3700) {
+                if (++counters.frame % 100 == 0 || counters.frame > 3714) {
                     XLOG(INFO) << "frame " << counters.frame;
                 }
                 //EXPECT_EQ(counters.tile % 9, 0);
@@ -142,7 +145,137 @@ namespace gallery::test
         }
     }
 
-    TEST(Plugin, PollMockLoop) { }
+    struct log_cache_slot
+    {
+        system_clock::time_point request_time;
+        size_t request_size = 0;
+        size_t io_index = 0;
+        size_t session_index = 0;
+    };
+
+    struct statistic
+    {
+        std::map<double, double> data;
+        double interval = 0;
+
+        static constexpr double mega_scale = 1'000'000;
+
+        statistic(double begin, double end, double interval)
+            : interval{ interval } {
+            for (auto iter = begin; iter <= end; iter += interval) {
+                data[iter] = 0;
+            }
+        }
+
+        void add_record(double begin, double end, double sum) {
+            std::optional<double> time_begin, time_end;
+            for (auto& [time,count] : data) {
+                if (!time_begin.has_value()) {
+                    if (time > begin) {
+                        if (time - interval >= data.begin()->first) time_begin = time - interval;
+                        else time_begin = time;
+                    } else if (time == begin) time_begin = time;
+                } else if (!time_end.has_value()) {
+                    if (time >= end) time_end = time;
+                } else break;
+            }
+            EXPECT_LT(time_begin, time_end);
+            const auto average = sum * interval / (*time_end - *time_begin);
+            for (auto iter = *time_begin; iter < *time_end; iter += interval) {
+                try {
+                    data.at(iter) += average;
+                } catch (...) {
+                    FAIL();
+                }
+            }
+        }
+
+        void remove_record_after(double pos) {
+            while (!data.empty()) {
+                auto largest = data.rbegin();
+                if (largest->first <= pos) return;
+                data.erase(largest.base());
+            }
+        }
+
+        double total(double scale = mega_scale) {
+            double total_count = 0;
+            for (auto& [time, count] : data) {
+                total_count += count;
+            }
+            return total_count / scale;
+        }
+    };
+
+    TEST(ParseLog, NetworkEvent) {
+        const auto workset = boost::this_process::environment()["GWorkSet"].to_string();
+        const auto analyze = std::filesystem::path{ workset }
+            / absl::StrJoin({ "analyze"s, core::local_date_time("%Y%m%d.%H%M%S"), "csv"s }, ".");
+        create_directories(analyze.parent_path());
+        ASSERT_FALSE(workset.empty());
+        const auto trace_test = core::last_write_path_of_directory(workset);
+        ASSERT_TRUE(is_directory(trace_test));
+        const auto network_log = trace_test / "network.log";
+        ASSERT_TRUE(is_regular_file(network_log));
+        std::ifstream reader{ network_log };
+        ASSERT_TRUE(reader.is_open());
+        statistic statistic{ 0, 120, 0.25 };
+        std::string line;
+        size_t total = 0;
+        std::map<int, log_cache_slot> session_io;
+        std::optional<system_clock::time_point> start_time;
+        auto start_time_offset = [&start_time](system_clock::time_point sys_time) {
+            using namespace std::chrono;
+            return duration_cast<duration<double>>(sys_time - *start_time).count();
+        };
+        while (std::getline(reader, line)) {
+            size_t io_index = 0;
+            size_t bytes = 0;
+            if (!RE2::PartialMatch(line, ":index=(\\d+):transfer=(\\d+)", &io_index, &bytes)) continue;
+            total += bytes;
+            std::string time;
+            auto session_index = 0;
+            EXPECT_TRUE(RE2::PartialMatch(line, "\\[(.+)] \\[session\\$(\\d+)]", &time, &session_index));
+            absl::Time t;
+            std::string err;
+            EXPECT_TRUE(absl::ParseTime("%Y-%m-%d %H:%M:%S.%E*f", time, &t, &err));
+            const auto sys_time = ToChronoTime(t);
+            if (!start_time.has_value()) {
+                start_time.emplace(sys_time);
+            }
+            auto& log_slot = session_io[session_index];
+            if (const auto is_request = RE2::PartialMatch(line, "request="); is_request) {
+                EXPECT_EQ(log_slot.request_size, 0);
+                log_slot.request_time = sys_time;
+                log_slot.request_size = bytes;
+                log_slot.session_index = session_index;
+                log_slot.io_index = io_index;
+            } else {
+                EXPECT_NE(log_slot.request_size, 0);
+                EXPECT_EQ(log_slot.io_index, io_index);
+                log_slot.request_size = 0;
+                auto request_time = start_time_offset(log_slot.request_time);
+                auto response_time = start_time_offset(sys_time);
+                auto io_size = bytes + log_slot.request_size;
+                statistic.add_record(request_time, response_time,
+                                     folly::to<double>(io_size) * 8);
+            }
+        }
+        fmt::print("total {} MB\n", statistic.total(8 * 1024 * 1024));
+        std::ofstream csv{ analyze };
+        ASSERT_TRUE(csv.is_open());
+        double window = 1, time_temp = window, count_temp = 0;
+        fmt::print(csv, "{},{}\n", "time", "bandwidth");
+        fmt::print(csv, "{},{}\n", 0, 0);
+        for (auto& [time, count] : statistic.data) {
+            count_temp += count;
+            if (time >= time_temp) {
+                time_temp += window;
+                fmt::print(csv, "{},{}\n", time_temp, count_temp / statistic::mega_scale);
+                count_temp = 0;
+            }
+        }
+    }
 
     TEST(Gallery, Concurrency) {
         unsigned codec = 0, net = 0, executor = 0;

@@ -1,4 +1,5 @@
 #include "pch.h"
+#undef signal_set
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/asio.hpp>
@@ -16,6 +17,7 @@
 #include <boost/process/search_path.hpp>
 #include <boost/process/spawn.hpp>
 #include <boost/process/system.hpp>
+#include <boost/thread/thread.hpp>
 #include <folly/functional/Partial.h>
 
 namespace boost::test
@@ -398,5 +400,22 @@ namespace boost::test
         EXPECT_GE(watch.elapsed(), 1s);
         t.join();
         EXPECT_GE(watch.elapsed(), 2s);
+    }
+
+    TEST(Thread, Interrupt) {
+        folly::stop_watch<> watch;
+        thread t1{ [] {
+            try {
+                this_thread::sleep_for(chrono::seconds{20});
+            } catch (thread_interrupted) {
+                EXPECT_FALSE(this_thread::interruption_requested());
+                return;
+            }
+            FAIL();
+        } };
+        t1.interrupt();
+        EXPECT_TRUE(t1.interruption_requested());
+        t1.join();
+        EXPECT_LT(watch.elapsed(), std::chrono::seconds{ 2 });
     }
 }

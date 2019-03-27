@@ -114,7 +114,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>%(Link.AdditionalLibraryDirectories);/root/vcpkg/installed/x64-linux/lib</AdditionalLibraryDirectories>
-      <LibraryDependencies>stdc++fs;absl_strings;absl_time;absl_numeric;absl_base;fmt;folly;tinyxml2;event;event_core;event_extra;pthread;double-conversion;glog;gflags;boost_system;boost_program_options;boost_context</LibraryDependencies>
+      <LibraryDependencies>stdc++fs;absl_strings;absl_time;absl_numeric;absl_base;fmt;folly;tinyxml2;event;event_core;event_extra;pthread;double-conversion;glog;gflags;boost_system;boost_program_options;boost_context;boost_thread;boost_chrono;boost_filesystem</LibraryDependencies>
       <AdditionalOptions>-Wl,--no-as-needed -ldl %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>

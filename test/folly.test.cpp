@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "core/exception.hpp"
+#include <folly/CancellationToken.h>
 #include <folly/dynamic.h>
 #include <folly/executors/Async.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
@@ -940,5 +941,117 @@ namespace folly::test
         run_atomic_wait_basic<std::uint32_t>();
         run_atomic_wait_basic<std::uint16_t>();
         run_atomic_wait_basic<std::uint64_t>();
+    }
+
+    TEST(CancellationTokenTest, DefaultCancellationTokenIsNotCancellable) {
+        CancellationToken t;
+        EXPECT_FALSE(t.isCancellationRequested());
+        EXPECT_FALSE(t.canBeCancelled());
+        CancellationToken tCopy = t;
+        EXPECT_FALSE(tCopy.isCancellationRequested());
+        EXPECT_FALSE(tCopy.canBeCancelled());
+        CancellationToken tMoved = std::move(t);
+        EXPECT_FALSE(tMoved.isCancellationRequested());
+        EXPECT_FALSE(tMoved.canBeCancelled());
+    }
+
+    TEST(CancellationTokenTest, Polling) {
+        CancellationSource src;
+        EXPECT_FALSE(src.isCancellationRequested());
+        EXPECT_TRUE(src.canBeCancelled());
+        CancellationToken token = src.getToken();
+        EXPECT_FALSE(token.isCancellationRequested());
+        EXPECT_TRUE(token.canBeCancelled());
+        CancellationToken tokenCopy = token;
+        EXPECT_FALSE(tokenCopy.isCancellationRequested());
+        EXPECT_TRUE(tokenCopy.canBeCancelled());
+        src.requestCancellation();
+        EXPECT_TRUE(token.isCancellationRequested());
+        EXPECT_TRUE(tokenCopy.isCancellationRequested());
+    }
+
+    TEST(CancellationTokenTest, MultiThreadedPolling) {
+        CancellationSource src;
+        std::thread t1{ [t = src.getToken()] {
+          while (!t.isCancellationRequested()) {
+            std::this_thread::yield();
+          }
+        } };
+        src.requestCancellation();
+        t1.join();
+    }
+
+    TEST(CancellationTokenTest, TokenIsNotCancellableOnceLastSourceIsDestroyed) {
+        CancellationToken token;
+        {
+            CancellationSource src;
+            token = src.getToken();
+            {
+                CancellationSource srcCopy1;
+                CancellationSource srcCopy2;
+                EXPECT_TRUE(token.canBeCancelled());
+            }
+            EXPECT_TRUE(token.canBeCancelled());
+        }
+        EXPECT_FALSE(token.canBeCancelled());
+    }
+
+    TEST(
+        CancellationTokenTest,
+        TokenRemainsCancellableEvenOnceLastSourceIsDestroyed) {
+        CancellationToken token;
+        {
+            CancellationSource src;
+            token = src.getToken();
+            {
+                CancellationSource srcCopy1;
+                CancellationSource srcCopy2;
+                EXPECT_TRUE(token.canBeCancelled());
+            }
+            EXPECT_TRUE(token.canBeCancelled());
+            src.requestCancellation();
+        }
+        EXPECT_TRUE(token.canBeCancelled());
+        EXPECT_TRUE(token.isCancellationRequested());
+    }
+
+    TEST(CancellationTokenTest, CallbackRegistration) {
+        CancellationSource src;
+        bool callbackExecuted = false;
+        CancellationCallback cb{ src.getToken(), [&] { callbackExecuted = true; } };
+        EXPECT_FALSE(callbackExecuted);
+        src.requestCancellation();
+        EXPECT_TRUE(callbackExecuted);
+    }
+
+    TEST(CancellationTokenTest, CallbackExecutesImmediatelyIfAlreadyCancelled) {
+        CancellationSource src;
+        src.requestCancellation();
+        bool callbackExecuted = false;
+        CancellationCallback cb{ src.getToken(), [&] { callbackExecuted = true; } };
+        EXPECT_TRUE(callbackExecuted);
+    }
+
+    TEST(CancellationTokenTest, CallbackShouldNotBeExecutedMultipleTimes) {
+        CancellationSource src;
+        int callbackExecutionCount = 0;
+        CancellationCallback cb{ src.getToken(), [&] { ++callbackExecutionCount; } };
+        src.requestCancellation();
+        EXPECT_EQ(1, callbackExecutionCount);
+        src.requestCancellation();
+        EXPECT_EQ(1, callbackExecutionCount);
+    }
+
+    TEST(CancellationTokenTest, RegisterMultipleCallbacks) {
+        CancellationSource src;
+        bool executed1 = false;
+        CancellationCallback cb1{ src.getToken(), [&] { executed1 = true; } };
+        bool executed2 = false;
+        CancellationCallback cb2{ src.getToken(), [&] { executed2 = true; } };
+        EXPECT_FALSE(executed1);
+        EXPECT_FALSE(executed2);
+        src.requestCancellation();
+        EXPECT_TRUE(executed1);
+        EXPECT_TRUE(executed2);
     }
 }
