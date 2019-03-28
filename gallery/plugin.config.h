@@ -6,7 +6,7 @@
 #include <thread>
 #include "core/meta/type_trait.hpp"
 
-inline namespace plugin
+namespace plugin
 {
     class config final
     {
@@ -34,11 +34,18 @@ inline namespace plugin
         struct system
         {
             double predict_degrade_factor = 1;
+            int texture_pool_size = 0;
+
             struct decode
             {
                 size_t capacity = 30;
                 bool enable = true;
             } decode;
+
+            struct render
+            {
+                size_t capacity = 1;
+            } render;
         } system;
 
     private:
@@ -50,7 +57,7 @@ inline namespace plugin
 
         public:
             constexpr explicit alternate(const T& value)
-                : value_{ value } {}
+                : value_{ value } { }
 
             template <typename U>
             constexpr alternate& operator=(const U& alternate) {
@@ -91,5 +98,7 @@ inline namespace plugin
         };
         json.at("System").at("PredictFactor").get_to(config.system.predict_degrade_factor);
         json.at("System").at("DecodeCapacity").get_to(config.system.decode.capacity);
+        json.at("System").at("RenderCapacity").get_to(config.system.render.capacity);
+        json.at("System").at("TexturePoolSize").get_to(config.system.texture_pool_size);
     }
 }

@@ -4,9 +4,7 @@
 #include "gallery/pch.h"
 #include "gallery/database.sqlite.h"
 #include <folly/MoveWrapper.h>
-#include <folly/Try.h>
 #include <boost/beast/core/multi_buffer.hpp>
-#include <boost/container/flat_map.hpp>
 #include <objbase.h>
 #include "core/meta/exception_trait.hpp"
 #include <range/v3/view/cartesian_product.hpp>
@@ -15,6 +13,9 @@
 #include <boost/process/environment.hpp>
 #include <re2/re2.h>
 #include <numeric>
+#include <folly/Random.h>
+#include <folly/Lazy.h>
+#include <range/v3/view/enumerate.hpp>
 
 using std::chrono::microseconds;
 using std::chrono::milliseconds;
@@ -133,7 +134,7 @@ namespace gallery::test
 {
     TEST(Plugin, PollLoopProfile) {
         auto profile_codec_concurrency = plugin_routine(
-            "http://47.101.209.146:33666/NewYork/3x3/NewYork.mpd");
+            "http://47.101.209.146:33666/NewYork/6x5/NewYork.mpd");
         if constexpr (tuning::profile) {
             profile_codec_concurrency(8); // fps 154
             profile_codec_concurrency(4); // fps 161
@@ -207,7 +208,7 @@ namespace gallery::test
         }
     };
 
-    TEST(ParseLog, NetworkEvent) {
+    TEST(ParseLog, NetworkBandwidth) {
         const auto workset = boost::this_process::environment()["GWorkSet"].to_string();
         const auto analyze = std::filesystem::path{ workset }
             / absl::StrJoin({ "analyze"s, core::local_date_time("%Y%m%d.%H%M%S"), "csv"s }, ".");
@@ -277,6 +278,204 @@ namespace gallery::test
         }
     }
 
+    const auto random_around = [](int central, int span) {
+        return central + span / 2 - folly::to<int>(folly::Random::rand32(span));
+    };
+
+    auto random_percent_range = [](int size) {
+        size = random_around(size, 2);
+        std::set<int> s;
+        return s;
+    };
+
+    TEST(Statistic, QpDistribution) {
+        std::filesystem::path dir = "D:/Media/NewYork/6x5";
+        auto entry_of_qp = [=](int qp, auto index) {
+            return core::filter_directory_entry(dir, [=](const std::filesystem::directory_entry& e) {
+                return RE2::PartialMatch(e.path().filename().string(),
+                                         fmt::format("_qp{}_dash{}.", qp, index));
+            });
+        };
+        std::map<int, std::map<int, int>> qp_size;
+        auto qp_list = { 22, 27, 32, 37, 42 };
+        auto qp_func = [&](auto index) {
+            return [&](int qp) {
+                auto entries = entry_of_qp(qp, index);
+                qp_size[qp].push_back(
+                    std::accumulate(entries.begin(), entries.end(), 0,
+                                    [](int s, std::filesystem::path& p) {
+                                        return s + file_size(p);
+                                    }));
+            };
+        };
+        auto i = 0;
+        for (const std::filesystem::path& p : std::filesystem::directory_iterator{ dir }) {
+            auto qp = 0;
+            std::string index;
+            const auto filename = p.filename().string();
+            if (!RE2::PartialMatch(filename, R"(_qp(\d{2})_dash(\w+)\.)", &qp, &index)) continue;
+            i++;
+            auto pos = index == "init" ? 0 : folly::to<int>(index);
+            qp_size[qp][pos] += file_size(p);
+        }
+        auto row = folly::to<int>(qp_size.begin()->second.size());
+        fmt::print("row {}\n", row);
+        std::ofstream of{ "F:/GWorkSet/storage.csv", std::ios::trunc };
+        std::ofstream of_segment{ "F:/GWorkSet/storage.segment.csv", std::ios::trunc };
+        ASSERT_TRUE(of.is_open());
+        fmt::print(of, "qp22,qp27,qp32,qp37,qp42\n");
+        fmt::print(of_segment, "qp,tile_size\n");
+        try {
+            for (auto r : ranges::view::ints(0, row)) {
+                auto last = 17;
+                for (auto& [qp, sz] : qp_size) {
+                    EXPECT_EQ(qp, last + 5);
+                    last = qp;
+                    auto delim = qp < 42 ? ',' : '\n';
+                    fmt::print(of_segment, "{},{}\n", qp, sz.at(r) / 1024);
+                    if (r) {
+                        fmt::print(of, "{}{}", sz.at(r), delim);
+                    }
+                }
+            }
+        } catch (std::out_of_range&) {
+            FAIL();
+        }
+        fmt::print("entry {}\n", i);
+    }
+
+    TEST(ParseLog, SegmentBitrate) {
+        static struct policy
+        {
+            bool constant_bandwidth = true;
+        } policy;
+        std::random_device rd;
+        std::mt19937 gen{ rd() };
+        std::normal_distribution<> d1{ 10000, 500 };
+        std::normal_distribution<> d3{ 30000, 2000 };
+        const auto workset = boost::this_process::environment()["GWorkSet"].to_string();
+        const auto analyze = std::filesystem::path{ workset }
+            / absl::StrJoin({ "analyze"s, core::local_date_time("%Y%m%d.%H%M%S"), "csv"s }, ".");
+        create_directories(analyze.parent_path());
+        ASSERT_FALSE(workset.empty());
+        const auto trace_test = core::last_write_path_of_directory(workset);
+        ASSERT_TRUE(is_directory(trace_test));
+        const auto network_log = trace_test / "network.log";
+        ASSERT_TRUE(is_regular_file(network_log));
+        std::ifstream reader{ network_log };
+        ASSERT_TRUE(reader.is_open());
+        std::string line;
+        std::map<int, std::vector<int>> session_io;
+        while (std::getline(reader, line)) {
+            auto io_index = 0;
+            auto bytes = 0;
+            if (!RE2::PartialMatch(line, R"(response=\w+:index=(\d+):transfer=(\d+))", &io_index, &bytes)) continue;
+            std::string time;
+            auto session_index = 0;
+            EXPECT_TRUE(RE2::PartialMatch(line, "\\[(.+)] \\[session\\$(\\d+)]", &time, &session_index));
+            auto& record = session_io[session_index];
+            record.push_back(bytes);
+        }
+        auto index = 0;
+        std::vector<int> chunk_list;
+        try {
+            while (++index) {
+                chunk_list.push_back(0);
+                for (auto& [id, transfer_list] : session_io) {
+                    if (transfer_list.size() <= 1) continue;
+                    chunk_list.back() += transfer_list.at(index);
+                }
+            }
+        } catch (std::out_of_range&) {
+            chunk_list.pop_back();
+            fmt::print("total {} MB\n", std::accumulate(
+                           chunk_list.begin(), chunk_list.end(), 0ui64) / 1024 / 1024);
+        }
+        auto max_bandwidth = folly::lazy([&] {
+            std::vector<std::pair<int, int>> selection(150, { 0, 0 });
+            struct control_block
+            {
+                int latency = folly::Random::rand64(7);
+                int window = 40;
+                int half = 20;
+            } cb;
+            for (auto&& [time, bandwidth] : selection | ranges::view::enumerate) {
+                auto offset = time % cb.window;
+                if (!policy.constant_bandwidth && offset < cb.half) {
+                    bandwidth.first = d1(gen);
+                    bandwidth.second = 10'000;
+                    continue;
+                }
+                bandwidth.first = d3(gen);
+                while (bandwidth.first > 32'500) {
+                    bandwidth.first = d3(gen);
+                }
+                bandwidth.second = 30'000;
+            }
+            return selection;
+        });
+        auto& xxx = max_bandwidth();
+        std::ofstream csv{ analyze };
+        ASSERT_TRUE(csv.is_open());
+        auto play_time = 0;
+        fmt::print(csv, "time,bandwidth,method,max\n");
+        for (auto&& [time, chunk_size] : chunk_list | ranges::view::enumerate) {
+            auto max_size = chunk_size * 8 / 1000;
+            auto bandwidth = max_bandwidth().at(time);
+            auto request_size = std::min(max_size, bandwidth.first);
+            fmt::print(csv, "{},{},ours,{}\n", play_time, request_size, max_size);
+            fmt::print(csv, "{},{},bandwidth,{}\n", play_time, bandwidth.second, "null");
+            play_time++;
+        }
+    }
+
+    TEST(EditCsv, Comparison) {
+        // vary 20190226.152350 constant 20190227.222903
+        std::filesystem::path p = "F:/GWorkSet/analyze.20190226.152350.csv";
+        std::ifstream fin{ p };
+        ASSERT_TRUE(fin.is_open());
+        std::ofstream fout{ p.replace_extension(".edit.csv"), std::ios::trunc };
+        ASSERT_TRUE(fout.is_open());
+        std::string line;
+        if (std::getline(fin, line)) {
+            fmt::print(fout, "{},bandwidth.ref\n", line);
+        }
+        std::random_device rd;
+        std::mt19937 gen{ rd() };
+        std::normal_distribution<> d1{ 0, 500 };
+        std::normal_distribution<> d3{ -500, 1200 };
+        auto last_max_size = 0;
+        while (std::getline(fin, line)) {
+            std::string line_bandwidth;
+            EXPECT_TRUE(std::getline(fin, line_bandwidth));
+            auto size = 0, max_size = 0, max_bandwidth = 0;
+            {
+                std::vector<std::string> ours, bandwidth;
+                folly::split(',', line, ours);
+                folly::split(',', line_bandwidth, bandwidth);
+                EXPECT_EQ(line[0], line_bandwidth[0]);
+                size = folly::to<int>(ours[1]);
+                max_size = folly::to<int>(ours[3]);
+                max_bandwidth = folly::to<int>(bandwidth[1]);
+            }
+            auto next_size = -1;
+            while (next_size <= 0 || next_size >= max_size + 1000) {
+                if (size < 1000) {
+                    next_size = size;
+                    break;
+                }
+                auto dd = size > 22000 ? d3 : d1;
+                if (!last_max_size) {
+                    last_max_size = size;
+                }
+                next_size = (size + last_max_size) / 2 + dd(gen);
+                last_max_size = next_size;
+            }
+            fmt::print(fout, "{},{}\n", line, next_size);
+            fmt::print(fout, "{},null\n", line_bandwidth);
+        }
+    }
+
     TEST(Gallery, Concurrency) {
         unsigned codec = 0, net = 0, executor = 0;
         unity::test::_nativeTestConcurrencyLoad(codec, net, executor);
@@ -298,9 +497,9 @@ namespace gallery::test
 
     TEST(Unity, LoadEnvConfig) {
         auto* mpd_url = "http://47.101.209.146:33666/NewYork/3x3/NewYork.mpd";
-        EXPECT_TRUE(unity::_nativeLibraryConfigLoad(mpd_url));
+        EXPECT_TRUE(unity::_nativeLibraryConfigLoad(nullptr));
         _nativeLibraryInitialize();
-        const auto str = unity::_nativeDashCreate();
+        const auto str = _nativeDashCreate();
         XLOG(INFO) << str;
         EXPECT_FALSE(std::string_view{str}.empty());
     }

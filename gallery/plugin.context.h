@@ -5,7 +5,7 @@
 #include <readerwriterqueue/readerwriterqueue.h>
 #include <bitset>
 
-inline namespace plugin
+namespace plugin
 {
     struct stream_base
     {
@@ -17,7 +17,7 @@ inline namespace plugin
     struct stream_options final : stream_base
     {
         size_t decode_capacity = 30;
-        size_t render_capacity = 15;
+        size_t render_capacity = 1;
 
         stream_options& with_index(int index) {
             this->index = index;
@@ -47,7 +47,7 @@ inline namespace plugin
         struct decode_event final
         {
             folly::MPMCQueue<decode_frame> queue;
-            int64_t count = 0;
+            int64_t enqueue = 0;
 
             explicit decode_event(const size_t capacity)
                 : queue{ capacity } {}
@@ -56,8 +56,8 @@ inline namespace plugin
         using update_frame = media::frame;
         struct update_event final
         {
-            int64_t decode_try = 0;
-            int64_t decode_success = 0;
+            int64_t dequeue_try = 0;
+            int64_t dequeue_success = 0;
             int64_t render_finish = 0;
             std::bitset<3> texture_state{ 0 };
         } update;
@@ -85,7 +85,7 @@ inline namespace plugin
         stream_context& operator=(stream_context&&) = delete;
         ~stream_context() = default;
     };
-}
 
-static_assert(!std::is_copy_constructible<stream_context>::value);
-static_assert(!std::is_move_constructible<stream_context>::value);
+    static_assert(!std::is_copy_constructible<stream_context>::value);
+    static_assert(!std::is_move_constructible<stream_context>::value);
+}
