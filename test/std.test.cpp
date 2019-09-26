@@ -82,4 +82,12 @@ namespace std::test
     TEST(StringView, Null) {
         EXPECT_DEATH(std::string_view{ nullptr },"");
     }
+
+    TEST(StringView, Map) {
+        std::map<std::string_view, int> m;
+        m["123"] = 1;
+        EXPECT_EQ(1, m.count("123"));
+        m["456"] = 2;
+        EXPECT_EQ(2, m.size());
+    }
 }

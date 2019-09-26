@@ -21,3 +21,5 @@
 
 // Folly
 #define GLOG_NO_ABBREVIATED_SEVERITIES
+
+#pragma warning(disable: 4005)

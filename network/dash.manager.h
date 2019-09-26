@@ -4,6 +4,7 @@
 #include <folly/executors/ThreadPoolExecutor.h>
 #include <boost/beast/core/multi_buffer.hpp>
 #include <spdlog/common.h>
+#include <absl/time/time.h>
 
 namespace net
 {
@@ -20,8 +21,9 @@ namespace net
     {
         detail::multi_buffer& initial;
         detail::multi_buffer data;
+        absl::Duration duration;
 
-        buffer_sequence(detail::multi_buffer& initial, detail::multi_buffer&& data);
+        buffer_sequence(detail::multi_buffer& initial, detail::multi_buffer&& data, absl::Duration duration);
         buffer_sequence(buffer_sequence&) = delete;
         buffer_sequence(buffer_sequence&& that) noexcept;
         buffer_sequence& operator=(buffer_sequence&) = delete;

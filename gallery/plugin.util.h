@@ -4,7 +4,6 @@
 #include <absl/strings/str_join.h>
 #include <filesystem>
 #include <OleAuto.h>
-#include <folly/Lazy.h>
 
 namespace util
 {
@@ -31,16 +30,4 @@ namespace util
         assert(result && "trace create storage");
         return directory;
     }
-
-    inline auto cleanup_callback = [](folly::Func callback = nullptr) {
-        static std::vector<folly::Func> callback_list;
-        if (callback) {
-            callback_list.push_back(std::move(callback));
-            return;
-        }
-        for (auto& cleanup : callback_list) {
-            cleanup();
-        }
-        callback_list.clear();
-    };
 }

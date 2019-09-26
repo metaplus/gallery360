@@ -44,9 +44,6 @@
     <ClCompile Include="context.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="command.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="media.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

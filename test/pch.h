@@ -28,11 +28,13 @@
 #define GTEST_LANG_CXX11 1
 #include "gtest/gtest.h"
 
+
 #pragma comment(lib,"ws2_32")
 #pragma comment(lib,"shlwapi")
 #pragma comment(lib,"secur32")
 #pragma comment(lib,"crypt32")
 #pragma comment(lib,"bcrypt")
+#pragma comment(lib,"glog")
 
 using std::chrono::microseconds;
 using std::chrono::milliseconds;

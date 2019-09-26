@@ -57,7 +57,7 @@ namespace core
         }
         return ptr;
     }
-
+    
     template <typename T, typename ...Args>
     std::optional<T>& access(std::optional<T>& option, Args&&... args) {
         return option

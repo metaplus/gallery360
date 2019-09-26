@@ -568,6 +568,13 @@ namespace media::test
         command({ 5, 4 }, { 22, 27, 32, 37, 42 });
     }
 
+    TEST(CommandBatch, NewYorkQpBatch1x1) {
+        auto command = command_qp_batch("F:/Gpac/NewYork.mp4",
+            "F:/Output/",
+            "D:/Media");
+        command({ 1, 1 }, { 22, 27, 32, 37, 42 });
+    }
+
     TEST(CommandBatch, AngelFallsVenezuelaQpBatch) {
         auto command = command_qp_batch("E:/VR/AngelFallsVenezuela7680x3840.mkv",
                                         "F:/Output/",

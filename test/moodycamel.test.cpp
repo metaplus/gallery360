@@ -1,12 +1,13 @@
 #include "pch.h"
-#include <blockingconcurrentqueue.h>
-#include <concurrentqueue.h>
-#include <readerwriterqueue.h>
+#include <concurrentqueue/blockingconcurrentqueue.h>
+#include <concurrentqueue/concurrentqueue.h>
+#include <readerwriterqueue/readerwriterqueue.h>
 
 namespace moodycamel::test
 {
     TEST(ConcurrentQueue, TryEnqueue) {
         ConcurrentQueue<int> q{ 20 };
+
         BlockingConcurrentQueue<int> q2;
         auto count = 0;
         ProducerToken t{ q };

@@ -37,6 +37,7 @@ namespace app
                 int min = 0;
                 int max = 0;
             };
+
             bool enable = false;
             int offset = 0;
             int span = 0;
@@ -46,8 +47,10 @@ namespace app
 
     public:
         struct server_error : virtual core::exception_base<> {};
+
         struct server_directory_error : virtual core::exception_base<server_directory_error>,
                                         virtual server_error {};
+
         struct session_map_error : virtual core::exception_base<session_map_error>,
                                    virtual core::session_error, virtual server_error {};
 
@@ -135,13 +138,14 @@ namespace app
                 logger_().info("port {} listening", port_);
                 auto session_procedure =
                     acceptor_.accept_socket().wait()
-                             .via(pool_executor.get()).thenValue(
+                             .via(pool_executor.get())
+                             .thenValue(
                                  [this](socket_type socket) {
                                      return session_type::create(
                                          std::move(socket), *asio_worker_pool_, directory_);
                                  })
-                             .thenMultiWithExecutor(
-                                 serial_executor.get(),
+                             .via(serial_executor.get())
+                             .thenValue(
                                  [this](session_type::pointer session) {
                                      if (session_map_.empty()) {
                                          logger_().warn("first session encountered");
@@ -158,11 +162,13 @@ namespace app
                                      return folly::collectAllSemiFuture(
                                          iterator->second->process_requests(),
                                          folly::makeSemiFuture(iterator));
-                                 },
+                                 })
+                             .thenValue(
                                  [this](std::tuple<folly::Try<folly::Unit>,
                                                    folly::Try<session_iterator>> tuple) {
                                      auto iterator = std::get<folly::Try<session_iterator>>(tuple).value();
-                                     logger_().warn("erase {} left {}", iterator->second->identity(), session_map_.size() - 1);
+                                     logger_().warn("erase {} left {}", iterator->second->identity(),
+                                                    session_map_.size() - 1);
                                      iterator = session_map_.erase(iterator);
                                      if (!session_map_.empty()) return;
                                      logger_().warn("all session erased");

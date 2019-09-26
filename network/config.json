@@ -13,7 +13,7 @@
       }
     },
     "Bandwidth": {
-      "Fluctuate": true,
+      "Fluctuate": false,
       "Period": {
         "Span": 20,
         "Offset": 0
