@@ -59,6 +59,7 @@ namespace plugin
             int64_t dequeue_try = 0;
             int64_t dequeue_success = 0;
             int64_t render_finish = 0;
+            absl::Time render_time;
             std::bitset<3> texture_state{ 0 };
         } update;
 

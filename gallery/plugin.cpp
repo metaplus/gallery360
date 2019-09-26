@@ -3,11 +3,15 @@
 #include "plugin.config.h"
 #include "plugin.context.h"
 #include "plugin.util.h"
+#include "plugin.logger.h"
 #include "network/dash.manager.h"
 #include "multimedia/media.h"
 #include "multimedia/io.segmentor.h"
 #include "core/core.h"
 #include "core/exception.hpp"
+
+#pragma warning(disable:4722)
+
 #include <folly/Uri.h>
 #include <folly/executors/ThreadedExecutor.h>
 #include <boost/container/small_vector.hpp>
@@ -21,7 +25,6 @@
 #include <fstream>
 #include <folly/Lazy.h>
 #include <fmt/ostream.h>
-#include "plugin.logger.h"
 #include <absl/strings/str_split.h>
 #include <folly/CancellationToken.h>
 
@@ -226,7 +229,8 @@ namespace unity
             try {
                 while (!running_token.isCancellationRequested()) {
                     auto buffer_sequence = std::move(future_buffer).get();
-                    logger->info("stream {} buffer {} available", tile_stream_id, buffer_id);
+                    logger->info("stream {} buffer {} available, download time {} ms",
+                                 tile_stream_id, buffer_id, absl::ToDoubleMilliseconds(buffer_sequence.duration));
                     future_buffer = buffer_streamer();
                     media::frame_segmentor frame_segmentor{
                         core::split_buffer_sequence(buffer_sequence.initial, buffer_sequence.data),
@@ -239,12 +243,14 @@ namespace unity
                     while (frame_segmentor.codec_available()) {
                         auto running = false;
                         auto frame_list = frame_segmentor.try_consume(decode_disable);
-                        logger->info("stream {} decode frame {} of {} available",
-                                     tile_stream_id, tile_stream.decode.enqueue, frame_list.size());
+
                         for (auto& frame : frame_list) {
                             if (!decode_disable) {
                                 assert(frame->width > 200 && frame->height > 100);
                             }
+                            logger->info("stream {} decode frame {} duration {}",
+                                         tile_stream_id, tile_stream.decode.enqueue,
+                                         absl::ToDoubleMilliseconds(frame.process_duration()));
                             logger->info("stream {} decode queue size {} ",
                                          tile_stream_id, tile_stream.decode.queue.size());
                             do {
@@ -431,16 +437,16 @@ namespace unity
             configs->concurrency.executor, "PluginCompute");
         stream_executor = core::make_threaded_executor("PluginSession");
         dash_manager = folly::Future<net::dash_manager>::makeEmpty();
-        auto logger = logger_manager.emplace()
-                                    .enable_log(configs->trace.enable)
-                                    .directory(configs->trace.directory)
-                                    .get(logger_type::plugin);
+        auto plugin_logger = logger_manager.emplace()
+                                           .enable_log(configs->trace.enable)
+                                           .directory(configs->trace.directory)
+                                           .get(logger_type::plugin);
         render_logger = logger_manager->get(logger_type::render);
-        logger->info("event=library.initialize");
-        if (configs) {
-            logger->info("config>>decodeCapacity={},texturePoolSize,mpdUri={}",
-                         configs->system.decode.capacity, configs->system.texture_pool_size,
-                         configs->mpd_uri->str());
+        plugin_logger->info("event=library.initialize");
+        if (configs.has_value()) {
+            plugin_logger->info("config>>decodeCapacity={},texturePoolSize,mpdUri={}",
+                                configs->system.decode.capacity, configs->system.texture_pool_size,
+                                configs->mpd_uri->str());
         }
     }
 
@@ -518,6 +524,7 @@ namespace
                 if (stream.update.texture_state.none()) {
                     assert(planar_index == 0);
                     assert(stream.render.frame == nullptr);
+                    stream.update.render_time = absl::Now();
                     stream.render.frame = stream.render.queue.peek();
                     if (!state::stream::available(stream.render.frame)) {
                         return;
@@ -544,8 +551,10 @@ namespace
                     stream.update.texture_state.reset();
                     stream.render.frame = nullptr;
                     assert(planar_index == 2);
-                    render_logger->info("stream {} end update texture {} planar {}",
-                                        stream_index, stream.update.render_finish, planar_index);
+                    const auto render_duration = absl::Now() - stream.update.render_time;
+                    render_logger->info("stream {} end update texture {} planar {} duration {} us",
+                                        stream_index, stream.update.render_finish, planar_index,
+                                        absl::ToDoubleMicroseconds(render_duration));
                     stream.update.render_finish++;
                 }
                 break;

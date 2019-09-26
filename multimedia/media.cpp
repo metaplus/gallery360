@@ -27,6 +27,14 @@ void media::frame::unreference() const {
     av_frame_unref(handle_.get());
 }
 
+void media::frame::process_duration(const absl::Duration duration) {
+    duration_ = duration;
+}
+
+absl::Duration media::frame::process_duration() const {
+    return duration_;
+}
+
 void media::packet::deleter::operator()(AVPacket* object) const {
     if (object != nullptr) {
         av_packet_free(&object);

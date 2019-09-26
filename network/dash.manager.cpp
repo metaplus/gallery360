@@ -9,6 +9,8 @@
 #include <folly/futures/FutureSplitter.h>
 #include <folly/Random.h>
 #include <folly/Uri.h>
+#include <absl/time/time.h>
+#include <absl/time/clock.h>
 
 using boost::logic::tribool;
 using boost::logic::indeterminate;
@@ -39,13 +41,16 @@ namespace net
 {
     //-- buffer_sequence
     buffer_sequence::buffer_sequence(detail::multi_buffer& initial,
-                                     detail::multi_buffer&& data)
+                                     detail::multi_buffer&& data,
+                                     absl::Duration duration)
         : initial(initial)
-        , data(std::move(data)) {}
+        , data(std::move(data))
+        , duration{ duration } {}
 
     buffer_sequence::buffer_sequence(buffer_sequence&& that) noexcept
         : initial(that.initial)
-        , data(std::move(that.data)) {}
+        , data(std::move(that.data))
+        , duration{ that.duration } {}
 }
 
 namespace net
@@ -176,13 +181,16 @@ namespace net
     folly::Future<dash_manager> dash_manager::request_stream_index() const {
         auto self = std::move(*this);
         return impl_->make_http_session()
-                    .via(impl_->executor.get()).thenMulti(
+                    .via(impl_->executor.get())
+                    .thenValue(
                         [self](http_session_ptr session) mutable {
                             return (self.impl_->manager_client = std::move(session))
                                 ->send_request_for<multi_buffer>(
                                     net::make_http_request<empty_body>(self.impl_->mpd_uri->host(),
                                                                        self.impl_->mpd_uri->path()));
-                        },
+                        })
+                    .via(impl_->executor.get())
+                    .thenValue(
                         [self](multi_buffer&& buffer) {
                             auto mpd_content = buffers_to_string(buffer.data());
                             self.impl_->mpd_parser
@@ -244,18 +252,22 @@ namespace net
             if (video_set.context->drain) {
                 return folly::makeSemiFuture<buffer_sequence>(core::stream_drained_error{});
             }
+            auto request_time = absl::Now();
             auto& represent = impl_->predict_represent(video_set);
             auto initial_segment = impl_->request_initial_if_null(video_set, represent);
             auto tile_segment = impl_->request_send(video_set, represent, false);
             return folly::collectAllSemiFuture(initial_segment, tile_segment)
-                .deferValue([](
+                .deferValue([request_time](
                     std::tuple<
                         folly::Try<std::shared_ptr<multi_buffer>>,
                         folly::Try<multi_buffer>
                     >&& buffer_tuple) {
                         auto& [initial_buffer, data_buffer] = buffer_tuple;
                         data_buffer.throwIfFailed();
-                        return buffer_sequence{ **initial_buffer, std::move(*data_buffer) };
+                        return buffer_sequence{
+                            **initial_buffer, std::move(*data_buffer),
+                            absl::Now() - request_time
+                        };
                     }
                 );
         };

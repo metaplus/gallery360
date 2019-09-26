@@ -10,6 +10,7 @@ extern "C" {
 
 #include <memory>
 #include <string_view>
+#include <absl/time/clock.h>
 
 namespace media
 {
@@ -32,6 +33,7 @@ namespace media
         };
 
         std::unique_ptr<AVFrame, deleter> handle_;
+        absl::Duration duration_;
 
     public:
         frame();
@@ -45,6 +47,8 @@ namespace media
 
         bool empty() const;
         void unreference() const;
+        void process_duration(absl::Duration duration);
+        absl::Duration process_duration() const;
     };
 
     class packet final

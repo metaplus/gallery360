@@ -205,12 +205,15 @@ namespace media
         if constexpr (std::is_same<decltype(full_frames), std::vector<frame>>::value) {
             full_frames.reserve(packets.empty() ? 10 : 1);
         }
+        auto decode_start_time = absl::Now();
         core::verify(avcodec_send_packet(core::get_pointer(codec_handle_),
                                          core::get_pointer(packets)));
         frame temp_frame;
         while (0 == avcodec_receive_frame(core::get_pointer(codec_handle_),
                                           core::get_pointer(temp_frame))) {
+            temp_frame.process_duration(absl::Now() - decode_start_time);
             full_frames.push_back(std::exchange(temp_frame, frame{}));
+            decode_start_time = absl::Now();
         }
         dispose_count_ += full_frames.size();
         return full_frames;

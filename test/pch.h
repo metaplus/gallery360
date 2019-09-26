@@ -34,6 +34,7 @@
 #pragma comment(lib,"secur32")
 #pragma comment(lib,"crypt32")
 #pragma comment(lib,"bcrypt")
+#pragma comment(lib,"glog")
 
 using std::chrono::microseconds;
 using std::chrono::milliseconds;
